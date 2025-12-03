@@ -14,11 +14,14 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
+use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Service\CompressImageService;
 use TYPO3\CMS\Backend\Backend\Event\SystemInformationToolbarCollectorEvent;
 use TYPO3\CMS\Backend\Toolbar\InformationStatus;
 use TYPO3\CMS\Core\Attribute\AsEventListener;
+use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 #[AsEventListener(identifier: 'typo3-image-compression-system-information-toolbar-event')]
 /**
@@ -34,22 +37,53 @@ class SystemInformationToolbar
 
     public function __construct(protected CompressImageService $compressImageService)
     {
-        $this->compressImageService->initAction();
+        $this->extConf = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get(Configuration::EXT_KEY);
     }
 
     public function __invoke(SystemInformationToolbarCollectorEvent $systemInformation): void
     {
+        if (!$this->isEnabled()) {
+            return;
+        }
+
+        if( '' === $this->getApiKey()) {
+            return;
+        }
+
+        \Tinify\setKey($this->getApiKey());
+        \Tinify\validate();
+
         $systemInformation->getToolbarItem()->addSystemInformation(
-            'tinify',
+            'Image Compression',
             $this->getCompressionLimit(),
             'actions-image',
             InformationStatus::OK,
         );
     }
 
-    private function getCompressionLimit(): int
+    private function getCompressionLimit(): string
     {
-        return \Tinify\compressionCount() ?? 0;
+        $this->compressImageService->initAction();
+
+        if (empty(\Tinify\getCompressionCount())) {
+            return '?';
+        }
+
+        if (\Tinify\getCompressionCount() <= 500) {
+            return \Tinify\getCompressionCount() . ' / 500';
+        }
+
+        return \Tinify\getCompressionCount() . ' / ∞';
+    }
+
+    protected function getApiKey(): string
+    {
+        return (string)$this->extConf['apiKey'];
+    }
+
+    protected function isEnabled(): bool
+    {
+        return (bool)$this->extConf['systemInformationToolbar'];
     }
 
     private function getLanguageService(): LanguageService

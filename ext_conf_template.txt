@@ -6,3 +6,6 @@ debug = 0
 
 # cat=basic/enable; type=string; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:excludeFolders
 excludeFolders =
+
+# cat=basic/enable; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:systemInformationToolbar
+systemInformationToolbar = 1
