@@ -10,7 +10,7 @@
  */
 
 $EM_CONF[$_EXTKEY] = [
-    'title' => 'Login Warning',
+    'title' => 'TYPO3 Image Compression',
     'description' => '',
     'category' => 'be',
     'author' => 'Konrad Michalik',
