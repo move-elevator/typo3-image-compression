@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Command;
 
+use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
 use MoveElevator\Typo3ImageCompression\Service\CompressImageService;
@@ -25,7 +26,6 @@ use Symfony\Component\Console\Output\OutputInterface;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Exception\NoSuchCacheGroupException;
 use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException, ExtensionConfigurationPathDoesNotExistException};
-use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent;
@@ -39,10 +39,6 @@ use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
 use function count;
 use function in_array;
 
-#[AsCommand(
-    name: 'site:compressImages',
-    description: 'Compress uncompressed images',
-)]
 /**
  * CompressImageCommand.
  *
@@ -50,24 +46,13 @@ use function in_array;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
+#[AsCommand(
+    name: 'site:compressImages',
+    description: 'Compress uncompressed images',
+)]
 final class CompressImageCommand extends Command
 {
     private const DEFAULT_LIMIT_TO_PROCESS = 100;
-
-    /**
-     * @var string[]
-     */
-    private array $settings = [];
-
-    /**
-     * @var string[]
-     */
-    private array $allowedMimeTypes = [
-        'image/avif',
-        'image/jpeg',
-        'image/png',
-        'image/webp',
-    ];
 
     public function __construct(
         private readonly FileStorageRepository $fileStorageRepository,
@@ -77,6 +62,7 @@ final class CompressImageCommand extends Command
         private readonly CompressImageService $compressImageService,
         private readonly StorageRepository $storageRepository,
         private readonly LoggerInterface $logger,
+        private readonly ExtensionConfiguration $extensionConfiguration,
         ?string $name = null,
     ) {
         parent::__construct($name);
@@ -105,7 +91,6 @@ final class CompressImageCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $limit = (int) $input->getArgument('limit');
-        $this->settings = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('typo3_image_compression');
 
         $filesProcessed = $this->fileProcessedRepository->findAllNonCompressed(limit: $limit);
         if ([] !== $filesProcessed) {
@@ -118,7 +103,7 @@ final class CompressImageCommand extends Command
         if (0 !== $limit) {
             /** @var FileStorage $fileStorage */
             foreach ($this->fileStorageRepository->findAll() as $fileStorage) {
-                $excludeFolders = GeneralUtility::trimExplode(',', $this->settings['excludeFolders'] ?? '', true);
+                $excludeFolders = $this->extensionConfiguration->getExcludeFolders();
                 $files = $this->fileRepository->findAllNonCompressedInStorageWithLimit(
                     $fileStorage,
                     $limit,
@@ -162,7 +147,7 @@ final class CompressImageCommand extends Command
     private function compressProcessedImages(array $files): void
     {
         $publicUrl = Environment::getPublicPath().'/';
-        \Tinify\setKey($this->settings['apiKey']);
+        \Tinify\setKey($this->extensionConfiguration->getApiKey());
 
         foreach ($files as $file) {
             $fileId = $file['uid'];
@@ -180,7 +165,7 @@ final class CompressImageCommand extends Command
                 continue;
             }
 
-            if (false === in_array(mime_content_type($filePath), $this->allowedMimeTypes, true)) {
+            if (false === in_array(mime_content_type($filePath), $this->extensionConfiguration->getMimeTypes(), true)) {
                 continue;
             }
 

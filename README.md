@@ -16,25 +16,23 @@
 > [!NOTE]
 > This extension is a fork of the original extension [tinyimg](https://github.com/schmitzal/tinyimg).
 
-## About
 
-This TYPO3 extension automatically compresses PNG and JPG images uploaded to the TYPO3 backend using the [TinyPNG API](https://tinypng.com/). The compression can reduce file sizes by up to 80% while maintaining excellent image quality.
+This TYPO3 extension automatically compresses images uploaded to the TYPO3 backend using the [TinyPNG API](https://tinypng.com/). The compression can reduce file sizes by up to 80% while maintaining excellent image quality.
 
-### Features
+## Features
 
-- Automatic compression of JPG and PNG images on upload
+- Automatic compression of JPG, PNG, AVIF and WebP images on upload
 - Uses TinyPNG's powerful compression API
 - CLI command for batch processing existing images
 - Configurable via extension settings
+- Image compression statistic in the system information toolbar
 
-## Installation
+## 🔥 Installation
 
 ### Requirements
 
-| Requirement | Version |
-|-------------|---------|
-| TYPO3       | >= 12.4 |
-| PHP         | >= 8.2  |
+* TYPO3 >= 12.4
+* PHP 8.2+
 
 ### Composer
 
@@ -52,7 +50,7 @@ composer require move-elevator/typo3-image-compression
 
 Download the zip file from [TYPO3 extension repository (TER)](https://extensions.typo3.org/extension/typo3_image_compression).
 
-## Configuration
+## 🧰 Configuration
 
 1. **Get an API key**: Register at [TinyPNG Developers](https://tinypng.com/developers) to obtain your API key
 2. **Configure the extension**: Enter your API key in the extension settings (Admin Tools > Settings > Extension Configuration)
@@ -69,7 +67,7 @@ The free TinyPNG tier includes **500 compressions per month**. For higher volume
 
 ### Automatic Compression
 
-Once configured, all JPG and PNG images uploaded via the TYPO3 backend will be automatically compressed.
+Once configured, all images (with supported mime type) uploaded via the TYPO3 backend will be automatically compressed.
 
 ### Batch Processing (CLI)
 

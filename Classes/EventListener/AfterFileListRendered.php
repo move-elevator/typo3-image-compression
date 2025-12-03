@@ -18,7 +18,6 @@ use TYPO3\CMS\Core\Attribute\AsEventListener;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Filelist\Event\ProcessFileListActionsEvent;
 
-#[AsEventListener(identifier: 'typo3-image-compression-after-backend-page-renderer-event')]
 /**
  * AfterFileListRendered.
  *
@@ -26,6 +25,7 @@ use TYPO3\CMS\Filelist\Event\ProcessFileListActionsEvent;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
+#[AsEventListener(identifier: 'typo3-image-compression-after-backend-page-renderer-event')]
 final readonly class AfterFileListRendered
 {
     public function __construct(

@@ -14,13 +14,12 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
-use MoveElevator\Typo3ImageCompression\Service\CompressImageService;
+use MoveElevator\Typo3ImageCompression\Configuration;
 use TYPO3\CMS\Backend\Backend\Event\SystemInformationToolbarCollectorEvent;
 use TYPO3\CMS\Backend\Toolbar\InformationStatus;
 use TYPO3\CMS\Core\Attribute\AsEventListener;
 use TYPO3\CMS\Core\Localization\LanguageService;
 
-#[AsEventListener(identifier: 'typo3-image-compression-system-information-toolbar-event')]
 /**
  * SystemInformationToolbar.
  *
@@ -28,28 +27,48 @@ use TYPO3\CMS\Core\Localization\LanguageService;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
+#[AsEventListener(identifier: 'typo3-image-compression-system-information-toolbar-event')]
 class SystemInformationToolbar
 {
     protected array $extConf = [];
 
-    public function __construct(protected CompressImageService $compressImageService)
-    {
-        $this->compressImageService->initAction();
-    }
+    public function __construct(
+        protected Configuration\ExtensionConfiguration $extensionConfiguration,
+    ) {}
 
     public function __invoke(SystemInformationToolbarCollectorEvent $systemInformation): void
     {
+        if (!$this->extensionConfiguration->isSystemInformationToolbar()) {
+            return;
+        }
+
+        if ('' === $this->extensionConfiguration->getApiKey()) {
+            return;
+        }
+
+        \Tinify\setKey($this->extensionConfiguration->getApiKey());
+        \Tinify\validate();
+
         $systemInformation->getToolbarItem()->addSystemInformation(
-            'tinify',
+            $this->getLanguageService()->sL('LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:label'),
             $this->getCompressionLimit(),
             'actions-image',
             InformationStatus::OK,
         );
     }
 
-    private function getCompressionLimit(): int
+    private function getCompressionLimit(): string
     {
-        return \Tinify\compressionCount() ?? 0;
+        $compressionCount = \Tinify\getCompressionCount();
+        if (null === $compressionCount || 0 === $compressionCount) {
+            return '?';
+        }
+
+        if ($compressionCount <= 500) {
+            return $compressionCount.' / 500';
+        }
+
+        return $compressionCount.' / ∞';
     }
 
     private function getLanguageService(): LanguageService

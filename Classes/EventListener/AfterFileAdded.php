@@ -20,7 +20,6 @@ use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Resource\Event\AfterFileAddedEvent;
 use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, UnknownObjectException};
 
-#[AsEventListener(identifier: 'typo3-image-compression-after-file-added-event')]
 /**
  * AfterFileAdded.
  *
@@ -28,6 +27,7 @@ use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, Unknown
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
+#[AsEventListener(identifier: 'typo3-image-compression-after-file-added-event')]
 final readonly class AfterFileAdded
 {
     public function __construct(private CompressImageService $compressImageService) {}
