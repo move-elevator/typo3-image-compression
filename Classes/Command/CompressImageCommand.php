@@ -18,25 +18,22 @@ use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
 use MoveElevator\Typo3ImageCompression\Service\CompressImageService;
-use Psr\Log\{LogLevel, LoggerInterface};
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\{InputArgument, InputInterface};
 use Symfony\Component\Console\Output\OutputInterface;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Exception\NoSuchCacheGroupException;
 use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException, ExtensionConfigurationPathDoesNotExistException};
-use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent;
 use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
 use TYPO3\CMS\Core\Resource\Processing\FileDeletionAspect;
-use TYPO3\CMS\Core\Resource\{ResourceFactory, ResourceStorage, StorageRepository};
+use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, InvalidQueryException, UnknownObjectException};
 use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
 
 use function count;
-use function in_array;
 
 /**
  * CompressImageCommand.
@@ -55,8 +52,6 @@ final class CompressImageCommand extends Command
         private readonly FileProcessedRepository $fileProcessedRepository,
         private readonly ResourceFactory $resourceFactory,
         private readonly CompressImageService $compressImageService,
-        private readonly StorageRepository $storageRepository,
-        private readonly LoggerInterface $logger,
         private readonly ExtensionConfiguration $extensionConfiguration,
         ?string $name = null,
     ) {
@@ -86,12 +81,12 @@ final class CompressImageCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $limit = (int) $input->getArgument('limit');
-
         $filesProcessed = $this->fileProcessedRepository->findAllNonCompressed(limit: $limit);
+
         if ([] !== $filesProcessed) {
             $limit -= count($filesProcessed);
 
-            $this->compressProcessedImages($filesProcessed);
+            $this->compressImageService->compressProcessedFiles($filesProcessed);
             $this->clearPageCache();
         }
 
@@ -129,50 +124,10 @@ final class CompressImageCommand extends Command
 
         foreach ($files as $file) {
             $file = $this->resourceFactory->getFileObject($file->getUid());
-            $this->compressImageService->initializeCompression($file);
+            $this->compressImageService->compress($file);
             $fileDeletionAspect->cleanupProcessedFilesPostFileReplace(
                 new AfterFileReplacedEvent($file, ''),
             );
-        }
-    }
-
-    /**
-     * @param mixed[] $files
-     */
-    private function compressProcessedImages(array $files): void
-    {
-        $publicUrl = Environment::getPublicPath().'/';
-        \Tinify\setKey($this->extensionConfiguration->getApiKey());
-
-        foreach ($files as $file) {
-            $fileId = $file['uid'];
-            $fileStorageId = $this->fileProcessedRepository->findStorageId($fileId);
-
-            if (0 === $fileStorageId) {
-                continue;
-            }
-
-            /** @var ResourceStorage $storage */
-            $storage = $this->storageRepository->getStorageObject($fileStorageId);
-            $filePath = $publicUrl.($storage->getConfiguration()['basePath'] ?? '').urldecode((string) $file['identifier']);
-
-            if (false === file_exists($filePath)) {
-                continue;
-            }
-
-            if (false === in_array(mime_content_type($filePath), $this->extensionConfiguration->getMimeTypes(), true)) {
-                continue;
-            }
-
-            try {
-                $source = \Tinify\fromFile($filePath);
-
-                if (false !== $source->toFile($filePath)) {
-                    $this->fileProcessedRepository->updateCompressState($fileId);
-                }
-            } catch (\Exception $e) {
-                $this->logger->log(LogLevel::ERROR, $e->getMessage(), ['filePath' => $filePath]);
-            }
         }
     }
 

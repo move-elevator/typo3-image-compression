@@ -39,5 +39,5 @@ services:
   MoveElevator\Typo3ImageCompression\Command\CompressImageCommand:
     tags:
       - name: console.command
-        command: site:compressImages
+        command: imagecompression:compressImages
         description: Compress uncompressed images

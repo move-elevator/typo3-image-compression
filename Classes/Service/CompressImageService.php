@@ -16,13 +16,13 @@ namespace MoveElevator\Typo3ImageCompression\Service;
 
 use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
-use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
+use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileRepository, FileProcessedRepository};
 use RuntimeException;
 use SplFileObject;
 use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException,
     ExtensionConfigurationPathDoesNotExistException};
 use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Core\{Exception, SingletonInterface};
+use TYPO3\CMS\Core\{Exception, Resource\ResourceStorage, Resource\StorageRepository, SingletonInterface};
 use TYPO3\CMS\Core\Messaging\{FlashMessage, FlashMessageService};
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\Index\Indexer;
@@ -43,12 +43,12 @@ use function in_array;
  */
 class CompressImageService implements SingletonInterface
 {
-    protected array $extConf = [];
-
     public function __construct(
         protected FileRepository $fileRepository,
+        protected FileProcessedRepository $fileProcessedRepository,
         protected PersistenceManager $persistenceManager,
         protected ExtensionConfiguration $extensionConfiguration,
+        protected StorageRepository $storageRepository,
     ) {}
 
     /**
@@ -70,7 +70,7 @@ class CompressImageService implements SingletonInterface
      * @throws UnknownObjectException
      * @throws Exception
      */
-    public function initializeCompression(File $file): void
+    public function compress(File $file): void
     {
         $this->initAction();
 
@@ -116,6 +116,56 @@ class CompressImageService implements SingletonInterface
             }
         } else {
             $this->addMessageToFlashMessageQueue('debugMode', [], ContextualFeedbackSeverity::INFO);
+        }
+    }
+
+    /**
+     * @param mixed[] $files
+     */
+    public function compressProcessedFiles(array $files): void
+    {
+        $this->initAction();
+
+        foreach ($files as $file) {
+            $fileId = $file['uid'];
+            $fileStorageId = $this->fileProcessedRepository->findStorageId($fileId);
+
+            if (0 === $fileStorageId) {
+                $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file storage not found');
+                continue;
+            }
+
+            /** @var ResourceStorage $storage */
+            $storage = $this->storageRepository->getStorageObject($fileStorageId);
+            $filePath = $this->getPublicPath() . ($storage->getConfiguration()['basePath'] ?? '') . urldecode($file['identifier']);
+
+            if (false === file_exists($filePath)) {
+                $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file not found');
+                continue;
+            }
+
+            if (0 === (int) filesize($filePath)) {
+                $this->fileProcessedRepository->updateCompressState($fileId, 0, 'filesize invalid');
+                continue;
+            }
+
+            if (false === in_array(mime_content_type($filePath), $this->extensionConfiguration->getMimeTypes(), true)) {
+                continue;
+            }
+
+            try {
+                $source = \Tinify\fromFile($filePath);
+
+                if (false !== $source->toFile($filePath)) {
+                    $this->fileProcessedRepository->updateCompressState($fileId);
+                }
+            } catch (\Exception $e) {
+                $this->addMessageToFlashMessageQueue(
+                    'compressionFailed',
+                    [0 => $e->getMessage()],
+                    ContextualFeedbackSeverity::WARNING,
+                );
+            }
         }
     }
 

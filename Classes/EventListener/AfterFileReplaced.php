@@ -37,7 +37,7 @@ final readonly class AfterFileReplaced
      */
     public function __invoke(AfterFileReplacedEvent $event): AfterFileReplacedEvent
     {
-        $this->compressImageService->initializeCompression($event->getFile());
+        $this->compressImageService->compress($event->getFile());
 
         return $event;
     }

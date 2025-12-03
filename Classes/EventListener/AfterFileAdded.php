@@ -37,7 +37,7 @@ final readonly class AfterFileAdded
      */
     public function __invoke(AfterFileAddedEvent $event): AfterFileAddedEvent
     {
-        $this->compressImageService->initializeCompression($event->getFile());
+        $this->compressImageService->compress($event->getFile());
 
         return $event;
     }

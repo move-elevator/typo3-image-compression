@@ -15,7 +15,9 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Domain\Repository;
 
 use Doctrine\DBAL\ParameterType;
-use TYPO3\CMS\Extbase\Persistence\Repository;
+use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Database\Query\QueryBuilder;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * FileProcessedRepository.
@@ -24,75 +26,77 @@ use TYPO3\CMS\Extbase\Persistence\Repository;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-final class FileProcessedRepository extends Repository
+class FileProcessedRepository
 {
-    public function __construct(
-        private readonly \TYPO3\CMS\Core\Database\ConnectionPool $connectionPool,
-    ) {
-        parent::__construct();
+    protected function getTableName(): string
+    {
+        return 'sys_file_processedfile';
+    }
+
+    public function getQueryBuilder(): QueryBuilder
+    {
+        return GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($this->getTableName());
     }
 
     /**
      * @param string[] $columns
+     * @return mixed[]
      */
     public function findAllNonCompressed(array $columns = ['*'], int $limit = 0): array
     {
-        $query = $this->createQuery();
-        $query->getQuerySettings()->setRespectStoragePage(false);
-
-        $query->matching(
-            $query->logicalAnd(
-                $query->equals('compressed', 0),
-                $query->logicalNot($query->equals('name', null)),
-            ),
-        );
+        $queryBuilder = $this->getQueryBuilder();
+        $queryBuilder
+            ->select(...$columns)
+            ->from($this->getTableName())
+            ->where(
+                $queryBuilder->expr()->eq('compressed', $queryBuilder->createNamedParameter(0, ParameterType::INTEGER)),
+                $queryBuilder->expr()->isNull('compress_error'),
+                $queryBuilder->expr()->isNotNull('name')
+            );
 
         if ($limit > 0) {
-            $query->setLimit($limit);
+            $queryBuilder->setMaxResults($limit);
         }
 
-        // If you need raw data instead of domain objects, use:
-        return $query->execute(true);
-
-        // For domain objects, use:
-        // return $query->execute()->toArray();
+        return $queryBuilder->executeQuery()->fetchAllAssociative();
     }
 
-    public function updateCompressState(int $processedFileId): void
+    public function updateCompressState(int $processedFileId, int $state = 1, string $errorMessage = ''): void
     {
-        $queryBuilder = $this->getConnectionPool()->getQueryBuilderForTable('sys_file_processedfile');
+        $queryBuilder = $this->getQueryBuilder();
         $queryBuilder
-            ->update('sys_file_processedfile')
+            ->update($this->getTableName())
             ->where(
-                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($processedFileId, ParameterType::INTEGER)),
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($processedFileId, ParameterType::INTEGER))
             )
-            ->set('compressed', 1)
-            ->executeStatement();
+            ->set('compressed', $state);
+
+        if (false === empty($errorMessage)) {
+            $queryBuilder->set('compress_error', $errorMessage);
+        }
+
+        $queryBuilder->executeStatement();
     }
 
     public function findStorageId(int $processedFileId): int
     {
-        $queryBuilder = $this->getConnectionPool()->getQueryBuilderForTable('sys_file_processedfile');
+        $queryBuilder = $this->getQueryBuilder();
         $result = $queryBuilder
             ->select('f.storage')
-            ->from('sys_file_processedfile', 'pf')
+            ->from($this->getTableName(), 'pf')
             ->join(
                 'pf',
                 'sys_file',
                 'f',
-                $queryBuilder->expr()->eq('pf.original', $queryBuilder->quoteIdentifier('f.uid')),
+                $queryBuilder->expr()->eq('pf.original', 'f.uid')
             )
             ->where(
-                $queryBuilder->expr()->eq('pf.uid', $queryBuilder->createNamedParameter($processedFileId, \TYPO3\CMS\Core\Database\Connection::PARAM_INT)),
+                $queryBuilder->expr()->eq('pf.uid', $queryBuilder->createNamedParameter($processedFileId, ParameterType::INTEGER)),
+                $queryBuilder->expr()->isNull('pf.compress_error')
             )
             ->executeQuery()
             ->fetchAssociative();
 
-        return $result ? (int) $result['storage'] : 0;
-    }
-
-    protected function getConnectionPool(): \TYPO3\CMS\Core\Database\ConnectionPool
-    {
-        return $this->connectionPool;
+        return $result ? (int)$result['storage'] : 0;
     }
 }
