@@ -20,7 +20,6 @@ use TYPO3\CMS\Backend\Toolbar\InformationStatus;
 use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Core\Utility\VersionNumberUtility;
 
 /**
  * SystemInformationToolbar.
@@ -28,9 +27,10 @@ use TYPO3\CMS\Core\Utility\VersionNumberUtility;
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
+ *
+ * TODO: Uncomment when TYPO3 v12 support is dropped
+ * #[AsEventListener(identifier: 'typo3-image-compression-system-information-toolbar-event')]
  */
-// TODO: Uncomment when TYPO3 v12 support is dropped
-// #[AsEventListener(identifier: 'typo3-image-compression-system-information-toolbar-event')]
 class SystemInformationToolbar
 {
     protected array $extConf = [];
