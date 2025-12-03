@@ -20,7 +20,6 @@ use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent;
 use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, UnknownObjectException};
 
-#[AsEventListener(identifier: 'typo3-image-compression-after-file-replaced-event')]
 /**
  * AfterFileReplaced.
  *
@@ -28,6 +27,7 @@ use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, Unknown
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
+#[AsEventListener(identifier: 'typo3-image-compression-after-file-replaced-event')]
 final readonly class AfterFileReplaced
 {
     public function __construct(private CompressImageService $compressImageService) {}

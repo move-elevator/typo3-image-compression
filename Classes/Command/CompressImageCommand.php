@@ -39,10 +39,6 @@ use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
 use function count;
 use function in_array;
 
-#[AsCommand(
-    name: 'site:compressImages',
-    description: 'Compress uncompressed images',
-)]
 /**
  * CompressImageCommand.
  *
@@ -50,6 +46,10 @@ use function in_array;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
+#[AsCommand(
+    name: 'site:compressImages',
+    description: 'Compress uncompressed images',
+)]
 final class CompressImageCommand extends Command
 {
     private const DEFAULT_LIMIT_TO_PROCESS = 100;

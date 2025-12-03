@@ -25,14 +25,4 @@ class Configuration
 {
     final public const EXT_KEY = 'typo3_image_compression';
     final public const EXT_NAME = 'Typo3ImageCompression';
-
-    public static function getExtensionConfiguration(): array
-    {
-        return [
-            'apiKey' => '',
-            'compressionLevel' => 'medium',
-            'skipLargerFiles' => true,
-            'processFileTypes' => ['jpg', 'jpeg', 'png', 'gif', 'webp', 'tiff'],
-        ];
-    }
 }

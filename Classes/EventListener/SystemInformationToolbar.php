@@ -20,7 +20,6 @@ use TYPO3\CMS\Backend\Toolbar\InformationStatus;
 use TYPO3\CMS\Core\Attribute\AsEventListener;
 use TYPO3\CMS\Core\Localization\LanguageService;
 
-#[AsEventListener(identifier: 'typo3-image-compression-system-information-toolbar-event')]
 /**
  * SystemInformationToolbar.
  *
@@ -28,6 +27,7 @@ use TYPO3\CMS\Core\Localization\LanguageService;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
+#[AsEventListener(identifier: 'typo3-image-compression-system-information-toolbar-event')]
 class SystemInformationToolbar
 {
     protected array $extConf = [];
