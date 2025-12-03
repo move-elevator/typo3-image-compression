@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.0">
+    <file source-language="en" product-name="typo3-image-compression">
+        <header/>
+        <body>
+            <trans-unit id="tinyimg.compressingLabel">
+                <source>Image is getting compressed...</source>
+            </trans-unit>
+            <trans-unit id="flashMessage.message.folderExcluded">
+                <source>Folder excluded from compression ("%s")</source>
+            </trans-unit>
+            <trans-unit id="flashMessage.message.debugMode">
+                <source>running in debugMode, no compression</source>
+            </trans-unit>
+            <trans-unit id="flashMessage.message.compressionFailed">
+                <source>compression failed with message "%s"</source>
+            </trans-unit>
+            <trans-unit id="flashMessage.message.success">
+                <source>Tinyimg saved you about %s of your file size!</source>
+            </trans-unit>
+            <trans-unit id="flashMessage.title">
+                <source>Compression</source>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

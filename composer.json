@@ -1,0 +1,76 @@
+{
+	"name": "move-elevator/typo3-image-compression",
+	"description": "",
+	"license": [
+		"GPL-2.0-or-later"
+	],
+	"type": "typo3-cms-extension",
+	"authors": [
+		{
+			"name": "Konrad Michalik",
+			"email": "km@move-elevator.de",
+			"role": "Maintainer"
+		},
+		{
+			"name": "Ronny Hauptvogel",
+			"email": "rh@move-elevator.de",
+			"role": "Maintainer"
+		}
+	],
+	"require": {
+		"php": "~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0",
+		"tinify/tinify": "^1.6",
+		"typo3/cms-core": "^12.4 || ^13.4 || ^14.0",
+		"typo3/cms-extbase": "*",
+		"typo3/cms-filelist": "*"
+	},
+	"require-dev": {
+		"eliashaeussler/version-bumper": "^2.4 || ^3.0",
+		"helhum/typo3-console": "^7.0 || ^8.1 || dev-support-typo3-v14",
+		"mobiledetect/mobiledetectlib": "^4.8",
+		"phpunit/phpcov": "^10.0 || ^11.0",
+		"phpunit/phpunit": "^11.0 || ^12.0",
+		"typo3/cms-base-distribution": "^12.4 || ^13.4 || ^14.0",
+		"typo3/cms-lowlevel": "^12.4 || ^13.4 || ^14.0"
+	},
+	"repositories": [
+		{
+			"type": "vcs",
+			"url": "git@github.com:jackd248/TYPO3-Console.git",
+			"name": "typo3-console"
+		}
+	],
+	"autoload": {
+		"psr-4": {
+			"MoveElevator\\Typo3ImageCompression\\": "Classes/"
+		}
+	},
+	"config": {
+		"allow-plugins": {
+			"eliashaeussler/version-bumper": true,
+			"helhum/dotenv-connector": true,
+			"php-http/discovery": true,
+			"typo3/class-alias-loader": true,
+			"typo3/cms-composer-installers": true
+		},
+		"sort-packages": true
+	},
+	"extra": {
+		"konradmichalik/php-cs-fixer-preset": {
+			"copyright": 2025
+		},
+		"typo3/cms": {
+			"cms-package-dir": "{$vendor-dir}/typo3/cms",
+			"extension-key": "typo3_image_compression",
+			"web-dir": "public"
+		}
+	},
+	"scripts": {
+		"post-install-cmd": [
+			"@cgl install"
+		],
+		"cgl": "@composer -d Tests/CGL --",
+		"test": "@test:coverage --no-coverage",
+		"test:coverage": "XDEBUG_MODE=coverage phpunit -c phpunit.xml"
+	}
+}
