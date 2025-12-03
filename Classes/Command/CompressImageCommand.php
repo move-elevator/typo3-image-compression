@@ -105,7 +105,7 @@ final class CompressImageCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $limit = (int) $input->getArgument('limit');
-        $this->settings = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('tinyimg');
+        $this->settings = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('typo3_image_compression');
 
         $filesProcessed = $this->fileProcessedRepository->findAllNonCompressed(limit: $limit);
         if ([] !== $filesProcessed) {
