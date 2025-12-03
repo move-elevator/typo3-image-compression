@@ -3,6 +3,9 @@
 	<file source-language="en" product-name="typo3-image-compression">
 		<header/>
 		<body>
+			<trans-unit id="label">
+				<source>Image Compression</source>
+			</trans-unit>
 			<trans-unit id="compressingLabel">
 				<source>Image is getting compressed...</source>
 			</trans-unit>

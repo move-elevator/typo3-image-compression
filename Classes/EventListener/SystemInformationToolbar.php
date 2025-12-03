@@ -46,7 +46,7 @@ class SystemInformationToolbar
             return;
         }
 
-        if( '' === $this->getApiKey()) {
+        if ('' === $this->getApiKey()) {
             return;
         }
 
@@ -54,36 +54,37 @@ class SystemInformationToolbar
         \Tinify\validate();
 
         $systemInformation->getToolbarItem()->addSystemInformation(
-            'Image Compression',
+            $this->getLanguageService()->sL('LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:label'),
             $this->getCompressionLimit(),
             'actions-image',
             InformationStatus::OK,
         );
     }
 
-    private function getCompressionLimit(): string
-    {
-        $this->compressImageService->initAction();
-
-        if (empty(\Tinify\getCompressionCount())) {
-            return '?';
-        }
-
-        if (\Tinify\getCompressionCount() <= 500) {
-            return \Tinify\getCompressionCount() . ' / 500';
-        }
-
-        return \Tinify\getCompressionCount() . ' / ∞';
-    }
-
     protected function getApiKey(): string
     {
-        return (string)$this->extConf['apiKey'];
+        return (string) $this->extConf['apiKey'];
     }
 
     protected function isEnabled(): bool
     {
-        return (bool)$this->extConf['systemInformationToolbar'];
+        return (bool) $this->extConf['systemInformationToolbar'];
+    }
+
+    private function getCompressionLimit(): string
+    {
+        $this->compressImageService->initAction();
+
+        $compressionCount = \Tinify\getCompressionCount();
+        if (null === $compressionCount || 0 === $compressionCount) {
+            return '?';
+        }
+
+        if ($compressionCount <= 500) {
+            return $compressionCount.' / 500';
+        }
+
+        return $compressionCount.' / ∞';
     }
 
     private function getLanguageService(): LanguageService

@@ -3,6 +3,10 @@
 	<file source-language="en" target-language="de" product-name="typo3-image-compression">
 		<header/>
 		<body>
+			<trans-unit id="label">
+				<source/>
+				<target>Bildkomprimierung</target>
+			</trans-unit>
 			<trans-unit id="compressingLabel">
 				<source/>
 				<target>Bild wird komprimiert...</target>
