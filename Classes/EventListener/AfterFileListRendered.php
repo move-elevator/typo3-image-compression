@@ -23,9 +23,6 @@ use TYPO3\CMS\Filelist\Event\ProcessFileListActionsEvent;
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
- *
- * TODO: Uncomment when TYPO3 v12 support is dropped
- * #[AsEventListener(identifier: 'typo3-image-compression-after-backend-page-renderer-event')]
  */
 final readonly class AfterFileListRendered
 {

@@ -44,12 +44,6 @@ use function in_array;
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
- * 
- * TODO: Uncomment when TYPO3 v12 support is dropped
- * #[AsCommand(
- *     name: 'site:compressImages',
- *     description: 'Compress uncompressed images',
- * )]
  */
 final class CompressImageCommand extends Command
 {

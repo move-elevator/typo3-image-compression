@@ -27,9 +27,6 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
- *
- * TODO: Uncomment when TYPO3 v12 support is dropped
- * #[AsEventListener(identifier: 'typo3-image-compression-system-information-toolbar-event')]
  */
 class SystemInformationToolbar
 {
