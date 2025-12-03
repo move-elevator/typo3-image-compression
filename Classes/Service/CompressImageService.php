@@ -15,11 +15,12 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Service;
 
 use MoveElevator\Typo3ImageCompression\Configuration;
+use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
 use RuntimeException;
 use SplFileObject;
-use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException, ExtensionConfigurationPathDoesNotExistException};
-use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
+use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException,
+    ExtensionConfigurationPathDoesNotExistException};
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\{Exception, SingletonInterface};
 use TYPO3\CMS\Core\Messaging\{FlashMessage, FlashMessageService};
@@ -47,6 +48,7 @@ class CompressImageService implements SingletonInterface
     public function __construct(
         protected FileRepository $fileRepository,
         protected PersistenceManager $persistenceManager,
+        protected ExtensionConfiguration $extensionConfiguration,
     ) {}
 
     /**
@@ -55,13 +57,11 @@ class CompressImageService implements SingletonInterface
      */
     public function initAction(): void
     {
-        $this->extConf = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get(Configuration::EXT_KEY);
-
-        if( '' === $this->getApiKey()) {
+        if ('' === $this->extensionConfiguration->getApiKey()) {
             return;
         }
 
-        \Tinify\setKey($this->getApiKey());
+        \Tinify\setKey($this->extensionConfiguration->getApiKey());
         \Tinify\validate();
     }
 
@@ -81,17 +81,14 @@ class CompressImageService implements SingletonInterface
         if (
             !in_array(
                 strtolower($file->getMimeType()),
-                [
-                    'image/png',
-                    'image/jpeg',
-                ],
+                $this->extensionConfiguration->getMimeTypes(),
                 true,
             )
         ) {
             return;
         }
 
-        if (0 === (int) ($this->extConf['debug'] ?? 1)) {
+        if (!$this->extensionConfiguration->isDebug()) {
             try {
                 $this->assureFileExists($file);
                 $originalFileSize = $file->getSize();
@@ -141,10 +138,10 @@ class CompressImageService implements SingletonInterface
     {
         $absFileName = $this->getAbsoluteFileName($file);
         if (false === file_exists($absFileName)) {
-            throw new RuntimeException(Configuration::EXT_NAME . ': File does not exist: '.$absFileName, 1575270381);
+            throw new RuntimeException(Configuration::EXT_NAME.': File does not exist: '.$absFileName, 1575270381);
         }
         if (0 === (int) filesize($absFileName)) {
-            throw new RuntimeException(Configuration::EXT_NAME . ': Filesize is 0: '.$absFileName, 1575270380);
+            throw new RuntimeException(Configuration::EXT_NAME.': Filesize is 0: '.$absFileName, 1575270380);
         }
     }
 
@@ -153,28 +150,21 @@ class CompressImageService implements SingletonInterface
      */
     protected function isFileInExcludeFolder(File $file): bool
     {
-        if (isset($this->extConf['excludeFolders']) && '' !== $this->extConf['excludeFolders']) {
-            $excludeFolders = GeneralUtility::trimExplode(',', $this->extConf['excludeFolders'], true);
-            $identifier = $file->getIdentifier();
-            foreach ($excludeFolders as $excludeFolder) {
-                if (str_starts_with($identifier, $excludeFolder)) {
-                    $this->addMessageToFlashMessageQueue(
-                        'folderExcluded',
-                        [0 => $excludeFolder],
-                        ContextualFeedbackSeverity::INFO,
-                    );
+        $excludeFolders = $this->extensionConfiguration->getExcludeFolders();
+        $identifier = $file->getIdentifier();
+        foreach ($excludeFolders as $excludeFolder) {
+            if (str_starts_with($identifier, $excludeFolder)) {
+                $this->addMessageToFlashMessageQueue(
+                    'folderExcluded',
+                    [0 => $excludeFolder],
+                    ContextualFeedbackSeverity::INFO,
+                );
 
-                    return true;
-                }
+                return true;
             }
         }
 
         return false;
-    }
-
-    protected function getApiKey(): string
-    {
-        return (string) $this->extConf['apiKey'];
     }
 
     protected function updateFileInformation(File $file): void
@@ -224,7 +214,7 @@ class CompressImageService implements SingletonInterface
         }
 
         $message = LocalizationUtility::translate(
-            'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:flashMessage.message.'.$key,
+            'LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:flashMessage.message.'.$key,
             null,
             $replaceMarkers,
         );
@@ -232,7 +222,7 @@ class CompressImageService implements SingletonInterface
             FlashMessage::class,
             $message,
             LocalizationUtility::translate(
-                'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:flashMessage.title',
+                'LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:flashMessage.title',
             ),
             $severity,
             true,

@@ -15,13 +15,10 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
 use MoveElevator\Typo3ImageCompression\Configuration;
-use MoveElevator\Typo3ImageCompression\Service\CompressImageService;
 use TYPO3\CMS\Backend\Backend\Event\SystemInformationToolbarCollectorEvent;
 use TYPO3\CMS\Backend\Toolbar\InformationStatus;
 use TYPO3\CMS\Core\Attribute\AsEventListener;
-use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 #[AsEventListener(identifier: 'typo3-image-compression-system-information-toolbar-event')]
 /**
@@ -35,22 +32,21 @@ class SystemInformationToolbar
 {
     protected array $extConf = [];
 
-    public function __construct(protected CompressImageService $compressImageService)
-    {
-        $this->extConf = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get(Configuration::EXT_KEY);
-    }
+    public function __construct(
+        protected Configuration\ExtensionConfiguration $extensionConfiguration,
+    ) {}
 
     public function __invoke(SystemInformationToolbarCollectorEvent $systemInformation): void
     {
-        if (!$this->isEnabled()) {
+        if (!$this->extensionConfiguration->isSystemInformationToolbar()) {
             return;
         }
 
-        if ('' === $this->getApiKey()) {
+        if ('' === $this->extensionConfiguration->getApiKey()) {
             return;
         }
 
-        \Tinify\setKey($this->getApiKey());
+        \Tinify\setKey($this->extensionConfiguration->getApiKey());
         \Tinify\validate();
 
         $systemInformation->getToolbarItem()->addSystemInformation(
@@ -61,20 +57,8 @@ class SystemInformationToolbar
         );
     }
 
-    protected function getApiKey(): string
-    {
-        return (string) $this->extConf['apiKey'];
-    }
-
-    protected function isEnabled(): bool
-    {
-        return (bool) $this->extConf['systemInformationToolbar'];
-    }
-
     private function getCompressionLimit(): string
     {
-        $this->compressImageService->initAction();
-
         $compressionCount = \Tinify\getCompressionCount();
         if (null === $compressionCount || 0 === $compressionCount) {
             return '?';

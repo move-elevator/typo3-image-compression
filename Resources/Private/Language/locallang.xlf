@@ -33,6 +33,9 @@
 			<trans-unit id="excludeFolders">
 				<source>Comma-separated list of folders which should be excluded from compression. Relative from storage (e.g. fileadmin), starting with "/" (e.g. "/user_upload,/folder_under_fileadmin")</source>
 			</trans-unit>
+			<trans-unit id="mimeTypes">
+				<source>Comma-separated list of supported image mime types.</source>
+			</trans-unit>
             <trans-unit id="systemInformationToolbar">
 				<source>Show image compression limit within the system information toolbar.</source>
 			</trans-unit>

@@ -43,6 +43,10 @@
 				<source/>
 				<target>Kommagetrennte Liste von Ordnern, die von der Komprimierung ausgeschlossen werden sollen. Relativ zum Speicher (z.B. fileadmin), beginnend mit "/" (z.B. "/user_upload,/folder_under_fileadmin")</target>
 			</trans-unit>
+			<trans-unit id="mimeTypes">
+				<source/>
+				<target>Kommagetrennte Liste von zugelassenen Bildtypen.</target>
+			</trans-unit>
 			<trans-unit id="systemInformationToolbar">
 				<source/>
 				<target>Zeige das Bildkomprimierungslimit in der Systeminformationstoolbar an.</target>
