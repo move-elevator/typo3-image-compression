@@ -57,7 +57,12 @@ class CompressImageService implements SingletonInterface
     {
         $this->extConf = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get(Configuration::EXT_KEY);
 
+        if( '' === $this->getApiKey()) {
+            return;
+        }
+
         \Tinify\setKey($this->getApiKey());
+        \Tinify\validate();
     }
 
     /**
@@ -136,10 +141,10 @@ class CompressImageService implements SingletonInterface
     {
         $absFileName = $this->getAbsoluteFileName($file);
         if (false === file_exists($absFileName)) {
-            throw new RuntimeException('Tinyimg: File does not exist: '.$absFileName, 1575270381);
+            throw new RuntimeException(Configuration::EXT_NAME . ': File does not exist: '.$absFileName, 1575270381);
         }
         if (0 === (int) filesize($absFileName)) {
-            throw new RuntimeException('Tinyimg: Filesize is 0: '.$absFileName, 1575270380);
+            throw new RuntimeException(Configuration::EXT_NAME . ': Filesize is 0: '.$absFileName, 1575270380);
         }
     }
 
