@@ -1,36 +1,44 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xliff version="1.0">
-    <file source-language="en" target-language="de" product-name="typo3-image-compression">
-        <header/>
-        <body>
-            <trans-unit id="tinyimg.compressingLabel">
-                <source/>
-                <target>Bild wird komprimiert...</target>
-            </trans-unit>
-            <trans-unit id="tinyimg.compressingLabel">
-                <source/>
-                <target>Image is getting compressed...</target>
-            </trans-unit>
-            <trans-unit id="flashMessage.message.folderExcluded">
-                <source/>
-                <target>Folder excluded from compression ("%s")</target>
-            </trans-unit>
-            <trans-unit id="flashMessage.message.debugMode">
-                <source/>
-                <target>running in debugMode, no compression</target>
-            </trans-unit>
-            <trans-unit id="flashMessage.message.compressionFailed">
-                <source/>
-                <target>compression failed with message "%s"</target>
-            </trans-unit>
-            <trans-unit id="flashMessage.message.success">
-                <source/>
-                <target>Tinyimg saved you about %s of your file size!</target>
-            </trans-unit>
-            <trans-unit id="flashMessage.title">
-                <source/>
-                <target>Compression</target>
-            </trans-unit>
-        </body>
-    </file>
+	<file source-language="en" target-language="de" product-name="typo3-image-compression">
+		<header/>
+		<body>
+			<trans-unit id="compressingLabel">
+				<source/>
+				<target>Bild wird komprimiert...</target>
+			</trans-unit>
+			<trans-unit id="flashMessage.message.folderExcluded">
+				<source/>
+				<target>Ordner von Komprimierung ausgeschlossen ("%s")</target>
+			</trans-unit>
+			<trans-unit id="flashMessage.message.debugMode">
+				<source/>
+				<target>Läuft im Debug-Modus, keine Komprimierung</target>
+			</trans-unit>
+			<trans-unit id="flashMessage.message.compressionFailed">
+				<source/>
+				<target>Komprimierung fehlgeschlagen mit Meldung "%s"</target>
+			</trans-unit>
+			<trans-unit id="flashMessage.message.success">
+				<source/>
+				<target>Die Bildkomprimierung hat Ihnen etwa %s Ihrer Dateigröße eingespart.</target>
+			</trans-unit>
+			<trans-unit id="flashMessage.title">
+				<source/>
+				<target>Komprimierung</target>
+			</trans-unit>
+			<trans-unit id="apiKey">
+				<source/>
+				<target>API-Schlüssel: Bitte geben Sie Ihren Tinyfy API-Schlüssel ein</target>
+			</trans-unit>
+			<trans-unit id="debug">
+				<source/>
+				<target>Debug-Modus aktivieren oder deaktivieren. Verhindert, dass die Erweiterung Bilder komprimiert. Im Entwicklungsmodus verwenden, um Komprimierungen zu sparen.</target>
+			</trans-unit>
+			<trans-unit id="excludeFolders">
+				<source/>
+				<target>Kommagetrennte Liste von Ordnern, die von der Komprimierung ausgeschlossen werden sollen. Relativ zum Speicher (z.B. fileadmin), beginnend mit "/" (z.B. "/user_upload,/folder_under_fileadmin")</target>
+			</trans-unit>
+		</body>
+	</file>
 </xliff>

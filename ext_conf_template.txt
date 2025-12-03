@@ -1,27 +1,8 @@
-# cat=basic/enable; type=string; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang_be.xlf:apiKey
+# cat=basic/enable; type=string; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:apiKey
 apiKey =
 
-# cat=basic/enable; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang_be.xlf:debug
+# cat=basic/enable; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:debug
 debug = 0
 
-# cat=basic/enable; type=string; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang_be.xlf:excludeFolders
+# cat=basic/enable; type=string; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:excludeFolders
 excludeFolders =
-
-## CDN USAGE ##
-# cat=cdn/enable; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang_be.xlf:useCdn
-useCdn =
-
-# cat=cdn/enable; type=string; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang_be.xlf:bucket
-bucket =
-
-# cat=cdn/enable; type=string; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang_be.xlf:key
-key =
-
-# cat=cdn/enable; type=string; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang_be.xlf:secret
-secret =
-
-# cat=cdn/enable; type=string; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang_be.xlf:region
-region =
-
-# cat=cdn/enable; type=string; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang_be.xlf:version
-version = 2006-03-01

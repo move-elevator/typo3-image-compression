@@ -7,7 +7,7 @@ uploaderTriggers.forEach(function (trigger) {
 
     if (percentage === '100%' && me.file.type.match(/image\/(jpg|jpeg|png)$/i)) {
       me.progressPercentage.textContent = '';
-      me.updateMessage(TYPO3.lang["tinyimg.compressingLabel"]);
+      me.updateMessage(TYPO3.lang["compressingLabel"]);
       me.row.classList.add('compressing');
     }
   });
