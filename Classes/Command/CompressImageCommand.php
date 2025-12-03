@@ -19,7 +19,6 @@ use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
 use MoveElevator\Typo3ImageCompression\Service\CompressImageService;
 use Psr\Log\{LogLevel, LoggerInterface};
-use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\{InputArgument, InputInterface};
 use Symfony\Component\Console\Output\OutputInterface;
@@ -46,10 +45,11 @@ use function in_array;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-#[AsCommand(
-    name: 'site:compressImages',
-    description: 'Compress uncompressed images',
-)]
+// TODO: Uncomment when TYPO3 v12 support is dropped
+// #[AsCommand(
+//     name: 'site:compressImages',
+//     description: 'Compress uncompressed images',
+// )]
 final class CompressImageCommand extends Command
 {
     private const DEFAULT_LIMIT_TO_PROCESS = 100;

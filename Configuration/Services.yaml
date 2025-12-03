@@ -3,6 +3,41 @@ services:
     autowire: true
     autoconfigure: true
     public: false
+
   MoveElevator\Typo3ImageCompression\:
     resource: "../Classes/*"
     exclude: "../Classes/Domain/Model/*"
+
+  # Event Listeners
+  # Note: When TYPO3 v12 support is dropped, these can be replaced with #[AsEventListener] attributes
+  MoveElevator\Typo3ImageCompression\EventListener\AfterFileAdded:
+    tags:
+      - name: event.listener
+        identifier: typo3-image-compression-after-file-added-event
+        event: TYPO3\CMS\Core\Resource\Event\AfterFileAddedEvent
+
+  MoveElevator\Typo3ImageCompression\EventListener\AfterFileReplaced:
+    tags:
+      - name: event.listener
+        identifier: typo3-image-compression-after-file-replaced-event
+        event: TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent
+
+  MoveElevator\Typo3ImageCompression\EventListener\AfterFileListRendered:
+    tags:
+      - name: event.listener
+        identifier: typo3-image-compression-after-backend-page-renderer-event
+        event: TYPO3\CMS\Filelist\Event\ProcessFileListActionsEvent
+
+  MoveElevator\Typo3ImageCompression\EventListener\SystemInformationToolbar:
+    tags:
+      - name: event.listener
+        identifier: typo3-image-compression-system-information-toolbar-event
+        event: TYPO3\CMS\Backend\Backend\Event\SystemInformationToolbarCollectorEvent
+
+  # Console Commands
+  # Note: When TYPO3 v12 support is dropped, this can be replaced with #[AsCommand] attribute
+  MoveElevator\Typo3ImageCompression\Command\CompressImageCommand:
+    tags:
+      - name: console.command
+        command: site:compressImages
+        description: Compress uncompressed images

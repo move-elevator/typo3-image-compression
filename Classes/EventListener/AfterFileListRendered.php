@@ -14,7 +14,6 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
-use TYPO3\CMS\Core\Attribute\AsEventListener;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Filelist\Event\ProcessFileListActionsEvent;
 
@@ -25,7 +24,8 @@ use TYPO3\CMS\Filelist\Event\ProcessFileListActionsEvent;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-#[AsEventListener(identifier: 'typo3-image-compression-after-backend-page-renderer-event')]
+// TODO: Uncomment when TYPO3 v12 support is dropped
+// #[AsEventListener(identifier: 'typo3-image-compression-after-backend-page-renderer-event')]
 final readonly class AfterFileListRendered
 {
     public function __construct(

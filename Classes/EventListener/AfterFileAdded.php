@@ -15,7 +15,6 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
 use MoveElevator\Typo3ImageCompression\Service\CompressImageService;
-use TYPO3\CMS\Core\Attribute\AsEventListener;
 use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Resource\Event\AfterFileAddedEvent;
 use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, UnknownObjectException};
@@ -27,7 +26,8 @@ use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, Unknown
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-#[AsEventListener(identifier: 'typo3-image-compression-after-file-added-event')]
+// TODO: Uncomment when TYPO3 v12 support is dropped
+// #[AsEventListener(identifier: 'typo3-image-compression-after-file-added-event')]
 final readonly class AfterFileAdded
 {
     public function __construct(private CompressImageService $compressImageService) {}

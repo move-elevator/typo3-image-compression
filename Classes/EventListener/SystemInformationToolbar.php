@@ -17,8 +17,10 @@ namespace MoveElevator\Typo3ImageCompression\EventListener;
 use MoveElevator\Typo3ImageCompression\Configuration;
 use TYPO3\CMS\Backend\Backend\Event\SystemInformationToolbarCollectorEvent;
 use TYPO3\CMS\Backend\Toolbar\InformationStatus;
-use TYPO3\CMS\Core\Attribute\AsEventListener;
+use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\VersionNumberUtility;
 
 /**
  * SystemInformationToolbar.
@@ -27,7 +29,8 @@ use TYPO3\CMS\Core\Localization\LanguageService;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-#[AsEventListener(identifier: 'typo3-image-compression-system-information-toolbar-event')]
+// TODO: Uncomment when TYPO3 v12 support is dropped
+// #[AsEventListener(identifier: 'typo3-image-compression-system-information-toolbar-event')]
 class SystemInformationToolbar
 {
     protected array $extConf = [];
@@ -53,7 +56,7 @@ class SystemInformationToolbar
             $this->getLanguageService()->sL('LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:label'),
             $this->getCompressionLimit(),
             'actions-image',
-            InformationStatus::OK,
+            GeneralUtility::makeInstance(Typo3Version::class)->getMajorVersion() >= 13 ? InformationStatus::OK : 'success',
         );
     }
 
