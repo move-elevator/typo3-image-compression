@@ -26,6 +26,7 @@ This TYPO3 extension automatically compresses PNG and JPG images uploaded to the
 - Uses TinyPNG's powerful compression API
 - CLI command for batch processing existing images
 - Configurable via extension settings
+- Image compression statistic in the system information toolbar
 
 ## Installation
 
