@@ -186,9 +186,13 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
                 return;
             }
 
+            // ImageMagick v7+ uses "magick convert", v6 uses "convert" directly
+            $subCommand = str_ends_with($binary, 'magick') ? 'convert ' : '';
+
             $command = sprintf(
-                '%s -quality %d -strip %s %s',
+                '%s %s-quality %d -strip %s %s',
                 $binary,
+                $subCommand,
                 $quality,
                 escapeshellarg($filePath),
                 escapeshellarg($filePath),

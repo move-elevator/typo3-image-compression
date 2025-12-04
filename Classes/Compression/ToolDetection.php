@@ -27,6 +27,9 @@ use function array_key_exists;
  */
 class ToolDetection
 {
+    /**
+     * @var array<string, string|string[]>
+     */
     private const TOOL_BINARIES = [
         'jpegoptim' => 'jpegoptim',
         'optipng' => 'optipng',
@@ -34,7 +37,7 @@ class ToolDetection
         'gifsicle' => 'gifsicle',
         'cwebp' => 'cwebp',
         'avifenc' => 'avifenc',
-        'imagemagick' => 'convert',
+        'imagemagick' => ['magick', 'convert'], // magick (v7+) preferred, convert (v6) as fallback
         'graphicsmagick' => 'gm',
     ];
 
@@ -57,18 +60,30 @@ class ToolDetection
             return $this->availabilityCache[$tool];
         }
 
-        $binary = self::TOOL_BINARIES[$tool] ?? null;
+        $binaries = self::TOOL_BINARIES[$tool] ?? null;
 
-        if (null === $binary) {
+        if (null === $binaries) {
             $this->availabilityCache[$tool] = false;
 
             return false;
         }
 
-        $path = CommandUtility::getCommand($binary);
-        $this->availabilityCache[$tool] = '' !== $path && false !== $path;
+        // Support multiple binary names (e.g., magick/convert for ImageMagick)
+        $binaries = (array) $binaries;
 
-        return $this->availabilityCache[$tool];
+        foreach ($binaries as $binary) {
+            $path = CommandUtility::getCommand($binary);
+
+            if ('' !== $path && false !== $path) {
+                $this->availabilityCache[$tool] = true;
+
+                return true;
+            }
+        }
+
+        $this->availabilityCache[$tool] = false;
+
+        return false;
     }
 
     /**
@@ -80,19 +95,30 @@ class ToolDetection
             return $this->pathCache[$tool];
         }
 
-        $binary = self::TOOL_BINARIES[$tool] ?? null;
+        $binaries = self::TOOL_BINARIES[$tool] ?? null;
 
-        if (null === $binary) {
+        if (null === $binaries) {
             $this->pathCache[$tool] = null;
 
             return null;
         }
 
-        $path = CommandUtility::getCommand($binary);
-        $resolvedPath = ('' !== $path && false !== $path) ? (string) $path : null;
-        $this->pathCache[$tool] = $resolvedPath;
+        // Support multiple binary names (e.g., magick/convert for ImageMagick)
+        $binaries = (array) $binaries;
 
-        return $resolvedPath;
+        foreach ($binaries as $binary) {
+            $path = CommandUtility::getCommand($binary);
+
+            if ('' !== $path && false !== $path) {
+                $this->pathCache[$tool] = (string) $path;
+
+                return $this->pathCache[$tool];
+            }
+        }
+
+        $this->pathCache[$tool] = null;
+
+        return null;
     }
 
     /**
