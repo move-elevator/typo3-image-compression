@@ -35,14 +35,19 @@ use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 use function in_array;
 
 /**
- * CompressImageService.
+ * TinifyCompressImageService.
+ *
+ * @see https://tinypng.com/developers
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-class CompressImageService implements SingletonInterface
+class TinifyCompressImageService implements CompressImageServiceInterface, CompressionQuotaAwareInterface, SingletonInterface
 {
+    private const PROVIDER_IDENTIFIER = 'tinify';
+    private const FREE_TIER_LIMIT = 500;
+
     public function __construct(
         protected FileRepository $fileRepository,
         protected FileProcessedRepository $fileProcessedRepository,
@@ -50,6 +55,11 @@ class CompressImageService implements SingletonInterface
         protected ExtensionConfiguration $extensionConfiguration,
         protected StorageRepository $storageRepository,
     ) {}
+
+    public function getProviderIdentifier(): string
+    {
+        return self::PROVIDER_IDENTIFIER;
+    }
 
     /**
      * @throws ExtensionConfigurationExtensionNotConfiguredException
@@ -78,6 +88,26 @@ class CompressImageService implements SingletonInterface
         } catch (\Exception) {
             return null;
         }
+    }
+
+    /**
+     * Returns the quota limit for TinyPNG.
+     * Free tier has 500 compressions/month, paid plans are unlimited.
+     */
+    public function getQuotaLimit(): ?int
+    {
+        $compressionCount = $this->getCompressionCount();
+
+        if (null === $compressionCount) {
+            return null;
+        }
+
+        // If count exceeds free tier limit, assume paid plan (unlimited)
+        if ($compressionCount > self::FREE_TIER_LIMIT) {
+            return null;
+        }
+
+        return self::FREE_TIER_LIMIT;
     }
 
     /**
@@ -139,7 +169,7 @@ class CompressImageService implements SingletonInterface
     }
 
     /**
-     * @param mixed[] $files
+     * @param array<int, array<string, mixed>> $files
      */
     public function compressProcessedFiles(array $files): void
     {

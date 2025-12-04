@@ -15,7 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
 use MoveElevator\Typo3ImageCompression\Configuration;
-use MoveElevator\Typo3ImageCompression\Service\CompressImageService;
+use MoveElevator\Typo3ImageCompression\Service\{CompressImageServiceInterface, CompressionQuotaAwareInterface};
 use TYPO3\CMS\Backend\Backend\Event\SystemInformationToolbarCollectorEvent;
 use TYPO3\CMS\Backend\Toolbar\InformationStatus;
 use TYPO3\CMS\Core\Information\Typo3Version;
@@ -33,7 +33,7 @@ class SystemInformationToolbar
 {
     public function __construct(
         protected Configuration\ExtensionConfiguration $extensionConfiguration,
-        protected CompressImageService $compressImageService,
+        protected CompressImageServiceInterface $compressImageService,
     ) {}
 
     public function __invoke(SystemInformationToolbarCollectorEvent $systemInformation): void
@@ -46,30 +46,36 @@ class SystemInformationToolbar
             return;
         }
 
+        if (!$this->compressImageService instanceof CompressionQuotaAwareInterface) {
+            return;
+        }
+
         $compressionCount = $this->compressImageService->getCompressionCount();
         if (null === $compressionCount) {
             return;
         }
 
+        $quotaLimit = $this->compressImageService->getQuotaLimit();
+
         $systemInformation->getToolbarItem()->addSystemInformation(
             $this->getLanguageService()->sL('LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:label'),
-            $this->formatCompressionLimit($compressionCount),
+            $this->formatCompressionLimit($compressionCount, $quotaLimit),
             'actions-image',
             GeneralUtility::makeInstance(Typo3Version::class)->getMajorVersion() >= 13 ? InformationStatus::OK : 'success', // @phpstan-ignore-line TYPO3 v12 uses string, v13+ uses InformationStatus enum
         );
     }
 
-    private function formatCompressionLimit(int $compressionCount): string
+    private function formatCompressionLimit(int $compressionCount, ?int $quotaLimit): string
     {
         if (0 === $compressionCount) {
             return '?';
         }
 
-        if ($compressionCount <= 500) {
-            return $compressionCount.' / 500';
+        if (null === $quotaLimit) {
+            return $compressionCount.' / ∞';
         }
 
-        return $compressionCount.' / ∞';
+        return $compressionCount.' / '.$quotaLimit;
     }
 
     private function getLanguageService(): LanguageService

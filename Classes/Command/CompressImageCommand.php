@@ -17,7 +17,7 @@ namespace MoveElevator\Typo3ImageCompression\Command;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
-use MoveElevator\Typo3ImageCompression\Service\CompressImageService;
+use MoveElevator\Typo3ImageCompression\Service\CompressImageServiceInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\{InputArgument, InputInterface};
 use Symfony\Component\Console\Output\OutputInterface;
@@ -51,7 +51,7 @@ final class CompressImageCommand extends Command
         private readonly FileRepository $fileRepository,
         private readonly FileProcessedRepository $fileProcessedRepository,
         private readonly ResourceFactory $resourceFactory,
-        private readonly CompressImageService $compressImageService,
+        private readonly CompressImageServiceInterface $compressImageService,
         private readonly ExtensionConfiguration $extensionConfiguration,
         ?string $name = null,
     ) {

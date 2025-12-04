@@ -8,6 +8,9 @@ services:
     resource: "../Classes/*"
     exclude: "../Classes/Domain/Model/*"
 
+  MoveElevator\Typo3ImageCompression\Service\CompressImageServiceInterface:
+    alias: MoveElevator\Typo3ImageCompression\Service\TinifyCompressImageService
+
   # Event Listeners
   # Note: When TYPO3 v12 support is dropped, these can be replaced with #[AsEventListener] attributes
   MoveElevator\Typo3ImageCompression\EventListener\AfterFileAdded:

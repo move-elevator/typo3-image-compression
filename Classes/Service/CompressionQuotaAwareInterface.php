@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+
+/*
+ * This file is part of the "typo3_image_compression" TYPO3 CMS extension.
+ *
+ * (c) 2025 Konrad Michalik <km@move-elevator.de>
+ * (c) 2025 Ronny Hauptvogel <rh@move-elevator.de>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace MoveElevator\Typo3ImageCompression\Service;
+
+/**
+ * CompressionQuotaAwareInterface.
+ *
+ * @author Konrad Michalik <km@move-elevator.de>
+ * @author Ronny Hauptvogel <rh@move-elevator.de>
+ * @license GPL-2.0-or-later
+ */
+interface CompressionQuotaAwareInterface
+{
+    /**
+     * Returns the current compression count for the current billing period.
+     *
+     * @return int|null The number of compressions used, or null if unavailable
+     */
+    public function getCompressionCount(): ?int;
+
+    /**
+     * Returns the quota limit for the current plan.
+     *
+     * @return int|null The maximum number of compressions allowed, or null for unlimited/unknown
+     */
+    public function getQuotaLimit(): ?int;
+}

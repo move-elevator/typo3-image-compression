@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
-use MoveElevator\Typo3ImageCompression\Service\CompressImageService;
+use MoveElevator\Typo3ImageCompression\Service\CompressImageServiceInterface;
 use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent;
 use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, UnknownObjectException};
@@ -28,7 +28,7 @@ use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, Unknown
  */
 final readonly class AfterFileReplaced
 {
-    public function __construct(private CompressImageService $compressImageService) {}
+    public function __construct(private CompressImageServiceInterface $compressImageService) {}
 
     /**
      * @throws Exception
