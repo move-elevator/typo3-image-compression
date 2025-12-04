@@ -24,6 +24,8 @@ use TYPO3\CMS\Extbase\Persistence\{QueryInterface, QueryResultInterface, Reposit
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
+ *
+ * @extends Repository<\MoveElevator\Typo3ImageCompression\Domain\Model\File>
  */
 class FileRepository extends Repository
 {

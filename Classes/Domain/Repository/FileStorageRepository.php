@@ -22,6 +22,8 @@ use TYPO3\CMS\Extbase\Persistence\{QueryInterface, Repository};
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
+ *
+ * @extends Repository<\MoveElevator\Typo3ImageCompression\Domain\Model\FileStorage>
  */
 class FileStorageRepository extends Repository
 {

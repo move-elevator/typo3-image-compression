@@ -24,7 +24,7 @@ use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotCo
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\{Exception, Resource\ResourceStorage, Resource\StorageRepository, SingletonInterface};
 use TYPO3\CMS\Core\Messaging\{FlashMessage, FlashMessageService};
-use TYPO3\CMS\Core\Resource\File;
+use TYPO3\CMS\Core\Resource\{File, FileInterface};
 use TYPO3\CMS\Core\Resource\Index\Indexer;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -70,8 +70,12 @@ class CompressImageService implements SingletonInterface
      * @throws UnknownObjectException
      * @throws Exception
      */
-    public function compress(File $file): void
+    public function compress(File|FileInterface $file): void
     {
+        if (!$file instanceof File) {
+            return;
+        }
+
         $this->initAction();
 
         if ($this->isFileInExcludeFolder($file)) {
