@@ -18,7 +18,6 @@ use MoveElevator\Typo3ImageCompression\Domain\Model\FileStorage;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\TestCase;
 
-
 /**
  * FileStorageTest.
  *
@@ -26,7 +25,6 @@ use PHPUnit\Framework\TestCase;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-
 #[CoversClass(FileStorage::class)]
 final class FileStorageTest extends TestCase
 {
