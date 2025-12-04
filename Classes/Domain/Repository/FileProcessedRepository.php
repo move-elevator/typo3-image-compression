@@ -67,7 +67,7 @@ class FileProcessedRepository
             )
             ->set('compressed', $state);
 
-        if (false === empty($errorMessage)) {
+        if ('' !== trim($errorMessage)) {
             $queryBuilder->set('compress_error', $errorMessage);
         }
 
