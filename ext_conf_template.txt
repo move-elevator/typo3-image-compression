@@ -16,6 +16,9 @@ mimeTypes = image/avif,image/jpeg,image/png,image/webp
 # cat=basic/enable/60; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:systemInformationToolbar
 systemInformationToolbar = 1
 
+# cat=basic/enable/70; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:showCompressionStatus
+showCompressionStatus = 1
+
 # cat=quality/settings/10; type=int+; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:jpegQuality
 jpegQuality = 85
 

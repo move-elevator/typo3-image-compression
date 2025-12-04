@@ -22,6 +22,7 @@ This TYPO3 extension automatically compresses images uploaded to the TYPO3 backe
 - CLI command for batch processing existing images
 - Configurable quality settings for local compression
 - Image compression statistic in the system information toolbar
+- Image compression info in sys_file_metadata edit view
 
 ## Provider Comparison
 

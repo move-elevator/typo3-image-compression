@@ -14,7 +14,10 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Domain\Repository;
 
-use MoveElevator\Typo3ImageCompression\Domain\Model\FileStorage;
+use Doctrine\DBAL\ParameterType;
+use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
+use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
+use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Extbase\Persistence\Exception\InvalidQueryException;
 use TYPO3\CMS\Extbase\Persistence\{QueryInterface, QueryResultInterface, Repository};
 
@@ -25,10 +28,21 @@ use TYPO3\CMS\Extbase\Persistence\{QueryInterface, QueryResultInterface, Reposit
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  *
- * @extends Repository<\MoveElevator\Typo3ImageCompression\Domain\Model\File>
+ * @extends Repository<File>
  */
 class FileRepository extends Repository
 {
+    private ConnectionPool $connectionPool;
+
+    public function __construct(
+        private readonly ExtensionConfiguration $extensionConfiguration,
+    ) {}
+
+    public function injectConnectionPool(ConnectionPool $connectionPool): void
+    {
+        $this->connectionPool = $connectionPool;
+    }
+
     public function createQuery(): QueryInterface
     {
         $query = parent::createQuery();
@@ -40,7 +54,7 @@ class FileRepository extends Repository
     /**
      * @param string[] $excludeFolders
      *
-     * @return QueryResultInterface<int, \MoveElevator\Typo3ImageCompression\Domain\Model\File>
+     * @return QueryResultInterface<int, File>
      *
      * @throws InvalidQueryException
      */
@@ -71,10 +85,7 @@ class FileRepository extends Repository
                         ),
                         $query->in(
                             'mime_type',
-                            [
-                                'image/png',
-                                'image/jpeg',
-                            ],
+                            $this->extensionConfiguration->getMimeTypes(),
                         ),
                     ],
                     $excludeFoldersConstraints,
@@ -84,5 +95,54 @@ class FileRepository extends Repository
         $query->setLimit($limit);
 
         return $query->execute();
+    }
+
+    /**
+     * Finds compression status data for a file by its UID.
+     *
+     * @return array{compressed: bool, compress_error: string, compress_info: string}|null
+     */
+    public function findCompressionStatusByUid(int $fileUid): ?array
+    {
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable('sys_file');
+
+        $row = $queryBuilder
+            ->select('compressed', 'compress_error', 'compress_info')
+            ->from('sys_file')
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($fileUid, ParameterType::INTEGER)))
+            ->executeQuery()
+            ->fetchAssociative();
+
+        if (false === $row) {
+            return null;
+        }
+
+        return [
+            'compressed' => (bool) $row['compressed'],
+            'compress_error' => (string) $row['compress_error'],
+            'compress_info' => (string) $row['compress_info'],
+        ];
+    }
+
+    /**
+     * Updates the compression status for a file using DBAL.
+     */
+    public function updateCompressionStatus(
+        int $fileUid,
+        bool $compressed,
+        string $compressError = '',
+        string $compressInfo = '',
+    ): void {
+        $connection = $this->connectionPool->getConnectionForTable('sys_file');
+
+        $connection->update(
+            'sys_file',
+            [
+                'compressed' => $compressed ? 1 : 0,
+                'compress_error' => $compressError,
+                'compress_info' => $compressInfo,
+            ],
+            ['uid' => $fileUid],
+        );
     }
 }

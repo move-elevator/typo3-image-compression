@@ -20,6 +20,7 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
         'label' => 'Compressed',
         'config' => [
             'type' => 'check',
+            'readOnly' => true,
             'default' => 0,
         ],
     ],
@@ -28,9 +29,19 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
         'label' => 'Compression Error',
         'config' => [
             'type' => 'text',
+            'readOnly' => true,
+            'default' => '',
+        ],
+    ],
+    'compress_info' => [
+        'exclude' => true,
+        'label' => 'Compression Info',
+        'config' => [
+            'type' => 'input',
+            'readOnly' => true,
             'default' => '',
         ],
     ],
 ]);
 
-ExtensionManagementUtility::addToAllTCAtypes('sys_file', 'compress_error');
+ExtensionManagementUtility::addToAllTCAtypes('sys_file', 'compress_error,compress_info');

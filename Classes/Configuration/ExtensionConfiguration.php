@@ -79,6 +79,11 @@ class ExtensionConfiguration
         return (bool) ($this->extConf['systemInformationToolbar'] ?? false);
     }
 
+    public function isShowCompressionStatus(): bool
+    {
+        return (bool) ($this->extConf['showCompressionStatus'] ?? true);
+    }
+
     /**
      * Returns the JPEG quality setting for local compression (1-100).
      */

@@ -26,6 +26,7 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
     protected int $storage = 0;
     protected bool $compressed = false;
     protected string $compressError = '';
+    protected string $compressInfo = '';
 
     public function getStorage(): int
     {
@@ -60,5 +61,15 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
     public function resetCompressError(): void
     {
         $this->setCompressError('');
+    }
+
+    public function getCompressInfo(): string
+    {
+        return $this->compressInfo;
+    }
+
+    public function setCompressInfo(string $compressInfo): void
+    {
+        $this->compressInfo = $compressInfo;
     }
 }

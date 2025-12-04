@@ -22,7 +22,6 @@ use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageReposi
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\CommandUtility;
-use TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager;
 
 use function in_array;
 use function sprintf;
@@ -65,7 +64,6 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
     public function __construct(
         protected readonly FileRepository $fileRepository,
         protected readonly FileProcessedRepository $fileProcessedRepository,
-        protected readonly PersistenceManager $persistenceManager,
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly StorageRepository $storageRepository,
         protected readonly ToolDetection $toolDetection,
@@ -115,13 +113,15 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         $success = $this->executeOptimization($tool, $filePath);
 
         if ($success) {
-            $this->markFileAsCompressed($file);
-            $this->updateFileInformation($file);
-
             // Log compression result and show flash message
             clearstatcache(true, $filePath);
             $newFileSize = (int) filesize($filePath);
             $savedPercent = $this->calculateSavedPercent($originalFileSize, $newFileSize);
+
+            $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize, $tool);
+            $this->markFileAsCompressed($file, $compressInfo);
+            $this->updateFileInformation($file);
+
             if ($savedPercent > 0) {
                 $this->logger?->info('Image compressed', [
                     'file' => $file->getIdentifier(),
