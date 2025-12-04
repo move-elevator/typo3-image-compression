@@ -30,6 +30,9 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class SystemInformationToolbar
 {
+    /**
+     * @var array<string, mixed>
+     */
     protected array $extConf = [];
 
     public function __construct(
@@ -53,7 +56,7 @@ class SystemInformationToolbar
             $this->getLanguageService()->sL('LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:label'),
             $this->getCompressionLimit(),
             'actions-image',
-            GeneralUtility::makeInstance(Typo3Version::class)->getMajorVersion() >= 13 ? InformationStatus::OK : 'success',
+            GeneralUtility::makeInstance(Typo3Version::class)->getMajorVersion() >= 13 ? InformationStatus::OK : 'success', // @phpstan-ignore-line TYPO3 v12 uses string, v13+ uses InformationStatus enum
         );
     }
 

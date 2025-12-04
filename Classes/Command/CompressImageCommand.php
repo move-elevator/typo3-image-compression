@@ -123,7 +123,11 @@ final class CompressImageCommand extends Command
         $fileDeletionAspect = GeneralUtility::makeInstance(FileDeletionAspect::class);
 
         foreach ($files as $file) {
-            $file = $this->resourceFactory->getFileObject($file->getUid());
+            $uid = $file->getUid();
+            if (null === $uid) {
+                continue;
+            }
+            $file = $this->resourceFactory->getFileObject($uid);
             $this->compressImageService->compress($file);
             $fileDeletionAspect->cleanupProcessedFilesPostFileReplace(
                 new AfterFileReplacedEvent($file, ''),

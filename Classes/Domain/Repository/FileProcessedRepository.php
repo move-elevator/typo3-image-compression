@@ -94,7 +94,7 @@ class FileProcessedRepository
             ->executeQuery()
             ->fetchAssociative();
 
-        return $result ? (int) $result['storage'] : 0;
+        return false !== $result ? (int) $result['storage'] : 0;
     }
 
     protected function getTableName(): string

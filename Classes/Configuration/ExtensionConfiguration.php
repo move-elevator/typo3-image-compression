@@ -26,6 +26,9 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class ExtensionConfiguration
 {
+    /**
+     * @var array<string, mixed>
+     */
     protected array $extConf = [];
 
     public function __construct()
@@ -43,14 +46,20 @@ class ExtensionConfiguration
         return (bool) ($this->extConf['debug'] ?? false);
     }
 
+    /**
+     * @return string[]
+     */
     public function getExcludeFolders(): array
     {
-        return GeneralUtility::trimExplode(',', $this->extConf['excludeFolders'] ?? '', true);
+        return GeneralUtility::trimExplode(',', (string) ($this->extConf['excludeFolders'] ?? ''), true);
     }
 
+    /**
+     * @return string[]
+     */
     public function getMimeTypes(): array
     {
-        return GeneralUtility::trimExplode(',', $this->extConf['mimeTypes'] ?? '', true);
+        return GeneralUtility::trimExplode(',', (string) ($this->extConf['mimeTypes'] ?? ''), true);
     }
 
     public function isSystemInformationToolbar(): bool

@@ -96,13 +96,13 @@ class CompressImageService implements SingletonInterface
             try {
                 $this->assureFileExists($file);
                 $originalFileSize = $file->getSize();
-                $publicUrl = $this->getPublicPath().urldecode($file->getPublicUrl());
+                $publicUrl = $this->getPublicPath().urldecode((string) $file->getPublicUrl());
                 $source = \Tinify\fromFile($publicUrl);
                 $source->toFile($publicUrl);
                 $fileSize = $this->setCompressedForCurrentFile($file);
 
-                if (0 !== (int) $fileSize) {
-                    $percentageSaved = (int) (100 - ((100 / $originalFileSize) * $fileSize));
+                if (0 !== (int) $fileSize && $originalFileSize > 0) {
+                    $percentageSaved = (int) (100 - ((100 / $originalFileSize) * (int) $fileSize));
                     $this->addMessageToFlashMessageQueue(
                         'success',
                         [0 => $percentageSaved.'%'],
@@ -140,7 +140,7 @@ class CompressImageService implements SingletonInterface
             }
 
             /** @var ResourceStorage $storage */
-            $storage = $this->storageRepository->getStorageObject($fileStorageId);
+            $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
             $filePath = $this->getPublicPath().($storage->getConfiguration()['basePath'] ?? '').urldecode($file['identifier']);
 
             if (false === file_exists($filePath)) {
@@ -181,7 +181,7 @@ class CompressImageService implements SingletonInterface
     protected function getAbsoluteFileName(File $file): string
     {
         return urldecode(
-            rtrim(Environment::getPublicPath(), '/').'/'.ltrim($file->getPublicUrl(), '/'),
+            rtrim(Environment::getPublicPath(), '/').'/'.ltrim((string) $file->getPublicUrl(), '/'),
         );
     }
 
@@ -256,6 +256,8 @@ class CompressImageService implements SingletonInterface
     }
 
     /**
+     * @param array<int|string, string> $replaceMarkers
+     *
      * @throws Exception
      */
     protected function addMessageToFlashMessageQueue(

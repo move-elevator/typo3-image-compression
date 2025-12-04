@@ -38,6 +38,10 @@ class FileRepository extends Repository
     }
 
     /**
+     * @param string[] $excludeFolders
+     *
+     * @return QueryResultInterface<int, \MoveElevator\Typo3ImageCompression\Domain\Model\File>
+     *
      * @throws InvalidQueryException
      */
     public function findAllNonCompressedInStorageWithLimit(
