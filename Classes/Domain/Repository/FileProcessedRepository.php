@@ -28,9 +28,13 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class FileProcessedRepository
 {
+    public function __construct(private readonly ConnectionPool $connectionPool)
+    {
+    }
+
     public function getQueryBuilder(): QueryBuilder
     {
-        return GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($this->getTableName());
+        return $this->connectionPool->getQueryBuilderForTable($this->getTableName());
     }
 
     /**
