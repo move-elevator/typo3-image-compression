@@ -16,7 +16,7 @@ namespace MoveElevator\Typo3ImageCompression\Service;
 
 use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
-use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileRepository, FileProcessedRepository};
+use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use RuntimeException;
 use SplFileObject;
 use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException,
@@ -137,7 +137,7 @@ class CompressImageService implements SingletonInterface
 
             /** @var ResourceStorage $storage */
             $storage = $this->storageRepository->getStorageObject($fileStorageId);
-            $filePath = $this->getPublicPath() . ($storage->getConfiguration()['basePath'] ?? '') . urldecode($file['identifier']);
+            $filePath = $this->getPublicPath().($storage->getConfiguration()['basePath'] ?? '').urldecode($file['identifier']);
 
             if (false === file_exists($filePath)) {
                 $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file not found');

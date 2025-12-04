@@ -28,11 +28,6 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class FileProcessedRepository
 {
-    protected function getTableName(): string
-    {
-        return 'sys_file_processedfile';
-    }
-
     public function getQueryBuilder(): QueryBuilder
     {
         return GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($this->getTableName());
@@ -40,6 +35,7 @@ class FileProcessedRepository
 
     /**
      * @param string[] $columns
+     *
      * @return mixed[]
      */
     public function findAllNonCompressed(array $columns = ['*'], int $limit = 0): array
@@ -51,7 +47,7 @@ class FileProcessedRepository
             ->where(
                 $queryBuilder->expr()->eq('compressed', $queryBuilder->createNamedParameter(0, ParameterType::INTEGER)),
                 $queryBuilder->expr()->isNull('compress_error'),
-                $queryBuilder->expr()->isNotNull('name')
+                $queryBuilder->expr()->isNotNull('name'),
             );
 
         if ($limit > 0) {
@@ -67,7 +63,7 @@ class FileProcessedRepository
         $queryBuilder
             ->update($this->getTableName())
             ->where(
-                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($processedFileId, ParameterType::INTEGER))
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($processedFileId, ParameterType::INTEGER)),
             )
             ->set('compressed', $state);
 
@@ -88,15 +84,20 @@ class FileProcessedRepository
                 'pf',
                 'sys_file',
                 'f',
-                $queryBuilder->expr()->eq('pf.original', 'f.uid')
+                $queryBuilder->expr()->eq('pf.original', 'f.uid'),
             )
             ->where(
                 $queryBuilder->expr()->eq('pf.uid', $queryBuilder->createNamedParameter($processedFileId, ParameterType::INTEGER)),
-                $queryBuilder->expr()->isNull('pf.compress_error')
+                $queryBuilder->expr()->isNull('pf.compress_error'),
             )
             ->executeQuery()
             ->fetchAssociative();
 
-        return $result ? (int)$result['storage'] : 0;
+        return $result ? (int) $result['storage'] : 0;
+    }
+
+    protected function getTableName(): string
+    {
+        return 'sys_file_processedfile';
     }
 }
