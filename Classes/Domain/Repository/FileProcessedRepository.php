@@ -27,9 +27,7 @@ use TYPO3\CMS\Core\Database\Query\QueryBuilder;
  */
 class FileProcessedRepository
 {
-    public function __construct(private readonly ConnectionPool $connectionPool)
-    {
-    }
+    public function __construct(private readonly ConnectionPool $connectionPool) {}
 
     public function getQueryBuilder(): QueryBuilder
     {
