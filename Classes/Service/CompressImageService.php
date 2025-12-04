@@ -66,6 +66,21 @@ class CompressImageService implements SingletonInterface
     }
 
     /**
+     * Returns the current compression count from the TinyPNG API.
+     * Returns null if the API key is not configured or validation fails.
+     */
+    public function getCompressionCount(): ?int
+    {
+        try {
+            $this->initAction();
+
+            return \Tinify\getCompressionCount();
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    /**
      * @throws IllegalObjectTypeException
      * @throws UnknownObjectException
      * @throws Exception

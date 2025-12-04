@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
 use MoveElevator\Typo3ImageCompression\Configuration;
+use MoveElevator\Typo3ImageCompression\Service\CompressImageService;
 use TYPO3\CMS\Backend\Backend\Event\SystemInformationToolbarCollectorEvent;
 use TYPO3\CMS\Backend\Toolbar\InformationStatus;
 use TYPO3\CMS\Core\Information\Typo3Version;
@@ -30,13 +31,9 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class SystemInformationToolbar
 {
-    /**
-     * @var array<string, mixed>
-     */
-    protected array $extConf = [];
-
     public function __construct(
         protected Configuration\ExtensionConfiguration $extensionConfiguration,
+        protected CompressImageService $compressImageService,
     ) {}
 
     public function __invoke(SystemInformationToolbarCollectorEvent $systemInformation): void
@@ -49,21 +46,22 @@ class SystemInformationToolbar
             return;
         }
 
-        \Tinify\setKey($this->extensionConfiguration->getApiKey());
-        \Tinify\validate();
+        $compressionCount = $this->compressImageService->getCompressionCount();
+        if (null === $compressionCount) {
+            return;
+        }
 
         $systemInformation->getToolbarItem()->addSystemInformation(
             $this->getLanguageService()->sL('LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:label'),
-            $this->getCompressionLimit(),
+            $this->formatCompressionLimit($compressionCount),
             'actions-image',
             GeneralUtility::makeInstance(Typo3Version::class)->getMajorVersion() >= 13 ? InformationStatus::OK : 'success', // @phpstan-ignore-line TYPO3 v12 uses string, v13+ uses InformationStatus enum
         );
     }
 
-    private function getCompressionLimit(): string
+    private function formatCompressionLimit(int $compressionCount): string
     {
-        $compressionCount = \Tinify\getCompressionCount();
-        if (null === $compressionCount || 0 === $compressionCount) {
+        if (0 === $compressionCount) {
             return '?';
         }
 
