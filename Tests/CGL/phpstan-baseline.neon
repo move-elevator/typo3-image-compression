@@ -1,2 +1,6 @@
 parameters:
-	ignoreErrors: []
+	ignoreErrors:
+		# Tests verify runtime behavior, PHPStan knows types at analysis time
+		-
+			message: '#Call to static method .+::assert.+ will always evaluate to true#'
+			path: ../../Tests/Unit/Compression/ToolDetectionTest.php

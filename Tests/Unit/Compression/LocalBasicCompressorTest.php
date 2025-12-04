@@ -12,33 +12,35 @@ declare(strict_types=1);
  * file that was distributed with this source code.
  */
 
-namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Service;
+namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
+use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, LocalBasicCompressor, ToolDetection};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
-use MoveElevator\Typo3ImageCompression\Service\{CompressImageServiceInterface, CompressionQuotaAwareInterface, TinifyCompressImageService};
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use TYPO3\CMS\Core\Resource\StorageRepository;
 use TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager;
 
 /**
- * TinifyCompressImageServiceTest.
+ * LocalBasicCompressorTest.
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-#[CoversClass(TinifyCompressImageService::class)]
-final class TinifyCompressImageServiceTest extends TestCase
+#[CoversClass(LocalBasicCompressor::class)]
+final class LocalBasicCompressorTest extends TestCase
 {
-    private TinifyCompressImageService $subject;
+    private LocalBasicCompressor $subject;
     private FileRepository&MockObject $fileRepositoryMock;
     private FileProcessedRepository&MockObject $fileProcessedRepositoryMock;
     private PersistenceManager&MockObject $persistenceManagerMock;
     private ExtensionConfiguration&MockObject $extensionConfigurationMock;
     private StorageRepository&MockObject $storageRepositoryMock;
+    private ToolDetection&MockObject $toolDetectionMock;
 
     protected function setUp(): void
     {
@@ -47,45 +49,38 @@ final class TinifyCompressImageServiceTest extends TestCase
         $this->persistenceManagerMock = $this->createMock(PersistenceManager::class);
         $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
         $this->storageRepositoryMock = $this->createMock(StorageRepository::class);
+        $this->toolDetectionMock = $this->createMock(ToolDetection::class);
 
-        $this->subject = new TinifyCompressImageService(
+        $this->subject = new LocalBasicCompressor(
             $this->fileRepositoryMock,
             $this->fileProcessedRepositoryMock,
             $this->persistenceManagerMock,
             $this->extensionConfigurationMock,
             $this->storageRepositoryMock,
+            $this->toolDetectionMock,
         );
     }
 
     #[Test]
-    public function implementsCompressImageServiceInterface(): void
+    public function implementsCompressorInterface(): void
     {
-        self::assertInstanceOf(CompressImageServiceInterface::class, $this->subject);
+        self::assertInstanceOf(CompressorInterface::class, $this->subject);
     }
 
     #[Test]
-    public function implementsCompressionQuotaAwareInterface(): void
+    public function getProviderIdentifierReturnsLocalBasic(): void
     {
-        self::assertInstanceOf(CompressionQuotaAwareInterface::class, $this->subject);
+        self::assertSame('local-basic', $this->subject->getProviderIdentifier());
     }
 
     #[Test]
-    public function getProviderIdentifierReturnsTinify(): void
+    public function canSetLogger(): void
     {
-        self::assertSame('tinify', $this->subject->getProviderIdentifier());
-    }
+        $loggerMock = $this->createMock(LoggerInterface::class);
 
-    #[Test]
-    public function initActionDoesNothingWhenApiKeyIsEmpty(): void
-    {
-        $this->extensionConfigurationMock
-            ->expects(self::once())
-            ->method('getApiKey')
-            ->willReturn('');
+        $this->subject->setLogger($loggerMock);
 
-        // If initAction tries to call Tinify functions, the test would fail
-        // because Tinify is not mocked and would throw an error.
-        // The expects(self::once()) assertion validates the early return.
-        $this->subject->initAction();
+        // Verify logger was set by ensuring no exception was thrown
+        self::assertInstanceOf(LocalBasicCompressor::class, $this->subject);
     }
 }

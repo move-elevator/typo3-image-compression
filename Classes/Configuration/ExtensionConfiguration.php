@@ -26,6 +26,10 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class ExtensionConfiguration
 {
+    public const PROVIDER_TINIFY = 'tinify';
+    public const PROVIDER_LOCAL_TOOLS = 'local-tools';
+    public const PROVIDER_LOCAL_BASIC = 'local-basic';
+
     /**
      * @var array<string, mixed>
      */
@@ -36,9 +40,17 @@ class ExtensionConfiguration
         $this->extConf = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Configuration\ExtensionConfiguration::class)->get(Configuration::EXT_KEY);
     }
 
+    /**
+     * Returns the configured compression provider.
+     */
+    public function getProvider(): string
+    {
+        return (string) ($this->extConf['provider'] ?? self::PROVIDER_TINIFY);
+    }
+
     public function getApiKey(): string
     {
-        return (string) $this->extConf['apiKey'];
+        return (string) ($this->extConf['apiKey'] ?? '');
     }
 
     public function isDebug(): bool
@@ -65,5 +77,35 @@ class ExtensionConfiguration
     public function isSystemInformationToolbar(): bool
     {
         return (bool) ($this->extConf['systemInformationToolbar'] ?? false);
+    }
+
+    /**
+     * Returns the JPEG quality setting for local compression (1-100).
+     */
+    public function getJpegQuality(): int
+    {
+        $quality = (int) ($this->extConf['jpegQuality'] ?? 85);
+
+        return max(1, min(100, $quality));
+    }
+
+    /**
+     * Returns the PNG quality setting for local compression (1-100).
+     */
+    public function getPngQuality(): int
+    {
+        $quality = (int) ($this->extConf['pngQuality'] ?? 85);
+
+        return max(1, min(100, $quality));
+    }
+
+    /**
+     * Returns the WebP quality setting for local compression (1-100).
+     */
+    public function getWebpQuality(): int
+    {
+        $quality = (int) ($this->extConf['webpQuality'] ?? 80);
+
+        return max(1, min(100, $quality));
     }
 }

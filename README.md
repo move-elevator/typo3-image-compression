@@ -13,19 +13,23 @@
 
 </div>
 
-> [!NOTE]
-> This extension is a fork of the original extension [tinyimg](https://github.com/schmitzal/tinyimg).
-
-
-This TYPO3 extension automatically compresses images uploaded to the TYPO3 backend using the [TinyPNG API](https://tinypng.com/). The compression can reduce file sizes by up to 80% while maintaining excellent image quality.
+This TYPO3 extension automatically compresses images uploaded to the TYPO3 backend. Choose between the TinyPNG API for best results or local tools for cost-free compression.
 
 ## Features
 
-- Automatic compression of JPG, PNG, AVIF and WebP images on upload
-- Uses TinyPNG's powerful compression API
+- **Multiple compression providers**: TinyPNG API, local optimized tools, or ImageMagick/GraphicsMagick
+- Automatic compression of JPG, PNG, GIF, AVIF and WebP images on upload
 - CLI command for batch processing existing images
-- Configurable via extension settings
+- Configurable quality settings for local compression
 - Image compression statistic in the system information toolbar
+
+## Provider Comparison
+
+| Provider | Tools | Compression | Cost | Best For |
+|----------|-------|-------------|------|----------|
+| `tinify` | TinyPNG API | ~70-80% | API quota | Production, best quality |
+| `local-tools` | jpegoptim, optipng, pngquant, gifsicle, cwebp | ~50-60% | Free | Self-hosted, no API costs |
+| `local-basic` | ImageMagick / GraphicsMagick | ~30-40% | Free | JPEG only, quick setup |
 
 ## 🔥 Installation
 
@@ -52,16 +56,38 @@ Download the zip file from [TYPO3 extension repository (TER)](https://extensions
 
 ## 🧰 Configuration
 
-1. **Get an API key**: Register at [TinyPNG Developers](https://tinypng.com/developers) to obtain your API key
-2. **Configure the extension**: Enter your API key in the extension settings (Admin Tools > Settings > Extension Configuration)
-3. **Activate the extension**: Enable the extension in your TYPO3 installation
+Configure the extension in **Admin Tools > Settings > Extension Configuration**.
 
-> [!TIP]
-> Consider disabling compression during development or testing to preserve your API quota.
+### Provider: `tinify` (TinyPNG API)
 
-### API Limits
+1. Register at [TinyPNG Developers](https://tinypng.com/developers) to obtain your API key
+2. Set **Provider** to `tinify` and enter your API key
+3. Free tier: **500 compressions/month**, paid upgrades via [TinyPNG dashboard](https://tinypng.com/dashboard)
 
-The free TinyPNG tier includes **500 compressions per month**. For higher volumes, paid upgrades are available through your [TinyPNG dashboard](https://tinypng.com/dashboard).
+> [!WARNING]
+> Be aware that the free API limit (500 compressions/month) can be exhausted quickly on large sites with many existing images.
+> 
+### Provider: `local-tools` (Optimized Tools)
+
+Install the required tools on your server:
+
+```bash
+# Debian/Ubuntu
+apt install jpegoptim optipng pngquant gifsicle webp
+
+# macOS (Homebrew)
+brew install jpegoptim optipng pngquant gifsicle webp
+```
+
+Set **Provider** to `local-tools`. The extension auto-detects available tools.
+
+### Provider: `local-basic` (ImageMagick/GraphicsMagick)
+
+No additional installation needed - uses TYPO3's configured graphics processor. Set **Provider** to `local-basic`.
+
+### Quality Settings
+
+For local providers, configure quality (1-100) for JPEG, PNG, and WebP compression.
 
 ## Usage
 
@@ -76,8 +102,9 @@ For existing projects, a CLI command is available to compress images that were u
 > [!IMPORTANT]
 > Before running the CLI command, ensure your TYPO3 file index is up to date. Use the scheduler task **"File Abstraction Layer: Update storage index"** to update the index.
 
-> [!WARNING]
-> Be aware that the free API limit (500 compressions/month) can be exhausted quickly on large sites with many existing images.
+## 💛 Acknowledgements
+
+This project is a fork and further development of the great [tinyimg](https://github.com/schmitzal/tinyimg) extension.
 
 ## 🧑‍💻 Contributing
 

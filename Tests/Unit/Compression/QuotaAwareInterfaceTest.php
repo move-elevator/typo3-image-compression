@@ -12,27 +12,27 @@ declare(strict_types=1);
  * file that was distributed with this source code.
  */
 
-namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Service;
+namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
-use MoveElevator\Typo3ImageCompression\Service\CompressionQuotaAwareInterface;
+use MoveElevator\Typo3ImageCompression\Compression\QuotaAwareInterface;
 use PHPUnit\Framework\Attributes\{CoversNothing, Test};
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
 /**
- * CompressionQuotaAwareInterfaceTest.
+ * QuotaAwareInterfaceTest.
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
 #[CoversNothing]
-final class CompressionQuotaAwareInterfaceTest extends TestCase
+final class QuotaAwareInterfaceTest extends TestCase
 {
     #[Test]
     public function interfaceDefinesGetCompressionCountMethod(): void
     {
-        $reflection = new ReflectionClass(CompressionQuotaAwareInterface::class);
+        $reflection = new ReflectionClass(QuotaAwareInterface::class);
         self::assertTrue($reflection->hasMethod('getCompressionCount'));
 
         $method = $reflection->getMethod('getCompressionCount');
@@ -43,7 +43,7 @@ final class CompressionQuotaAwareInterfaceTest extends TestCase
     #[Test]
     public function interfaceDefinesGetQuotaLimitMethod(): void
     {
-        $reflection = new ReflectionClass(CompressionQuotaAwareInterface::class);
+        $reflection = new ReflectionClass(QuotaAwareInterface::class);
         self::assertTrue($reflection->hasMethod('getQuotaLimit'));
 
         $method = $reflection->getMethod('getQuotaLimit');

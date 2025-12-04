@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
-use MoveElevator\Typo3ImageCompression\Service\CompressImageServiceInterface;
+use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
 use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Resource\Event\AfterFileAddedEvent;
 use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, UnknownObjectException};
@@ -28,7 +28,7 @@ use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, Unknown
  */
 final readonly class AfterFileAdded
 {
-    public function __construct(private CompressImageServiceInterface $compressImageService) {}
+    public function __construct(private CompressorInterface $compressor) {}
 
     /**
      * @throws Exception
@@ -37,7 +37,7 @@ final readonly class AfterFileAdded
      */
     public function __invoke(AfterFileAddedEvent $event): AfterFileAddedEvent
     {
-        $this->compressImageService->compress($event->getFile());
+        $this->compressor->compress($event->getFile());
 
         return $event;
     }
