@@ -21,6 +21,7 @@
 		"php": "~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0",
 		"ext-fileinfo": "*",
 		"doctrine/dbal": "^3.8 || ^4.0",
+		"psr/container": "^1.1 || ^2.0",
 		"psr/log": "^2.0 || ^3.0",
 		"symfony/console": "^6.4 || ^7.0",
 		"tinify/tinify": "^1.6",

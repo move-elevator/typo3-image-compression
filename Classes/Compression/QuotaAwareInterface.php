@@ -12,16 +12,16 @@ declare(strict_types=1);
  * file that was distributed with this source code.
  */
 
-namespace MoveElevator\Typo3ImageCompression\Service;
+namespace MoveElevator\Typo3ImageCompression\Compression;
 
 /**
- * CompressionQuotaAwareInterface.
+ * QuotaAwareInterface.
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-interface CompressionQuotaAwareInterface
+interface QuotaAwareInterface
 {
     /**
      * Returns the current compression count for the current billing period.

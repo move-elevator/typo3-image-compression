@@ -12,30 +12,26 @@ declare(strict_types=1);
  * file that was distributed with this source code.
  */
 
-namespace MoveElevator\Typo3ImageCompression\Service;
+namespace MoveElevator\Typo3ImageCompression\Compression;
 
+use Exception;
 use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use RuntimeException;
-use SplFileObject;
 use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException,
     ExtensionConfigurationPathDoesNotExistException};
 use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Core\{Exception, Resource\ResourceStorage, Resource\StorageRepository, SingletonInterface};
-use TYPO3\CMS\Core\Messaging\{FlashMessage, FlashMessageService};
-use TYPO3\CMS\Core\Resource\{File, FileInterface};
-use TYPO3\CMS\Core\Resource\Index\Indexer;
+use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
+use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, UnknownObjectException};
 use TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager;
-use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 
 use function in_array;
 
 /**
- * TinifyCompressImageService.
+ * TinifyCompressor.
  *
  * @see https://tinypng.com/developers
  *
@@ -43,17 +39,20 @@ use function in_array;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-class TinifyCompressImageService implements CompressImageServiceInterface, CompressionQuotaAwareInterface, SingletonInterface
+class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, SingletonInterface
 {
+    use CompressorTrait;
+    use FlashMessageTrait;
+
     private const PROVIDER_IDENTIFIER = 'tinify';
     private const FREE_TIER_LIMIT = 500;
 
     public function __construct(
-        protected FileRepository $fileRepository,
-        protected FileProcessedRepository $fileProcessedRepository,
-        protected PersistenceManager $persistenceManager,
-        protected ExtensionConfiguration $extensionConfiguration,
-        protected StorageRepository $storageRepository,
+        protected readonly FileRepository $fileRepository,
+        protected readonly FileProcessedRepository $fileProcessedRepository,
+        protected readonly PersistenceManager $persistenceManager,
+        protected readonly ExtensionConfiguration $extensionConfiguration,
+        protected readonly StorageRepository $storageRepository,
     ) {}
 
     public function getProviderIdentifier(): string
@@ -85,7 +84,7 @@ class TinifyCompressImageService implements CompressImageServiceInterface, Compr
             $this->initAction();
 
             return \Tinify\getCompressionCount();
-        } catch (\Exception) {
+        } catch (Exception) {
             return null;
         }
     }
@@ -113,7 +112,6 @@ class TinifyCompressImageService implements CompressImageServiceInterface, Compr
     /**
      * @throws IllegalObjectTypeException
      * @throws UnknownObjectException
-     * @throws Exception
      */
     public function compress(File|FileInterface $file): void
     {
@@ -141,30 +139,34 @@ class TinifyCompressImageService implements CompressImageServiceInterface, Compr
             try {
                 $this->assureFileExists($file);
                 $originalFileSize = $file->getSize();
-                $publicUrl = $this->getPublicPath().urldecode((string) $file->getPublicUrl());
-                $source = \Tinify\fromFile($publicUrl);
-                $source->toFile($publicUrl);
-                $fileSize = $this->setCompressedForCurrentFile($file);
+                $filePath = $this->getAbsoluteFilePath($file);
+                $source = \Tinify\fromFile($filePath);
+                $source->toFile($filePath);
 
-                if (0 !== (int) $fileSize && $originalFileSize > 0) {
-                    $percentageSaved = (int) (100 - ((100 / $originalFileSize) * (int) $fileSize));
-                    $this->addMessageToFlashMessageQueue(
+                $this->markFileAsCompressed($file);
+                $this->updateFileInformation($file);
+
+                clearstatcache(true, $filePath);
+                $newFileSize = (int) filesize($filePath);
+                $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
+
+                if ($percentageSaved > 0) {
+                    $this->addFlashMessage(
                         'success',
-                        [0 => $percentageSaved.'%'],
+                        [$percentageSaved.'%'],
                         ContextualFeedbackSeverity::INFO,
                     );
                 }
-                $this->updateFileInformation($file);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $this->saveError($file, $e);
-                $this->addMessageToFlashMessageQueue(
+                $this->addFlashMessage(
                     'compressionFailed',
-                    [0 => $e->getMessage()],
+                    [$e->getMessage()],
                     ContextualFeedbackSeverity::WARNING,
                 );
             }
         } else {
-            $this->addMessageToFlashMessageQueue('debugMode', [], ContextualFeedbackSeverity::INFO);
+            $this->addFlashMessage('debugMode', [], ContextualFeedbackSeverity::INFO);
         }
     }
 
@@ -186,7 +188,7 @@ class TinifyCompressImageService implements CompressImageServiceInterface, Compr
 
             /** @var ResourceStorage $storage */
             $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
-            $filePath = $this->getPublicPath().($storage->getConfiguration()['basePath'] ?? '').urldecode($file['identifier']);
+            $filePath = Environment::getPublicPath().'/'.($storage->getConfiguration()['basePath'] ?? '').urldecode($file['identifier']);
 
             if (false === file_exists($filePath)) {
                 $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file not found');
@@ -208,54 +210,29 @@ class TinifyCompressImageService implements CompressImageServiceInterface, Compr
                 if (false !== $source->toFile($filePath)) {
                     $this->fileProcessedRepository->updateCompressState($fileId);
                 }
-            } catch (\Exception $e) {
-                $this->addMessageToFlashMessageQueue(
+            } catch (Exception $e) {
+                $this->addFlashMessage(
                     'compressionFailed',
-                    [0 => $e->getMessage()],
+                    [$e->getMessage()],
                     ContextualFeedbackSeverity::WARNING,
                 );
             }
         }
     }
 
-    protected function getPublicPath(): string
-    {
-        return Environment::getPublicPath().'/';
-    }
-
-    protected function getAbsoluteFileName(File $file): string
-    {
-        return urldecode(
-            rtrim(Environment::getPublicPath(), '/').'/'.ltrim((string) $file->getPublicUrl(), '/'),
-        );
-    }
-
     /**
-     * @throws \Exception
-     */
-    protected function assureFileExists(File $file): void
-    {
-        $absFileName = $this->getAbsoluteFileName($file);
-        if (false === file_exists($absFileName)) {
-            throw new RuntimeException(Configuration::EXT_NAME.': File does not exist: '.$absFileName, 1575270381);
-        }
-        if (0 === (int) filesize($absFileName)) {
-            throw new RuntimeException(Configuration::EXT_NAME.': Filesize is 0: '.$absFileName, 1575270380);
-        }
-    }
-
-    /**
-     * @throws Exception
+     * Override trait method to add flash message when folder is excluded.
      */
     protected function isFileInExcludeFolder(File $file): bool
     {
         $excludeFolders = $this->extensionConfiguration->getExcludeFolders();
         $identifier = $file->getIdentifier();
+
         foreach ($excludeFolders as $excludeFolder) {
             if (str_starts_with($identifier, $excludeFolder)) {
-                $this->addMessageToFlashMessageQueue(
+                $this->addFlashMessage(
                     'folderExcluded',
-                    [0 => $excludeFolder],
+                    [$excludeFolder],
                     ContextualFeedbackSeverity::INFO,
                 );
 
@@ -266,79 +243,25 @@ class TinifyCompressImageService implements CompressImageServiceInterface, Compr
         return false;
     }
 
-    protected function updateFileInformation(File $file): void
-    {
-        $storage = $file->getStorage();
-        $fileIndexer = GeneralUtility::makeInstance(Indexer::class, $storage);
-        $fileIndexer->updateIndexEntry($file);
-    }
-
     /**
-     * @throws IllegalObjectTypeException
-     * @throws UnknownObjectException
-     */
-    protected function setCompressedForCurrentFile(File $file): ?int
-    {
-        /** @var \MoveElevator\Typo3ImageCompression\Domain\Model\File $extbaseFileObject */
-        $extbaseFileObject = $this->fileRepository->findByUid($file->getUid());
-        $extbaseFileObject->setCompressed(true);
-        $extbaseFileObject->resetCompressError();
-        $this->fileRepository->update($extbaseFileObject);
-        $this->persistenceManager->persistAll();
-        try {
-            clearstatcache();
-            $splFileObject = new SplFileObject($this->getAbsoluteFileName($file));
-
-            return (int) $splFileObject->getSize();
-        } catch (\Exception) {
-            return null;
-        }
-    }
-
-    protected function isCli(): bool
-    {
-        return Environment::isCli();
-    }
-
-    /**
-     * @param array<int|string, string> $replaceMarkers
-     *
      * @throws Exception
      */
-    protected function addMessageToFlashMessageQueue(
-        string $key,
-        array $replaceMarkers = [],
-        ContextualFeedbackSeverity $severity = ContextualFeedbackSeverity::ERROR,
-    ): void {
-        if ($this->isCli()) {
-            return;
+    protected function assureFileExists(File $file): void
+    {
+        $absFileName = $this->getAbsoluteFilePath($file);
+        if (false === file_exists($absFileName)) {
+            throw new RuntimeException(Configuration::EXT_NAME.': File does not exist: '.$absFileName, 1575270381);
         }
-
-        $message = LocalizationUtility::translate(
-            'LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:flashMessage.message.'.$key,
-            null,
-            $replaceMarkers,
-        );
-        $flashMessage = GeneralUtility::makeInstance(
-            FlashMessage::class,
-            $message,
-            LocalizationUtility::translate(
-                'LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:flashMessage.title',
-            ),
-            $severity,
-            true,
-        );
-
-        $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
-        $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
-        $defaultFlashMessageQueue->enqueue($flashMessage);
+        if (0 === (int) filesize($absFileName)) {
+            throw new RuntimeException(Configuration::EXT_NAME.': Filesize is 0: '.$absFileName, 1575270380);
+        }
     }
 
     /**
      * @throws UnknownObjectException
      * @throws IllegalObjectTypeException
      */
-    protected function saveError(File $file, \Exception $e): void
+    protected function saveError(File $file, Exception $e): void
     {
         /** @var \MoveElevator\Typo3ImageCompression\Domain\Model\File $extbaseFileObject */
         $extbaseFileObject = $this->fileRepository->findByUid($file->getUid());

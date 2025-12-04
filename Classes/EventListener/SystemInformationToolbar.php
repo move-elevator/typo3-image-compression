@@ -14,8 +14,8 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
+use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, QuotaAwareInterface};
 use MoveElevator\Typo3ImageCompression\Configuration;
-use MoveElevator\Typo3ImageCompression\Service\{CompressImageServiceInterface, CompressionQuotaAwareInterface};
 use TYPO3\CMS\Backend\Backend\Event\SystemInformationToolbarCollectorEvent;
 use TYPO3\CMS\Backend\Toolbar\InformationStatus;
 use TYPO3\CMS\Core\Information\Typo3Version;
@@ -32,8 +32,8 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 class SystemInformationToolbar
 {
     public function __construct(
-        protected Configuration\ExtensionConfiguration $extensionConfiguration,
-        protected CompressImageServiceInterface $compressImageService,
+        protected readonly Configuration\ExtensionConfiguration $extensionConfiguration,
+        protected readonly CompressorInterface $compressor,
     ) {}
 
     public function __invoke(SystemInformationToolbarCollectorEvent $systemInformation): void
@@ -46,16 +46,16 @@ class SystemInformationToolbar
             return;
         }
 
-        if (!$this->compressImageService instanceof CompressionQuotaAwareInterface) {
+        if (!$this->compressor instanceof QuotaAwareInterface) {
             return;
         }
 
-        $compressionCount = $this->compressImageService->getCompressionCount();
+        $compressionCount = $this->compressor->getCompressionCount();
         if (null === $compressionCount) {
             return;
         }
 
-        $quotaLimit = $this->compressImageService->getQuotaLimit();
+        $quotaLimit = $this->compressor->getQuotaLimit();
 
         $systemInformation->getToolbarItem()->addSystemInformation(
             $this->getLanguageService()->sL('LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:label'),

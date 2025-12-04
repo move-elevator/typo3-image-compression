@@ -12,18 +12,18 @@ declare(strict_types=1);
  * file that was distributed with this source code.
  */
 
-namespace MoveElevator\Typo3ImageCompression\Service;
+namespace MoveElevator\Typo3ImageCompression\Compression;
 
 use TYPO3\CMS\Core\Resource\{File, FileInterface};
 
 /**
- * CompressImageServiceInterface.
+ * CompressorInterface.
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-interface CompressImageServiceInterface
+interface CompressorInterface
 {
     /**
      * Compresses a single file.

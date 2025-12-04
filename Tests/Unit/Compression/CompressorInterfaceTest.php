@@ -12,28 +12,28 @@ declare(strict_types=1);
  * file that was distributed with this source code.
  */
 
-namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Service;
+namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
-use MoveElevator\Typo3ImageCompression\Service\CompressImageServiceInterface;
+use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
 use PHPUnit\Framework\Attributes\{CoversNothing, Test};
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionNamedType;
 
 /**
- * CompressImageServiceInterfaceTest.
+ * CompressorInterfaceTest.
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
 #[CoversNothing]
-final class CompressImageServiceInterfaceTest extends TestCase
+final class CompressorInterfaceTest extends TestCase
 {
     #[Test]
     public function interfaceDefinesCompressMethod(): void
     {
-        $reflection = new ReflectionClass(CompressImageServiceInterface::class);
+        $reflection = new ReflectionClass(CompressorInterface::class);
         self::assertTrue($reflection->hasMethod('compress'));
 
         $method = $reflection->getMethod('compress');
@@ -44,7 +44,7 @@ final class CompressImageServiceInterfaceTest extends TestCase
     #[Test]
     public function interfaceDefinesCompressProcessedFilesMethod(): void
     {
-        $reflection = new ReflectionClass(CompressImageServiceInterface::class);
+        $reflection = new ReflectionClass(CompressorInterface::class);
         self::assertTrue($reflection->hasMethod('compressProcessedFiles'));
 
         $method = $reflection->getMethod('compressProcessedFiles');
@@ -55,7 +55,7 @@ final class CompressImageServiceInterfaceTest extends TestCase
     #[Test]
     public function interfaceDefinesGetProviderIdentifierMethod(): void
     {
-        $reflection = new ReflectionClass(CompressImageServiceInterface::class);
+        $reflection = new ReflectionClass(CompressorInterface::class);
         self::assertTrue($reflection->hasMethod('getProviderIdentifier'));
 
         $method = $reflection->getMethod('getProviderIdentifier');

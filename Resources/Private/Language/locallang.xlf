@@ -39,6 +39,18 @@
             <trans-unit id="systemInformationToolbar">
 				<source>Show image compression limit within the system information toolbar.</source>
 			</trans-unit>
+			<trans-unit id="provider">
+				<source>Compression Provider: Select which compression provider to use (tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick)</source>
+			</trans-unit>
+			<trans-unit id="jpegQuality">
+				<source>JPEG Quality (1-100): Quality setting for local JPEG compression</source>
+			</trans-unit>
+			<trans-unit id="pngQuality">
+				<source>PNG Quality (1-100): Quality setting for local PNG compression (pngquant)</source>
+			</trans-unit>
+			<trans-unit id="webpQuality">
+				<source>WebP Quality (1-100): Quality setting for local WebP compression</source>
+			</trans-unit>
 		</body>
 	</file>
 </xliff>

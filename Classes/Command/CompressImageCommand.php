@@ -14,10 +14,10 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Command;
 
+use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
-use MoveElevator\Typo3ImageCompression\Service\CompressImageServiceInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\{InputArgument, InputInterface};
 use Symfony\Component\Console\Output\OutputInterface;
@@ -51,7 +51,7 @@ final class CompressImageCommand extends Command
         private readonly FileRepository $fileRepository,
         private readonly FileProcessedRepository $fileProcessedRepository,
         private readonly ResourceFactory $resourceFactory,
-        private readonly CompressImageServiceInterface $compressImageService,
+        private readonly CompressorInterface $compressor,
         private readonly ExtensionConfiguration $extensionConfiguration,
         ?string $name = null,
     ) {
@@ -86,7 +86,7 @@ final class CompressImageCommand extends Command
         if ([] !== $filesProcessed) {
             $limit -= count($filesProcessed);
 
-            $this->compressImageService->compressProcessedFiles($filesProcessed);
+            $this->compressor->compressProcessedFiles($filesProcessed);
             $this->clearPageCache();
         }
 
@@ -128,7 +128,7 @@ final class CompressImageCommand extends Command
                 continue;
             }
             $file = $this->resourceFactory->getFileObject($uid);
-            $this->compressImageService->compress($file);
+            $this->compressor->compress($file);
             $fileDeletionAspect->cleanupProcessedFilesPostFileReplace(
                 new AfterFileReplacedEvent($file, ''),
             );
