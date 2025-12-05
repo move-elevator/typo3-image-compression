@@ -27,9 +27,9 @@
 		"tinify/tinify": "^1.6",
 		"typo3/cms-backend": "^12.4 || ^13.4 || ^14.0",
 		"typo3/cms-core": "^12.4 || ^13.4 || ^14.0",
-		"typo3/cms-extbase": "*",
-		"typo3/cms-filelist": "*",
-		"typo3/cms-fluid": "*",
+		"typo3/cms-extbase": "^12.4 || ^13.4 || ^14.0",
+		"typo3/cms-filelist": "^12.4 || ^13.4 || ^14.0",
+		"typo3/cms-fluid": "^12.4 || ^13.4 || ^14.0",
 		"typo3/cms-reports": "^12.4 || ^13.4 || ^14.0"
 	},
 	"require-dev": {
