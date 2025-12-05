@@ -110,14 +110,18 @@ vendor/bin/typo3 imagecompression:compressImages 50
 # Also compress processed files (thumbnails, crops, etc.)
 vendor/bin/typo3 imagecompression:compressImages --include-processed
 
+# Retry failed compressions
+vendor/bin/typo3 imagecompression:compressImages --retry-errors
+
 # Combine options
-vendor/bin/typo3 imagecompression:compressImages 200 --include-processed
+vendor/bin/typo3 imagecompression:compressImages 200 --include-processed --retry-errors
 ```
 
 | Argument/Option | Description |
 |-----------------|-------------|
 | `limit` | Number of images to process (default: 100) |
 | `--include-processed`, `-p` | Also compress processed files (thumbnails, crops). By default, only original files are compressed to save API quota. |
+| `--retry-errors`, `-r` | Retry compression for files that previously failed. On success, the error status is cleared. |
 
 > [!TIP]
 > When using **Tinify** (TinyPNG API), we recommend **not** using `--include-processed` to conserve your API quota. Processed files are regenerated from the already-compressed originals.

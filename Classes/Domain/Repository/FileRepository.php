@@ -129,6 +129,55 @@ class FileRepository extends Repository
     }
 
     /**
+     * Finds all files with compression errors in a storage.
+     *
+     * @param string[] $excludeFolders
+     *
+     * @return QueryResultInterface<int, File>
+     *
+     * @throws InvalidQueryException
+     */
+    public function findAllWithErrorsInStorageWithLimit(
+        FileStorage $storage,
+        int $limit = 100,
+        array $excludeFolders = [],
+    ): QueryResultInterface {
+        $query = $this->createQuery();
+
+        $excludeFoldersConstraints = [];
+        foreach ($excludeFolders as $excludeFolder) {
+            $excludeFoldersConstraints[] = $query->logicalNot(
+                $query->like('identifier', $excludeFolder.'%'),
+            );
+        }
+
+        $query->matching(
+            $query->logicalAnd(
+                ...array_merge(
+                    [
+                        $query->equals('storage', $storage),
+                        $query->equals('missing', false),
+                        $query->logicalNot(
+                            $query->logicalOr(
+                                $query->equals('compress_error', null),
+                                $query->equals('compress_error', ''),
+                            ),
+                        ),
+                        $query->in(
+                            'mime_type',
+                            $this->extensionConfiguration->getMimeTypes(),
+                        ),
+                    ],
+                    $excludeFoldersConstraints,
+                ),
+            ),
+        );
+        $query->setLimit($limit);
+
+        return $query->execute();
+    }
+
+    /**
      * Updates the compression status for a file using DBAL.
      */
     public function updateCompressionStatus(

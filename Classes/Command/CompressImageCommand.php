@@ -74,6 +74,12 @@ final class CompressImageCommand extends Command
             InputOption::VALUE_NONE,
             'Also compress processed files (thumbnails, crops, etc.). Without this flag, only original files are compressed.',
         );
+        $this->addOption(
+            'retry-errors',
+            'r',
+            InputOption::VALUE_NONE,
+            'Retry compression for files that previously failed. Clears error status on success.',
+        );
     }
 
     /**
@@ -90,14 +96,35 @@ final class CompressImageCommand extends Command
     {
         $limit = (int) $input->getArgument('limit');
         $includeProcessed = (bool) $input->getOption('include-processed');
+        $retryErrors = (bool) $input->getOption('retry-errors');
 
+        $stats = $this->compressFiles($limit, $includeProcessed, $retryErrors);
+
+        CompressionResultHandler::outputToConsole($output, $stats);
+        CompressionResultHandler::addFlashMessage($stats);
+
+        return 0;
+    }
+
+    /**
+     * Compress files based on the retry flag.
+     *
+     * @return array{original: array{total: int, success: int, errors: int}, processed: array{total: int, success: int, errors: int}}
+     *
+     * @throws FileDoesNotExistException
+     * @throws Exception
+     */
+    private function compressFiles(int $limit, bool $includeProcessed, bool $retryErrors): array
+    {
         $stats = [
             'original' => ['total' => 0, 'success' => 0, 'errors' => 0],
             'processed' => ['total' => 0, 'success' => 0, 'errors' => 0],
         ];
 
         if ($includeProcessed) {
-            $filesProcessed = $this->fileProcessedRepository->findAllNonCompressed(limit: $limit);
+            $filesProcessed = $retryErrors
+                ? $this->fileProcessedRepository->findAllWithErrors(limit: $limit)
+                : $this->fileProcessedRepository->findAllNonCompressed(limit: $limit);
 
             if ([] !== $filesProcessed) {
                 $limit -= count($filesProcessed);
@@ -107,29 +134,41 @@ final class CompressImageCommand extends Command
         }
 
         if ($limit > 0) {
-            /** @var FileStorage $fileStorage */
-            foreach ($this->fileStorageRepository->findAll() as $fileStorage) {
-                $excludeFolders = $this->extensionConfiguration->getExcludeFolders();
-                $files = $this->fileRepository->findAllNonCompressedInStorageWithLimit(
-                    $fileStorage,
-                    $limit,
-                    $excludeFolders,
-                );
+            $stats['original'] = $this->compressOriginalFiles($limit, $retryErrors);
+        }
 
-                if ($files->count() > 0) {
-                    $fileStats = $this->compressImagesWithStats($files);
-                    $stats['original']['total'] += $fileStats['total'];
-                    $stats['original']['success'] += $fileStats['success'];
-                    $stats['original']['errors'] += $fileStats['errors'];
-                    $this->clearPageCache();
-                }
+        return $stats;
+    }
+
+    /**
+     * Compress original files.
+     *
+     * @return array{total: int, success: int, errors: int}
+     *
+     * @throws FileDoesNotExistException
+     * @throws Exception
+     */
+    private function compressOriginalFiles(int $limit, bool $retryErrors): array
+    {
+        $stats = ['total' => 0, 'success' => 0, 'errors' => 0];
+
+        /** @var FileStorage $fileStorage */
+        foreach ($this->fileStorageRepository->findAll() as $fileStorage) {
+            $excludeFolders = $this->extensionConfiguration->getExcludeFolders();
+            $files = $retryErrors
+                ? $this->fileRepository->findAllWithErrorsInStorageWithLimit($fileStorage, $limit, $excludeFolders)
+                : $this->fileRepository->findAllNonCompressedInStorageWithLimit($fileStorage, $limit, $excludeFolders);
+
+            if ($files->count() > 0) {
+                $fileStats = $this->compressImagesWithStats($files);
+                $stats['total'] += $fileStats['total'];
+                $stats['success'] += $fileStats['success'];
+                $stats['errors'] += $fileStats['errors'];
+                $this->clearPageCache();
             }
         }
 
-        CompressionResultHandler::outputToConsole($output, $stats);
-        CompressionResultHandler::addFlashMessage($stats);
-
-        return 0;
+        return $stats;
     }
 
     /**
