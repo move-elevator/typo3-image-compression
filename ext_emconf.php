@@ -11,7 +11,7 @@
 
 $EM_CONF[$_EXTKEY] = [
     'title' => 'TYPO3 Image Compression',
-    'description' => '',
+    'description' => 'Automatically compress images using TinyPNG API, local tools (jpegoptim, optipng, etc.), or ImageMagick/GraphicsMagick',
     'category' => 'be',
     'author' => 'Konrad Michalik',
     'author_email' => 'km@move-elevator.de',
