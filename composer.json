@@ -15,11 +15,6 @@
 		"jpegoptim",
 		"imagemagick"
 	],
-	"homepage": "https://github.com/move-elevator/typo3-image-compression",
-	"support": {
-		"issues": "https://github.com/move-elevator/typo3-image-compression/issues",
-		"source": "https://github.com/move-elevator/typo3-image-compression"
-	},
 	"authors": [
 		{
 			"name": "Konrad Michalik",
@@ -32,6 +27,11 @@
 			"role": "Maintainer"
 		}
 	],
+	"homepage": "https://github.com/move-elevator/typo3-image-compression",
+	"support": {
+		"issues": "https://github.com/move-elevator/typo3-image-compression/issues",
+		"source": "https://github.com/move-elevator/typo3-image-compression"
+	},
 	"require": {
 		"php": "~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0",
 		"ext-fileinfo": "*",
