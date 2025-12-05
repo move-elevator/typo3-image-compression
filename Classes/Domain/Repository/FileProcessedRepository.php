@@ -35,6 +35,32 @@ class FileProcessedRepository
     }
 
     /**
+     * Finds all processed files with compression errors.
+     *
+     * @param string[] $columns
+     *
+     * @return mixed[]
+     */
+    public function findAllWithErrors(array $columns = ['*'], int $limit = 0): array
+    {
+        $queryBuilder = $this->getQueryBuilder();
+        $queryBuilder
+            ->select(...$columns)
+            ->from($this->getTableName())
+            ->where(
+                $queryBuilder->expr()->isNotNull('compress_error'),
+                $queryBuilder->expr()->neq('compress_error', $queryBuilder->createNamedParameter('')),
+                $queryBuilder->expr()->isNotNull('name'),
+            );
+
+        if ($limit > 0) {
+            $queryBuilder->setMaxResults($limit);
+        }
+
+        return $queryBuilder->executeQuery()->fetchAllAssociative();
+    }
+
+    /**
      * @param string[] $columns
      *
      * @return mixed[]
@@ -66,11 +92,8 @@ class FileProcessedRepository
             ->where(
                 $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($processedFileId, ParameterType::INTEGER)),
             )
-            ->set('compressed', $state);
-
-        if ('' !== trim($errorMessage)) {
-            $queryBuilder->set('compress_error', $errorMessage);
-        }
+            ->set('compressed', $state)
+            ->set('compress_error', $errorMessage);
 
         $queryBuilder->executeStatement();
     }
