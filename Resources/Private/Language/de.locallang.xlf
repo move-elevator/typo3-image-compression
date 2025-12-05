@@ -51,6 +51,54 @@
 				<source/>
 				<target>Zeige das Bildkomprimierungslimit in der Systeminformationstoolbar an.</target>
 			</trans-unit>
+			<trans-unit id="showCompressionStatus">
+				<source/>
+				<target>Zeige den Komprimierungsstatus im Datei-Metadaten-Formular an.</target>
+			</trans-unit>
+			<trans-unit id="provider">
+				<source/>
+				<target>Komprimierungsanbieter: Wählen Sie den zu verwendenden Komprimierungsanbieter (tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick)</target>
+			</trans-unit>
+			<trans-unit id="jpegQuality">
+				<source/>
+				<target>JPEG-Qualität (1-100): Qualitätseinstellung für lokale JPEG-Komprimierung</target>
+			</trans-unit>
+			<trans-unit id="pngQuality">
+				<source/>
+				<target>PNG-Qualität (1-100): Qualitätseinstellung für lokale PNG-Komprimierung (pngquant)</target>
+			</trans-unit>
+			<trans-unit id="webpQuality">
+				<source/>
+				<target>WebP-Qualität (1-100): Qualitätseinstellung für lokale WebP-Komprimierung</target>
+			</trans-unit>
+			<trans-unit id="tab.compression">
+				<source/>
+				<target>Komprimierung</target>
+			</trans-unit>
+			<trans-unit id="field.compression_info">
+				<source/>
+				<target>Komprimierungsstatus</target>
+			</trans-unit>
+			<trans-unit id="status.compressed">
+				<source/>
+				<target>Komprimiert</target>
+			</trans-unit>
+			<trans-unit id="status.not_compressed">
+				<source/>
+				<target>Nicht komprimiert</target>
+			</trans-unit>
+			<trans-unit id="status.error">
+				<source/>
+				<target>Fehler</target>
+			</trans-unit>
+			<trans-unit id="status.no_file">
+				<source/>
+				<target>Keine Datei zugeordnet</target>
+			</trans-unit>
+			<trans-unit id="status.file_not_found">
+				<source/>
+				<target>Datei nicht gefunden</target>
+			</trans-unit>
 		</body>
 	</file>
 </xliff>

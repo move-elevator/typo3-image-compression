@@ -20,14 +20,14 @@ use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\Index\Indexer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager;
+
+use function sprintf;
 
 /**
  * CompressorTrait.
  *
  * @property ExtensionConfiguration $extensionConfiguration
  * @property FileRepository         $fileRepository
- * @property PersistenceManager     $persistenceManager
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
@@ -73,20 +73,65 @@ trait CompressorTrait
      *
      * Updates the sys_file record to indicate successful compression
      * and clears any previous compression errors.
+     *
+     * @param string $compressInfo Compression info (e.g. "tinify: -45% (2025-12-04)")
      */
-    protected function markFileAsCompressed(File $file): void
+    protected function markFileAsCompressed(File $file, string $compressInfo = ''): void
     {
-        /** @var \MoveElevator\Typo3ImageCompression\Domain\Model\File|null $extbaseFileObject */
-        $extbaseFileObject = $this->fileRepository->findByUid($file->getUid());
+        $this->fileRepository->updateCompressionStatus($file->getUid(), true, '', $compressInfo);
+    }
 
-        if (null === $extbaseFileObject) {
-            return;
+    /**
+     * Builds the compression info string.
+     *
+     * @param string      $provider     Provider identifier (e.g. "tinify", "local-tools")
+     * @param int         $originalSize Original file size in bytes
+     * @param int         $newSize      New file size in bytes
+     * @param string|null $tool         Optional tool name (e.g. "jpegoptim", "ImageMagick")
+     */
+    protected function buildCompressInfo(string $provider, int $originalSize, int $newSize, ?string $tool = null): string
+    {
+        $date = date('d.m.Y');
+        $savedPercent = $this->calculateSavedPercent($originalSize, $newSize);
+        $originalFormatted = $this->formatFileSize($originalSize);
+        $newFormatted = $this->formatFileSize($newSize);
+
+        if (null !== $tool && '' !== $tool) {
+            return sprintf(
+                '%s (%s): %s -> %s (-%d%%) - %s',
+                $provider,
+                $tool,
+                $originalFormatted,
+                $newFormatted,
+                $savedPercent,
+                $date,
+            );
         }
 
-        $extbaseFileObject->setCompressed(true);
-        $extbaseFileObject->resetCompressError();
-        $this->fileRepository->update($extbaseFileObject);
-        $this->persistenceManager->persistAll();
+        return sprintf(
+            '%s: %s -> %s (-%d%%) - %s',
+            $provider,
+            $originalFormatted,
+            $newFormatted,
+            $savedPercent,
+            $date,
+        );
+    }
+
+    /**
+     * Formats file size in human-readable format.
+     */
+    protected function formatFileSize(int $bytes): string
+    {
+        if ($bytes >= 1048576) {
+            return sprintf('%.1f MB', $bytes / 1048576);
+        }
+
+        if ($bytes >= 1024) {
+            return sprintf('%.0f KB', $bytes / 1024);
+        }
+
+        return sprintf('%d B', $bytes);
     }
 
     /**

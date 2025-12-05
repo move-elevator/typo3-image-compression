@@ -39,6 +39,9 @@
             <trans-unit id="systemInformationToolbar">
 				<source>Show image compression limit within the system information toolbar.</source>
 			</trans-unit>
+			<trans-unit id="showCompressionStatus">
+				<source>Show compression status in file metadata form.</source>
+			</trans-unit>
 			<trans-unit id="provider">
 				<source>Compression Provider: Select which compression provider to use (tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick)</source>
 			</trans-unit>
@@ -50,6 +53,27 @@
 			</trans-unit>
 			<trans-unit id="webpQuality">
 				<source>WebP Quality (1-100): Quality setting for local WebP compression</source>
+			</trans-unit>
+			<trans-unit id="tab.compression">
+				<source>Compression</source>
+			</trans-unit>
+			<trans-unit id="field.compression_info">
+				<source>Compression Status</source>
+			</trans-unit>
+			<trans-unit id="status.compressed">
+				<source>Compressed</source>
+			</trans-unit>
+			<trans-unit id="status.not_compressed">
+				<source>Not compressed</source>
+			</trans-unit>
+			<trans-unit id="status.error">
+				<source>Error</source>
+			</trans-unit>
+			<trans-unit id="status.no_file">
+				<source>No file associated</source>
+			</trans-unit>
+			<trans-unit id="status.file_not_found">
+				<source>File not found</source>
 			</trans-unit>
 		</body>
 	</file>

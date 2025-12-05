@@ -22,7 +22,6 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use TYPO3\CMS\Core\Resource\StorageRepository;
-use TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager;
 
 /**
  * LocalBasicCompressorTest.
@@ -37,7 +36,6 @@ final class LocalBasicCompressorTest extends TestCase
     private LocalBasicCompressor $subject;
     private FileRepository&MockObject $fileRepositoryMock;
     private FileProcessedRepository&MockObject $fileProcessedRepositoryMock;
-    private PersistenceManager&MockObject $persistenceManagerMock;
     private ExtensionConfiguration&MockObject $extensionConfigurationMock;
     private StorageRepository&MockObject $storageRepositoryMock;
     private ToolDetection&MockObject $toolDetectionMock;
@@ -46,7 +44,6 @@ final class LocalBasicCompressorTest extends TestCase
     {
         $this->fileRepositoryMock = $this->createMock(FileRepository::class);
         $this->fileProcessedRepositoryMock = $this->createMock(FileProcessedRepository::class);
-        $this->persistenceManagerMock = $this->createMock(PersistenceManager::class);
         $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
         $this->storageRepositoryMock = $this->createMock(StorageRepository::class);
         $this->toolDetectionMock = $this->createMock(ToolDetection::class);
@@ -54,7 +51,6 @@ final class LocalBasicCompressorTest extends TestCase
         $this->subject = new LocalBasicCompressor(
             $this->fileRepositoryMock,
             $this->fileProcessedRepositoryMock,
-            $this->persistenceManagerMock,
             $this->extensionConfigurationMock,
             $this->storageRepositoryMock,
             $this->toolDetectionMock,

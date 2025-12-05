@@ -25,8 +25,6 @@ use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
-use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, UnknownObjectException};
-use TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager;
 
 use function in_array;
 
@@ -50,7 +48,6 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
     public function __construct(
         protected readonly FileRepository $fileRepository,
         protected readonly FileProcessedRepository $fileProcessedRepository,
-        protected readonly PersistenceManager $persistenceManager,
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly StorageRepository $storageRepository,
     ) {}
@@ -109,10 +106,6 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
         return self::FREE_TIER_LIMIT;
     }
 
-    /**
-     * @throws IllegalObjectTypeException
-     * @throws UnknownObjectException
-     */
     public function compress(File|FileInterface $file): void
     {
         if (!$file instanceof File) {
@@ -143,12 +136,13 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
                 $source = \Tinify\fromFile($filePath);
                 $source->toFile($filePath);
 
-                $this->markFileAsCompressed($file);
-                $this->updateFileInformation($file);
-
                 clearstatcache(true, $filePath);
                 $newFileSize = (int) filesize($filePath);
                 $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
+
+                $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize);
+                $this->markFileAsCompressed($file, $compressInfo);
+                $this->updateFileInformation($file);
 
                 if ($percentageSaved > 0) {
                     $this->addFlashMessage(
@@ -257,17 +251,9 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
         }
     }
 
-    /**
-     * @throws UnknownObjectException
-     * @throws IllegalObjectTypeException
-     */
     protected function saveError(File $file, Exception $e): void
     {
-        /** @var \MoveElevator\Typo3ImageCompression\Domain\Model\File $extbaseFileObject */
-        $extbaseFileObject = $this->fileRepository->findByUid($file->getUid());
-        $extbaseFileObject->setCompressed(false);
-        $extbaseFileObject->setCompressError($e->getCode().' : '.$e->getMessage());
-        $this->fileRepository->update($extbaseFileObject);
-        $this->persistenceManager->persistAll();
+        $errorMessage = $e->getCode().' : '.$e->getMessage();
+        $this->fileRepository->updateCompressionStatus($file->getUid(), false, $errorMessage, '');
     }
 }

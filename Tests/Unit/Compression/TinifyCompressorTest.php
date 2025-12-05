@@ -21,7 +21,6 @@ use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use TYPO3\CMS\Core\Resource\StorageRepository;
-use TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager;
 
 /**
  * TinifyCompressorTest.
@@ -36,7 +35,6 @@ final class TinifyCompressorTest extends TestCase
     private TinifyCompressor $subject;
     private FileRepository&MockObject $fileRepositoryMock;
     private FileProcessedRepository&MockObject $fileProcessedRepositoryMock;
-    private PersistenceManager&MockObject $persistenceManagerMock;
     private ExtensionConfiguration&MockObject $extensionConfigurationMock;
     private StorageRepository&MockObject $storageRepositoryMock;
 
@@ -44,14 +42,12 @@ final class TinifyCompressorTest extends TestCase
     {
         $this->fileRepositoryMock = $this->createMock(FileRepository::class);
         $this->fileProcessedRepositoryMock = $this->createMock(FileProcessedRepository::class);
-        $this->persistenceManagerMock = $this->createMock(PersistenceManager::class);
         $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
         $this->storageRepositoryMock = $this->createMock(StorageRepository::class);
 
         $this->subject = new TinifyCompressor(
             $this->fileRepositoryMock,
             $this->fileProcessedRepositoryMock,
-            $this->persistenceManagerMock,
             $this->extensionConfigurationMock,
             $this->storageRepositoryMock,
         );
