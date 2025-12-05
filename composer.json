@@ -28,7 +28,9 @@
 		"typo3/cms-backend": "^12.4 || ^13.4 || ^14.0",
 		"typo3/cms-core": "^12.4 || ^13.4 || ^14.0",
 		"typo3/cms-extbase": "*",
-		"typo3/cms-filelist": "*"
+		"typo3/cms-filelist": "*",
+		"typo3/cms-fluid": "*",
+		"typo3/cms-reports": "^12.4 || ^13.4 || ^14.0"
 	},
 	"require-dev": {
 		"eliashaeussler/version-bumper": "^2.4 || ^3.0",

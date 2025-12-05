@@ -1,0 +1,31 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<f:comment><!-- Original Files --></f:comment>
+<strong>{labels.original} ({original.statistics.compressed}/{original.total})</strong>
+<div style="margin: 0.5rem 0; height: 4px; background: var(--token-color-neutral-20); border-radius: 2px; overflow: hidden;">
+    <div style="height: 100%; width: {original.percent}%; background: {original.color};"></div>
+</div>
+<ul style="margin: 0; padding-left: 1.2rem;">
+    <li>{labels.compressed}: <strong>{original.statistics.compressed}</strong></li>
+    <li>{labels.notCompressed}: <strong>{original.statistics.not_compressed}</strong></li>
+    <li>{labels.errors}: <strong>{original.statistics.errors}</strong></li>
+</ul>
+
+<f:comment><!-- Processed Files --></f:comment>
+<div style="margin-top: 1rem;">
+    <strong>{labels.processed} ({processed.statistics.compressed}/{processed.total})</strong>
+    <div style="margin: 0.5rem 0; height: 4px; background: var(--token-color-neutral-20); border-radius: 2px; overflow: hidden;">
+        <div style="height: 100%; width: {processed.percent}%; background: {processed.color};"></div>
+    </div>
+    <ul style="margin: 0; padding-left: 1.2rem;">
+        <li>{labels.compressed}: <strong>{processed.statistics.compressed}</strong></li>
+        <li>{labels.notCompressed}: <strong>{processed.statistics.not_compressed}</strong></li>
+        <li>{labels.errors}: <strong>{processed.statistics.errors}</strong></li>
+    </ul>
+</div>
+
+<f:if condition="{hasErrors}">
+    <p style="margin-top: 0.75rem; margin-bottom: 0;">{labels.errorsMessage}</p>
+</f:if>
+
+</html>
