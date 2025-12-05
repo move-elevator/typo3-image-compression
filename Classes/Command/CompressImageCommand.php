@@ -19,7 +19,7 @@ use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\{InputArgument, InputInterface};
+use Symfony\Component\Console\Input\{InputArgument, InputInterface, InputOption};
 use Symfony\Component\Console\Output\OutputInterface;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Exception\NoSuchCacheGroupException;
@@ -63,8 +63,14 @@ final class CompressImageCommand extends Command
         $this->addArgument(
             'limit',
             InputArgument::OPTIONAL,
-            'Limit of files to compress (500 images can be compressed in a month on free plan)',
+            'Limit of files to compress',
             self::DEFAULT_LIMIT_TO_PROCESS,
+        );
+        $this->addOption(
+            'include-processed',
+            'p',
+            InputOption::VALUE_NONE,
+            'Also compress processed files (thumbnails, crops, etc.). Without this flag, only original files are compressed.',
         );
     }
 
@@ -81,16 +87,20 @@ final class CompressImageCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $limit = (int) $input->getArgument('limit');
-        $filesProcessed = $this->fileProcessedRepository->findAllNonCompressed(limit: $limit);
+        $includeProcessed = (bool) $input->getOption('include-processed');
 
-        if ([] !== $filesProcessed) {
-            $limit -= count($filesProcessed);
+        if ($includeProcessed) {
+            $filesProcessed = $this->fileProcessedRepository->findAllNonCompressed(limit: $limit);
 
-            $this->compressor->compressProcessedFiles($filesProcessed);
-            $this->clearPageCache();
+            if ([] !== $filesProcessed) {
+                $limit -= count($filesProcessed);
+
+                $this->compressor->compressProcessedFiles($filesProcessed);
+                $this->clearPageCache();
+            }
         }
 
-        if (0 !== $limit) {
+        if ($limit > 0) {
             /** @var FileStorage $fileStorage */
             foreach ($this->fileStorageRepository->findAll() as $fileStorage) {
                 $excludeFolders = $this->extensionConfiguration->getExcludeFolders();
