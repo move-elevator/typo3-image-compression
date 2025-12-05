@@ -14,8 +14,10 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Form\Element;
 
+use Doctrine\DBAL\Exception;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
+use MoveElevator\Typo3ImageCompression\Utility\ViewUtility;
 use TYPO3\CMS\Backend\Form\Element\AbstractFormElement;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -30,6 +32,8 @@ class CompressionInfoElement extends AbstractFormElement
 {
     /**
      * @return array<string, mixed>
+     *
+     * @throws Exception
      */
     public function render(): array
     {
@@ -44,7 +48,7 @@ class CompressionInfoElement extends AbstractFormElement
         $fileUid = (int) ($this->data['databaseRow']['file'][0] ?? 0);
 
         if (0 === $fileUid) {
-            $result['html'] = $this->wrapContent($this->translate('status.no_file'));
+            $result['html'] = $this->renderTemplate('no_file');
 
             return $result;
         }
@@ -53,7 +57,7 @@ class CompressionInfoElement extends AbstractFormElement
         $fileData = $fileRepository->findCompressionStatusByUid($fileUid);
 
         if (null === $fileData) {
-            $result['html'] = $this->wrapContent($this->translate('status.file_not_found'));
+            $result['html'] = $this->renderTemplate('file_not_found');
 
             return $result;
         }
@@ -68,43 +72,27 @@ class CompressionInfoElement extends AbstractFormElement
      */
     private function renderCompressionInfo(array $fileData): string
     {
-        $isCompressed = $fileData['compressed'];
         $error = $fileData['compress_error'];
-        $info = $fileData['compress_info'];
-        $label = '<strong>'.htmlspecialchars($this->translate('label'), \ENT_QUOTES).'</strong>';
 
         if ('' !== $error) {
-            return $this->wrapContent(
-                $label
-                .' <span class="badge badge-danger" style="margin-left: 8px;">'.htmlspecialchars($this->translate('status.error'), \ENT_QUOTES).'</span>'
-                .'<div class="form-description" style="margin-top: 8px;">'.htmlspecialchars($error, \ENT_QUOTES).'</div>',
-            );
+            return $this->renderTemplate('error', $error);
         }
 
-        if ($isCompressed) {
-            $infoHtml = '';
-            if ('' !== $info) {
-                $infoHtml = '<div class="form-description" style="margin-top: 8px;">'.htmlspecialchars($info, \ENT_QUOTES).'</div>';
-            }
-
-            return $this->wrapContent(
-                $label
-                .' <span class="badge badge-success" style="margin-left: 8px;">'.htmlspecialchars($this->translate('status.compressed'), \ENT_QUOTES).'</span>'
-                .$infoHtml,
-            );
+        if ($fileData['compressed']) {
+            return $this->renderTemplate('compressed', $fileData['compress_info']);
         }
 
-        return $this->wrapContent(
-            $label
-            .' <span class="badge badge-warning" style="margin-left: 8px;">'.htmlspecialchars($this->translate('status.not_compressed'), \ENT_QUOTES).'</span>',
-        );
+        return $this->renderTemplate('not_compressed');
     }
 
-    private function wrapContent(string $content): string
+    private function renderTemplate(string $status, string $message = ''): string
     {
-        return '<div class="formengine-field-item t3js-formengine-field-item" style="padding: 10px 0;">'
-            .$content
-            .'</div>';
+        return ViewUtility::renderTemplate('CompressionInfo', 'Form/', [
+            'status' => $status,
+            'statusLabel' => $this->translate('status.'.$status),
+            'label' => $this->translate('label'),
+            'message' => $message,
+        ]);
     }
 
     private function translate(string $key): string

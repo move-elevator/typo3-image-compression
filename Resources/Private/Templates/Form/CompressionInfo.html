@@ -1,0 +1,28 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<div class="formengine-field-item t3js-formengine-field-item" style="padding: 10px 0;">
+    <strong>{label}</strong>
+    <f:if condition="{status} == 'error'">
+        <span class="badge badge-danger" style="margin-left: 8px;">{statusLabel}</span>
+        <f:if condition="{message}">
+            <div class="form-description" style="margin-top: 8px;">{message}</div>
+        </f:if>
+    </f:if>
+    <f:if condition="{status} == 'compressed'">
+        <span class="badge badge-success" style="margin-left: 8px;">{statusLabel}</span>
+        <f:if condition="{message}">
+            <div class="form-description" style="margin-top: 8px;">{message}</div>
+        </f:if>
+    </f:if>
+    <f:if condition="{status} == 'not_compressed'">
+        <span class="badge badge-warning" style="margin-left: 8px;">{statusLabel}</span>
+    </f:if>
+    <f:if condition="{status} == 'no_file'">
+        <span class="badge badge-secondary" style="margin-left: 8px;">{statusLabel}</span>
+    </f:if>
+    <f:if condition="{status} == 'file_not_found'">
+        <span class="badge badge-secondary" style="margin-left: 8px;">{statusLabel}</span>
+    </f:if>
+</div>
+
+</html>
