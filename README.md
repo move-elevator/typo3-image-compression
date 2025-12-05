@@ -59,7 +59,11 @@ Download the zip file from [TYPO3 extension repository (TER)](https://extensions
 
 Configure the extension in **Admin Tools > Settings > Extension Configuration**.
 
-### Provider: `tinify` (TinyPNG API)
+### Provider
+
+Choose the compression provider from the dropdown.
+
+#### `tinify` (TinyPNG API)
 
 1. Register at [TinyPNG Developers](https://tinypng.com/developers) to obtain your API key
 2. Set **Provider** to `tinify` and enter your API key
@@ -68,7 +72,7 @@ Configure the extension in **Admin Tools > Settings > Extension Configuration**.
 > [!WARNING]
 > Be aware that the free API limit (500 compressions/month) can be exhausted quickly on large sites with many existing images.
 > 
-### Provider: `local-tools` (Optimized Tools)
+#### `local-tools` (Optimized Tools)
 
 Install the required tools on your server:
 
@@ -82,7 +86,7 @@ brew install jpegoptim optipng pngquant gifsicle webp
 
 Set **Provider** to `local-tools`. The extension auto-detects available tools.
 
-### Provider: `local-basic` (ImageMagick/GraphicsMagick)
+#### `local-basic` (ImageMagick/GraphicsMagick)
 
 No additional installation needed - uses TYPO3's configured graphics processor. Set **Provider** to `local-basic`.
 
@@ -90,7 +94,7 @@ No additional installation needed - uses TYPO3's configured graphics processor. 
 
 For local providers, configure quality (1-100) for JPEG, PNG, and WebP compression.
 
-## Usage
+## 📊 Usage
 
 ### Automatic Compression
 
@@ -128,6 +132,18 @@ vendor/bin/typo3 imagecompression:compressImages 200 --include-processed --retry
 
 > [!IMPORTANT]
 > Before running the CLI command, ensure your TYPO3 file index is up to date. Use the scheduler task **"File Abstraction Layer: Update storage index"** to update the index.
+
+### System Information Toolbar
+
+The extension displays the current API usage (TinyPNG) or compression statistics in the TYPO3 backend toolbar.
+
+### Status Report
+
+A detailed compression report is available in **Admin Tools > System Reports**. It shows the active provider, compression statistics for original and processed files, and API usage for TinyPNG.
+
+### File Metadata
+
+The compression status of individual files is displayed in the file metadata form (sys_file_metadata). Edit a file's metadata to see whether it has been compressed, and any error messages if compression failed.
 
 ## 💛 Acknowledgements
 
