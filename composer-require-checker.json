@@ -1,0 +1,5 @@
+{
+    "symbol-whitelist": [
+        "TYPO3\\CMS\\Fluid\\View\\StandaloneView"
+    ]
+}
