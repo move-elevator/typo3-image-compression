@@ -98,7 +98,29 @@ Once configured, all images (with supported mime type) uploaded via the TYPO3 ba
 
 ### Batch Processing (CLI)
 
-For existing projects, a CLI command is available to compress images that were uploaded before the extension was installed. The command processes 100 images per execution across all file storages.
+For existing projects, a CLI command is available to compress images that were uploaded before the extension was installed.
+
+```bash
+# Compress up to 100 original images (default)
+vendor/bin/typo3 imagecompression:compressImages
+
+# Compress up to 50 images
+vendor/bin/typo3 imagecompression:compressImages 50
+
+# Also compress processed files (thumbnails, crops, etc.)
+vendor/bin/typo3 imagecompression:compressImages --include-processed
+
+# Combine options
+vendor/bin/typo3 imagecompression:compressImages 200 --include-processed
+```
+
+| Argument/Option | Description |
+|-----------------|-------------|
+| `limit` | Number of images to process (default: 100) |
+| `--include-processed`, `-p` | Also compress processed files (thumbnails, crops). By default, only original files are compressed to save API quota. |
+
+> [!TIP]
+> When using **Tinify** (TinyPNG API), we recommend **not** using `--include-processed` to conserve your API quota. Processed files are regenerated from the already-compressed originals.
 
 > [!IMPORTANT]
 > Before running the CLI command, ensure your TYPO3 file index is up to date. Use the scheduler task **"File Abstraction Layer: Update storage index"** to update the index.
