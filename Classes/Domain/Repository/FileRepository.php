@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Domain\Repository;
 
-use Doctrine\DBAL\{Exception, ParameterType};
+use Doctrine\DBAL\{ArrayParameterType, Exception, ParameterType};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -148,5 +148,40 @@ class FileRepository extends Repository
             ],
             ['uid' => $fileUid],
         );
+    }
+
+    /**
+     * Returns compression statistics for files with given mime types.
+     *
+     * @param string[] $mimeTypes
+     *
+     * @return array{compressed: int, not_compressed: int, errors: int}
+     */
+    public function getCompressionStatistics(array $mimeTypes): array
+    {
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable('sys_file');
+
+        $result = $queryBuilder
+            ->selectLiteral(
+                'SUM(CASE WHEN compressed = 1 THEN 1 ELSE 0 END) AS compressed',
+                'SUM(CASE WHEN compressed = 0 AND (compress_error IS NULL OR compress_error = \'\') THEN 1 ELSE 0 END) AS not_compressed',
+                'SUM(CASE WHEN compress_error IS NOT NULL AND compress_error != \'\' THEN 1 ELSE 0 END) AS errors',
+            )
+            ->from('sys_file')
+            ->where(
+                $queryBuilder->expr()->in(
+                    'mime_type',
+                    $queryBuilder->createNamedParameter($mimeTypes, ArrayParameterType::STRING),
+                ),
+                $queryBuilder->expr()->eq('missing', $queryBuilder->createNamedParameter(0, ParameterType::INTEGER)),
+            )
+            ->executeQuery()
+            ->fetchAssociative();
+
+        return [
+            'compressed' => (int) ($result['compressed'] ?? 0),
+            'not_compressed' => (int) ($result['not_compressed'] ?? 0),
+            'errors' => (int) ($result['errors'] ?? 0),
+        ];
     }
 }

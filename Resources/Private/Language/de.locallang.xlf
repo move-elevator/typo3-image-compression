@@ -55,6 +55,10 @@
 				<source/>
 				<target>Zeige den Komprimierungsstatus im Datei-Metadaten-Formular an.</target>
 			</trans-unit>
+			<trans-unit id="showStatusReport">
+				<source/>
+				<target>Zeige Komprimierungsstatistik im Systemberichte-Modul an.</target>
+			</trans-unit>
 			<trans-unit id="provider">
 				<source/>
 				<target>Komprimierungsanbieter: Wählen Sie den zu verwendenden Komprimierungsanbieter (tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick)</target>
@@ -98,6 +102,50 @@
 			<trans-unit id="status.file_not_found">
 				<source/>
 				<target>Datei nicht gefunden</target>
+			</trans-unit>
+			<trans-unit id="report.provider">
+				<source/>
+				<target>Anbieter</target>
+			</trans-unit>
+			<trans-unit id="report.provider.description">
+				<source/>
+				<target>Der aktuell verwendete Komprimierungsanbieter.</target>
+			</trans-unit>
+			<trans-unit id="report.statistics">
+				<source/>
+				<target>Komprimierungsstatistik</target>
+			</trans-unit>
+			<trans-unit id="report.original">
+				<source/>
+				<target>Original-Dateien</target>
+			</trans-unit>
+			<trans-unit id="report.processed">
+				<source/>
+				<target>Verarbeitete Dateien</target>
+			</trans-unit>
+			<trans-unit id="report.compressed">
+				<source/>
+				<target>Komprimiert</target>
+			</trans-unit>
+			<trans-unit id="report.not_compressed">
+				<source/>
+				<target>Nicht komprimiert</target>
+			</trans-unit>
+			<trans-unit id="report.errors">
+				<source/>
+				<target>Fehler</target>
+			</trans-unit>
+			<trans-unit id="report.errors.message">
+				<source/>
+				<target>Einige Bilder konnten nicht komprimiert werden. Details in der Dateiliste prüfen.</target>
+			</trans-unit>
+			<trans-unit id="report.api_usage">
+				<source/>
+				<target>API-Nutzung</target>
+			</trans-unit>
+			<trans-unit id="report.api_usage.description">
+				<source/>
+				<target>TinyPNG API Komprimierungszähler für diesen Monat. &lt;a href="https://tinify.com/dashboard/api" target="_blank" rel="noopener"&gt;Dashboard öffnen&lt;/a&gt;</target>
 			</trans-unit>
 		</body>
 	</file>

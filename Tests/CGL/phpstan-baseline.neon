@@ -8,3 +8,25 @@ parameters:
 		-
 			message: '#does not call parent constructor from TYPO3\\CMS\\Extbase\\Persistence\\Repository#'
 			path: ../../Classes/Domain/Repository/FileRepository.php
+		# Version-specific view classes: StandaloneView for v12, ViewFactoryInterface for v13+
+		# These classes exist in different TYPO3 versions, so errors may not always be present
+		-
+			message: '#Class TYPO3\\CMS\\Fluid\\View\\StandaloneView not found#'
+			path: ../../Classes/Utility/ViewUtility.php
+			reportUnmatched: false
+		-
+			message: '#Call to method .+ on an unknown class TYPO3\\CMS\\Fluid\\View\\StandaloneView#'
+			path: ../../Classes/Utility/ViewUtility.php
+			reportUnmatched: false
+		-
+			message: '#Class TYPO3\\CMS\\Core\\View\\ViewFactoryData not found#'
+			path: ../../Classes/Utility/ViewUtility.php
+			reportUnmatched: false
+		-
+			message: '#Class TYPO3\\CMS\\Core\\View\\ViewFactoryInterface not found#'
+			path: ../../Classes/Utility/ViewUtility.php
+			reportUnmatched: false
+		-
+			message: '#Call to method .+ on an unknown class TYPO3\\CMS\\Core\\View\\ViewFactoryInterface#'
+			path: ../../Classes/Utility/ViewUtility.php
+			reportUnmatched: false

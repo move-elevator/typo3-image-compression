@@ -32,7 +32,19 @@ final class ToolDetectionTest extends TestCase
 
     protected function setUp(): void
     {
+        // Initialize TYPO3_CONF_VARS to prevent warnings from CommandUtility
+        $GLOBALS['TYPO3_CONF_VARS']['SYS']['binSetup'] = '';
+        $GLOBALS['TYPO3_CONF_VARS']['SYS']['binPath'] = '/usr/bin/';
+        $GLOBALS['TYPO3_CONF_VARS']['BE']['disable_exec_function'] = false;
+        $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] = 'ImageMagick';
+        $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor_path'] = '/usr/bin/';
+
         $this->subject = new ToolDetection();
+    }
+
+    protected function tearDown(): void
+    {
+        unset($GLOBALS['TYPO3_CONF_VARS']);
     }
 
     #[Test]

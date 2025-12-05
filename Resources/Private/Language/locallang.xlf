@@ -42,6 +42,9 @@
 			<trans-unit id="showCompressionStatus">
 				<source>Show compression status in file metadata form.</source>
 			</trans-unit>
+			<trans-unit id="showStatusReport">
+				<source>Show compression statistics in the system reports module.</source>
+			</trans-unit>
 			<trans-unit id="provider">
 				<source>Compression Provider: Select which compression provider to use (tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick)</source>
 			</trans-unit>
@@ -74,6 +77,39 @@
 			</trans-unit>
 			<trans-unit id="status.file_not_found">
 				<source>File not found</source>
+			</trans-unit>
+			<trans-unit id="report.provider">
+				<source>Provider</source>
+			</trans-unit>
+			<trans-unit id="report.provider.description">
+				<source>The compression provider currently in use.</source>
+			</trans-unit>
+			<trans-unit id="report.statistics">
+				<source>Compression Statistics</source>
+			</trans-unit>
+			<trans-unit id="report.original">
+				<source>Original Files</source>
+			</trans-unit>
+			<trans-unit id="report.processed">
+				<source>Processed Files</source>
+			</trans-unit>
+			<trans-unit id="report.compressed">
+				<source>Compressed</source>
+			</trans-unit>
+			<trans-unit id="report.not_compressed">
+				<source>Not compressed</source>
+			</trans-unit>
+			<trans-unit id="report.errors">
+				<source>Errors</source>
+			</trans-unit>
+			<trans-unit id="report.errors.message">
+				<source>Some images could not be compressed. Check the file list for details.</source>
+			</trans-unit>
+			<trans-unit id="report.api_usage">
+				<source>API Usage</source>
+			</trans-unit>
+			<trans-unit id="report.api_usage.description">
+				<source>TinyPNG API compression count for this month. &lt;a href="https://tinify.com/dashboard/api" target="_blank" rel="noopener"&gt;View Dashboard&lt;/a&gt;</source>
 			</trans-unit>
 		</body>
 	</file>

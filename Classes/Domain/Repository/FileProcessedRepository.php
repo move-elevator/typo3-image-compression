@@ -97,6 +97,35 @@ class FileProcessedRepository
         return false !== $result ? (int) $result['storage'] : 0;
     }
 
+    /**
+     * Returns compression statistics for processed files.
+     *
+     * @return array{compressed: int, not_compressed: int, errors: int}
+     */
+    public function getCompressionStatistics(): array
+    {
+        $queryBuilder = $this->getQueryBuilder();
+
+        $result = $queryBuilder
+            ->selectLiteral(
+                'SUM(CASE WHEN compressed = 1 THEN 1 ELSE 0 END) AS compressed',
+                'SUM(CASE WHEN compressed = 0 AND (compress_error IS NULL OR compress_error = \'\') THEN 1 ELSE 0 END) AS not_compressed',
+                'SUM(CASE WHEN compress_error IS NOT NULL AND compress_error != \'\' THEN 1 ELSE 0 END) AS errors',
+            )
+            ->from($this->getTableName())
+            ->where(
+                $queryBuilder->expr()->isNotNull('name'),
+            )
+            ->executeQuery()
+            ->fetchAssociative();
+
+        return [
+            'compressed' => (int) ($result['compressed'] ?? 0),
+            'not_compressed' => (int) ($result['not_compressed'] ?? 0),
+            'errors' => (int) ($result['errors'] ?? 0),
+        ];
+    }
+
     protected function getTableName(): string
     {
         return 'sys_file_processedfile';

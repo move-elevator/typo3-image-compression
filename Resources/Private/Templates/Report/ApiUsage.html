@@ -1,0 +1,14 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+
+<f:if condition="{hasQuotaLimit}">
+    <f:then>
+        <div style="margin-top: 0.5rem; height: 4px; background: var(--token-color-neutral-20); border-radius: 2px; overflow: hidden;">
+            <div style="height: 100%; width: {percent}%; background: {color};"></div>
+        </div>
+        <small style="color: var(--typo3-text-color-secondary);">{percent}%</small>
+        <br>
+    </f:then>
+</f:if>
+{description}
+
+</html>
