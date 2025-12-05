@@ -18,9 +18,11 @@ use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
+use MoveElevator\Typo3ImageCompression\Utility\CompressionResultHandler;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\{InputArgument, InputInterface, InputOption};
 use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Exception\NoSuchCacheGroupException;
 use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException, ExtensionConfigurationPathDoesNotExistException};
@@ -89,13 +91,17 @@ final class CompressImageCommand extends Command
         $limit = (int) $input->getArgument('limit');
         $includeProcessed = (bool) $input->getOption('include-processed');
 
+        $stats = [
+            'original' => ['total' => 0, 'success' => 0, 'errors' => 0],
+            'processed' => ['total' => 0, 'success' => 0, 'errors' => 0],
+        ];
+
         if ($includeProcessed) {
             $filesProcessed = $this->fileProcessedRepository->findAllNonCompressed(limit: $limit);
 
             if ([] !== $filesProcessed) {
                 $limit -= count($filesProcessed);
-
-                $this->compressor->compressProcessedFiles($filesProcessed);
+                $stats['processed'] = $this->compressProcessedFilesWithStats($filesProcessed);
                 $this->clearPageCache();
             }
         }
@@ -111,11 +117,17 @@ final class CompressImageCommand extends Command
                 );
 
                 if ($files->count() > 0) {
-                    $this->compressImages($files);
+                    $fileStats = $this->compressImagesWithStats($files);
+                    $stats['original']['total'] += $fileStats['total'];
+                    $stats['original']['success'] += $fileStats['success'];
+                    $stats['original']['errors'] += $fileStats['errors'];
                     $this->clearPageCache();
                 }
             }
         }
+
+        CompressionResultHandler::outputToConsole($output, $stats);
+        CompressionResultHandler::addFlashMessage($stats);
 
         return 0;
     }
@@ -123,26 +135,59 @@ final class CompressImageCommand extends Command
     /**
      * @param QueryResultInterface<int, File> $files
      *
+     * @return array{total: int, success: int, errors: int}
+     *
      * @throws FileDoesNotExistException
-     * @throws IllegalObjectTypeException
-     * @throws UnknownObjectException
      * @throws Exception
      */
-    private function compressImages(QueryResultInterface $files): void
+    private function compressImagesWithStats(QueryResultInterface $files): array
     {
         $fileDeletionAspect = GeneralUtility::makeInstance(FileDeletionAspect::class);
+        $stats = ['total' => 0, 'success' => 0, 'errors' => 0];
 
         foreach ($files as $file) {
             $uid = $file->getUid();
             if (null === $uid) {
                 continue;
             }
-            $file = $this->resourceFactory->getFileObject($uid);
-            $this->compressor->compress($file);
+
+            ++$stats['total'];
+            $resourceFile = $this->resourceFactory->getFileObject($uid);
+
+            try {
+                $this->compressor->compress($resourceFile);
+                ++$stats['success'];
+            } catch (Throwable) {
+                ++$stats['errors'];
+            }
+
             $fileDeletionAspect->cleanupProcessedFilesPostFileReplace(
-                new AfterFileReplacedEvent($file, ''),
+                new AfterFileReplacedEvent($resourceFile, ''),
             );
         }
+
+        return $stats;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $files
+     *
+     * @return array{total: int, success: int, errors: int}
+     */
+    private function compressProcessedFilesWithStats(array $files): array
+    {
+        $stats = ['total' => count($files), 'success' => 0, 'errors' => 0];
+
+        foreach ($files as $file) {
+            try {
+                $this->compressor->compressProcessedFiles([$file]);
+                ++$stats['success'];
+            } catch (Throwable) {
+                ++$stats['errors'];
+            }
+        }
+
+        return $stats;
     }
 
     /**

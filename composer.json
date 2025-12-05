@@ -1,10 +1,20 @@
 {
 	"name": "move-elevator/typo3-image-compression",
-	"description": "",
+	"description": "Automatically compress images using TinyPNG API, local tools (jpegoptim, optipng, etc.), or ImageMagick/GraphicsMagick",
 	"license": [
 		"GPL-2.0-or-later"
 	],
 	"type": "typo3-cms-extension",
+	"keywords": [
+		"typo3",
+		"typo3-extension",
+		"image",
+		"compression",
+		"optimization",
+		"tinypng",
+		"jpegoptim",
+		"imagemagick"
+	],
 	"authors": [
 		{
 			"name": "Konrad Michalik",
@@ -17,6 +27,11 @@
 			"role": "Maintainer"
 		}
 	],
+	"homepage": "https://github.com/move-elevator/typo3-image-compression",
+	"support": {
+		"issues": "https://github.com/move-elevator/typo3-image-compression/issues",
+		"source": "https://github.com/move-elevator/typo3-image-compression"
+	},
 	"require": {
 		"php": "~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0",
 		"ext-fileinfo": "*",

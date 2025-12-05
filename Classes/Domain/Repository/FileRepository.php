@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Domain\Repository;
 
-use Doctrine\DBAL\{ArrayParameterType, ParameterType};
+use Doctrine\DBAL\{ArrayParameterType, Exception, ParameterType};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -32,6 +32,8 @@ use TYPO3\CMS\Extbase\Persistence\{QueryInterface, QueryResultInterface, Reposit
  */
 class FileRepository extends Repository
 {
+    protected $objectType = File::class;
+
     private ConnectionPool $connectionPool;
 
     public function __construct(
@@ -101,6 +103,8 @@ class FileRepository extends Repository
      * Finds compression status data for a file by its UID.
      *
      * @return array{compressed: bool, compress_error: string, compress_info: string}|null
+     *
+     * @throws Exception
      */
     public function findCompressionStatusByUid(int $fileUid): ?array
     {
