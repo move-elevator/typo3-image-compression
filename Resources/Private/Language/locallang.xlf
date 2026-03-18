@@ -28,7 +28,7 @@
 				<source>API key: Please insert your Tinyfy API key</source>
 			</trans-unit>
 			<trans-unit id="debug">
-				<source>Enable or disable debugging mode. Stops extension from compressing images. Use in development mode to avoid waisting compressions.</source>
+				<source>Enable or disable debugging mode. Stops extension from compressing images. Use in development mode to avoid wasting compressions.</source>
 			</trans-unit>
 			<trans-unit id="excludeFolders">
 				<source>Comma-separated list of folders which should be excluded from compression. Relative from storage (e.g. fileadmin), starting with "/" (e.g. "/user_upload,/folder_under_fileadmin")</source>
