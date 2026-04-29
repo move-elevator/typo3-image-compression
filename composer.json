@@ -45,6 +45,7 @@
 		"typo3/cms-extbase": "^12.4 || ^13.4 || ^14.0",
 		"typo3/cms-filelist": "^12.4 || ^13.4 || ^14.0",
 		"typo3/cms-fluid": "^12.4 || ^13.4 || ^14.0",
+		"typo3/cms-frontend": "^12.4 || ^13.4 || ^14.0",
 		"typo3/cms-reports": "^12.4 || ^13.4 || ^14.0"
 	},
 	"require-dev": {
