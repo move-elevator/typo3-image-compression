@@ -77,7 +77,10 @@
 			"cms-package-dir": "{$vendor-dir}/typo3/cms",
 			"extension-key": "typo3_image_compression",
 			"web-dir": "public"
-		}
+		},
+		"unused": [
+			"typo3/cms-frontend"
+		]
 	},
 	"scripts": {
 		"post-install-cmd": [
