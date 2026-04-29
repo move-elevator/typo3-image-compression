@@ -133,6 +133,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
                 $this->assureFileExists($file);
                 $originalFileSize = $file->getSize();
                 $filePath = $this->getAbsoluteFilePath($file);
+                /** @var \Tinify\Source $source */
                 $source = \Tinify\fromFile($filePath);
                 $source->toFile($filePath);
 
@@ -199,6 +200,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
             }
 
             try {
+                /** @var \Tinify\Source $source */
                 $source = \Tinify\fromFile($filePath);
 
                 if (false !== $source->toFile($filePath)) {
