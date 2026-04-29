@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 use Composer\Autoload;
 use ShipMonk\ComposerDependencyAnalyser;
+use ShipMonk\ComposerDependencyAnalyser\Config\ErrorType;
 
 $rootPath = dirname(__DIR__, 2);
 
@@ -27,6 +28,8 @@ $configuration
     ->addPathsToExclude([
         $rootPath.'/Tests/CGL',
     ])
+    // Required at runtime by TYPO3 DI: cms-core's PageTypeLinkResolver autowires LinkFactory from cms-frontend
+    ->ignoreErrorsOnPackage('typo3/cms-frontend', [ErrorType::UNUSED_DEPENDENCY])
 ;
 
 return $configuration;
