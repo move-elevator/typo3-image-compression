@@ -1,6 +1,6 @@
 <div align="center">
 
-![Extension icon](Resources/Public/Icons/Extension.svg)
+![Extension icon](Resources/Public/Icons/Extension.png)
 
 # TYPO3 extension `typo3_image_compression`
 
@@ -9,40 +9,28 @@
 [![Coverage](https://img.shields.io/coverallsCoverage/github/move-elevator/typo3-image-compression?logo=coveralls)](https://coveralls.io/github/move-elevator/typo3-image-compression)
 [![CGL](https://img.shields.io/github/actions/workflow/status/move-elevator/typo3-image-compression/cgl.yml?label=cgl&logo=github)](https://github.com/move-elevator/typo3-image-compression/actions/workflows/cgl.yml)
 [![Tests](https://img.shields.io/github/actions/workflow/status/move-elevator/typo3-image-compression/tests.yml?label=tests&logo=github)](https://github.com/move-elevator/typo3-image-compression/actions/workflows/tests.yml)
+[![Packagist](https://img.shields.io/packagist/v/move-elevator/typo3-image-compression?label=packagist&logo=packagist)](https://packagist.org/packages/move-elevator/typo3-image-compression)
 [![License](https://poser.pugx.org/move-elevator/typo3-image-compression/license)](LICENSE.md)
 
 </div>
 
 This TYPO3 extension automatically compresses images uploaded to the TYPO3 backend. Choose between the TinyPNG API for best results or local tools for cost-free compression.
 
-## Features
+## ✨ Features
 
 - **Multiple compression providers**: TinyPNG API, local optimized tools, or ImageMagick/GraphicsMagick
 - Automatic compression of JPG, PNG, GIF, AVIF and WebP images on upload
 - CLI command for batch processing existing images
 - Configurable quality settings for local compression
-- Image compression statistic in the system information toolbar
-- Image compression info in sys_file_metadata edit view
-
-## Provider Comparison
-
-| Provider | Tools | Compression | Cost | Best For |
-|----------|-------|-------------|------|----------|
-| `tinify` | TinyPNG API | ~70-80% | API quota | Production, best quality |
-| `local-tools` | jpegoptim, optipng, pngquant, gifsicle, cwebp | ~50-60% | Free | Self-hosted, no API costs |
-| `local-basic` | ImageMagick / GraphicsMagick | ~30-40% | Free | JPEG only, quick setup |
+- Image compression statistics in the system information toolbar
+- Compression status visible in sys_file_metadata edit view
+- System report with per-provider statistics in Admin Tools
 
 ## 🔥 Installation
 
-### Requirements
-
-* TYPO3 >= 12.4
-* PHP 8.2+
+**Requirements:** TYPO3 >= 12.4 · PHP 8.2+
 
 ### Composer
-
-[![Packagist](https://img.shields.io/packagist/v/move-elevator/typo3-image-compression?label=version&logo=packagist)](https://packagist.org/packages/move-elevator/typo3-image-compression)
-[![Packagist Downloads](https://img.shields.io/packagist/dt/move-elevator/typo3-image-compression?color=brightgreen)](https://packagist.org/packages/move-elevator/typo3-image-compression)
 
 ```bash
 composer require move-elevator/typo3-image-compression
@@ -53,26 +41,30 @@ composer require move-elevator/typo3-image-compression
 [![TER version](https://typo3-badges.dev/badge/typo3_image_compression/version/shields.svg)](https://extensions.typo3.org/extension/typo3_image_compression)
 [![TER downloads](https://typo3-badges.dev/badge/typo3_image_compression/downloads/shields.svg)](https://extensions.typo3.org/extension/typo3_image_compression)
 
-Download the zip file from [TYPO3 extension repository (TER)](https://extensions.typo3.org/extension/typo3_image_compression).
+Download the zip file from the [TYPO3 Extension Repository (TER)](https://extensions.typo3.org/extension/typo3_image_compression).
 
-## 🧰 Configuration
+## ⚙️ Configuration
 
 Configure the extension in **Admin Tools > Settings > Extension Configuration**.
 
-### Provider
+### Provider overview
 
-Choose the compression provider from the dropdown.
+| Provider | Tools | Compression | Cost | Best for |
+|----------|-------|-------------|------|----------|
+| `tinify` | TinyPNG API | ~70–80% | API quota | Production, best quality |
+| `local-tools` | jpegoptim, optipng, pngquant, gifsicle, cwebp | ~50–60% | Free | Self-hosted, no API costs |
+| `local-basic` | ImageMagick / GraphicsMagick | ~30–40% | Free | JPEG only, quick setup |
 
-#### `tinify` (TinyPNG API)
+### `tinify` (TinyPNG API)
 
-1. Register at [TinyPNG Developers](https://tinypng.com/developers) to obtain your API key
-2. Set **Provider** to `tinify` and enter your API key
-3. Free tier: **500 compressions/month**, paid upgrades via [TinyPNG dashboard](https://tinypng.com/dashboard)
+1. Register at [TinyPNG Developers](https://tinypng.com/developers) to obtain your API key.
+2. Set **Provider** to `tinify` and enter your API key.
+3. Free tier: **500 compressions/month** — upgrades available via the [TinyPNG dashboard](https://tinypng.com/dashboard).
 
 > [!WARNING]
-> Be aware that the free API limit (500 compressions/month) can be exhausted quickly on large sites with many existing images.
-> 
-#### `local-tools` (Optimized Tools)
+> The free API limit (500 compressions/month) can be exhausted quickly on large sites with many existing images. Use the CLI `--include-processed` flag with caution.
+
+### `local-tools` (Optimized tools)
 
 Install the required tools on your server:
 
@@ -86,23 +78,26 @@ brew install jpegoptim optipng pngquant gifsicle webp
 
 Set **Provider** to `local-tools`. The extension auto-detects available tools.
 
-#### `local-basic` (ImageMagick/GraphicsMagick)
+### `local-basic` (ImageMagick / GraphicsMagick)
 
-No additional installation needed - uses TYPO3's configured graphics processor. Set **Provider** to `local-basic`.
+No additional installation needed — uses TYPO3's configured graphics processor. Set **Provider** to `local-basic`.
 
-### Quality Settings
+### Quality settings
 
-For local providers, configure quality (1-100) for JPEG, PNG, and WebP compression.
+For local providers, configure quality (1–100) for JPEG, PNG, and WebP compression independently.
 
-## 📊 Usage
+## 💡 Usage
 
-### Automatic Compression
+### Automatic compression
 
-Once configured, all images (with supported mime type) uploaded via the TYPO3 backend will be automatically compressed.
+Once configured, all images with a supported MIME type uploaded via the TYPO3 backend are automatically compressed.
 
-### Batch Processing (CLI)
+### Batch processing (CLI)
 
-For existing projects, a CLI command is available to compress images that were uploaded before the extension was installed.
+Use the CLI command to compress images that were uploaded before the extension was installed.
+
+> [!IMPORTANT]
+> Before running the CLI command, ensure your TYPO3 file index is up to date. Run the scheduler task **"File Abstraction Layer: Update storage index"** first.
 
 ```bash
 # Compress up to 100 original images (default)
@@ -121,38 +116,29 @@ vendor/bin/typo3 imagecompression:compressImages --retry-errors
 vendor/bin/typo3 imagecompression:compressImages 200 --include-processed --retry-errors
 ```
 
-| Argument/Option | Description |
-|-----------------|-------------|
+| Argument / Option | Description |
+|-------------------|-------------|
 | `limit` | Number of images to process (default: 100) |
-| `--include-processed`, `-p` | Also compress processed files (thumbnails, crops). By default, only original files are compressed to save API quota. |
-| `--retry-errors`, `-r` | Retry compression for files that previously failed. On success, the error status is cleared. |
+| `--include-processed`, `-p` | Also compress processed files (thumbnails, crops). Omit to save API quota — processed files are regenerated from already-compressed originals. |
+| `--retry-errors`, `-r` | Retry compression for files that previously failed. Clears error status on success. |
 
 > [!TIP]
-> When using **Tinify** (TinyPNG API), we recommend **not** using `--include-processed` to conserve your API quota. Processed files are regenerated from the already-compressed originals.
+> When using the `tinify` provider, omit `--include-processed` to conserve your monthly API quota. Processed files are regenerated from the already-compressed originals anyway.
 
-> [!IMPORTANT]
-> Before running the CLI command, ensure your TYPO3 file index is up to date. Use the scheduler task **"File Abstraction Layer: Update storage index"** to update the index.
+### Backend integration
 
-### System Information Toolbar
+- **System information toolbar** — displays current API usage (TinyPNG) or compression statistics.
+- **System Reports** (`Admin Tools > System Reports`) — active provider, per-file-type statistics, and API usage.
+- **File metadata** (`sys_file_metadata`) — per-file compression status and error messages.
 
-The extension displays the current API usage (TinyPNG) or compression statistics in the TYPO3 backend toolbar.
-
-### Status Report
-
-A detailed compression report is available in **Admin Tools > System Reports**. It shows the active provider, compression statistics for original and processed files, and API usage for TinyPNG.
-
-### File Metadata
-
-The compression status of individual files is displayed in the file metadata form (sys_file_metadata). Edit a file's metadata to see whether it has been compressed, and any error messages if compression failed.
-
-## 💛 Acknowledgements
+## 🙏 Acknowledgments
 
 This project is a fork and further development of the great [tinyimg](https://github.com/schmitzal/tinyimg) extension.
 
 ## 🧑‍💻 Contributing
 
-Please have a look at [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Please refer to [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## ⭐ License
+## 📜 License
 
-This project is licensed under [GNU General Public License 2.0 (or later)](LICENSE.md).
+This project is licensed under the [GNU General Public License 2.0 (or later)](LICENSE.md).
