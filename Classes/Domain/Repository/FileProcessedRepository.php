@@ -5,8 +5,8 @@ declare(strict_types=1);
 /*
  * This file is part of the "typo3_image_compression" TYPO3 CMS extension.
  *
- * (c) 2025 Konrad Michalik <km@move-elevator.de>
- * (c) 2025 Ronny Hauptvogel <rh@move-elevator.de>
+ * (c) 2025-2026 Konrad Michalik <km@move-elevator.de>
+ * (c) 2025-2026 Ronny Hauptvogel <rh@move-elevator.de>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -37,15 +37,13 @@ class FileProcessedRepository
     /**
      * Finds all processed files with compression errors.
      *
-     * @param string[] $columns
-     *
-     * @return mixed[]
+     * @return list<array<string, mixed>>
      */
-    public function findAllWithErrors(array $columns = ['*'], int $limit = 0): array
+    public function findAllWithErrors(int $limit = 0): array
     {
         $queryBuilder = $this->getQueryBuilder();
         $queryBuilder
-            ->select(...$columns)
+            ->select('*')
             ->from($this->getTableName())
             ->where(
                 $queryBuilder->expr()->isNotNull('compress_error'),
@@ -61,15 +59,13 @@ class FileProcessedRepository
     }
 
     /**
-     * @param string[] $columns
-     *
-     * @return mixed[]
+     * @return list<array<string, mixed>>
      */
-    public function findAllNonCompressed(array $columns = ['*'], int $limit = 0): array
+    public function findAllNonCompressed(int $limit = 0): array
     {
         $queryBuilder = $this->getQueryBuilder();
         $queryBuilder
-            ->select(...$columns)
+            ->select('*')
             ->from($this->getTableName())
             ->where(
                 $queryBuilder->expr()->eq('compressed', $queryBuilder->createNamedParameter(0, ParameterType::INTEGER)),
