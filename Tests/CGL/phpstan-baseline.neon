@@ -19,7 +19,7 @@ parameters:
 			path: ../../Classes/Utility/ViewUtility.php
 			reportUnmatched: false
 		-
-			message: '#Class TYPO3\\CMS\\Core\\View\\ViewFactoryData not found#'
+			message: '#class TYPO3\\CMS\\Core\\View\\ViewFactoryData not found#i'
 			path: ../../Classes/Utility/ViewUtility.php
 			reportUnmatched: false
 		-

@@ -131,7 +131,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
         if (!$this->extensionConfiguration->isDebug()) {
             try {
                 $this->assureFileExists($file);
-                $originalFileSize = $file->getSize();
+                $originalFileSize = (int) $file->getSize();
                 $filePath = $this->getAbsoluteFilePath($file);
                 /** @var \Tinify\Source $source */
                 $source = \Tinify\fromFile($filePath);

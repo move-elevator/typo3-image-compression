@@ -70,7 +70,6 @@ final class ViewUtility
      */
     private static function renderTemplateV12(string $templateName, string $templatePath, array $variables): string
     {
-        // @phpstan-ignore-next-line StandaloneView is deprecated in v13 but required for v12
         $view = GeneralUtility::makeInstance(\TYPO3\CMS\Fluid\View\StandaloneView::class);
         $view->setTemplatePathAndFilename(
             'EXT:'.Configuration::EXT_KEY.'/Resources/Private/Templates/'.$templatePath.$templateName.'.html',
