@@ -1,5 +1,8 @@
 {
     "symbol-whitelist": [
+        "TYPO3\\CMS\\Backend\\Toolbar\\InformationStatus",
+        "TYPO3\\CMS\\Core\\View\\ViewFactoryData",
+        "TYPO3\\CMS\\Core\\View\\ViewFactoryInterface",
         "TYPO3\\CMS\\Fluid\\View\\StandaloneView"
     ]
 }
