@@ -5,7 +5,7 @@
 # TYPO3 extension `typo3_image_compression`
 
 [![Latest Stable Version](https://typo3-badges.dev/badge/typo3_image_compression/version/shields.svg)](https://extensions.typo3.org/extension/typo3_image_compression)
-[![Supported TYPO3 versions](https://typo3-badges.dev/badge/typo3_image_compression/typo3/shields.svg)](https://extensions.typo3.org/extension/typo3_image_compression)
+![TYPO3](https://img.shields.io/badge/TYPO3-12.4%20%7C%2013.4%20%7C%2014.3-orange.svg)
 [![Coverage](https://img.shields.io/coverallsCoverage/github/move-elevator/typo3-image-compression?logo=coveralls)](https://coveralls.io/github/move-elevator/typo3-image-compression)
 [![CGL](https://img.shields.io/github/actions/workflow/status/move-elevator/typo3-image-compression/cgl.yml?label=cgl&logo=github)](https://github.com/move-elevator/typo3-image-compression/actions/workflows/cgl.yml)
 [![Tests](https://img.shields.io/github/actions/workflow/status/move-elevator/typo3-image-compression/tests.yml?label=tests&logo=github)](https://github.com/move-elevator/typo3-image-compression/actions/workflows/tests.yml)
