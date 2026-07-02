@@ -9,7 +9,6 @@
 [![Coverage](https://img.shields.io/coverallsCoverage/github/move-elevator/typo3-image-compression?logo=coveralls)](https://coveralls.io/github/move-elevator/typo3-image-compression)
 [![CGL](https://img.shields.io/github/actions/workflow/status/move-elevator/typo3-image-compression/cgl.yml?label=cgl&logo=github)](https://github.com/move-elevator/typo3-image-compression/actions/workflows/cgl.yml)
 [![Tests](https://img.shields.io/github/actions/workflow/status/move-elevator/typo3-image-compression/tests.yml?label=tests&logo=github)](https://github.com/move-elevator/typo3-image-compression/actions/workflows/tests.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/move-elevator/typo3-image-compression/badge)](https://securityscorecards.dev/viewer/?uri=github.com/move-elevator/typo3-image-compression)
 [![Packagist](https://img.shields.io/packagist/v/move-elevator/typo3-image-compression?label=packagist&logo=packagist)](https://packagist.org/packages/move-elevator/typo3-image-compression)
 [![License](https://poser.pugx.org/move-elevator/typo3-image-compression/license)](LICENSE.md)
 
