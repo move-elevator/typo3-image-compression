@@ -21,6 +21,7 @@ use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepositor
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 use ReflectionMethod;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -42,7 +43,7 @@ final class CompressImageCommandTest extends TestCase
     private FileStorageRepository&MockObject $fileStorageRepositoryMock;
     private FileRepository&MockObject $fileRepositoryMock;
     private FileProcessedRepository&MockObject $fileProcessedRepositoryMock;
-    private ResourceFactory&MockObject $resourceFactoryMock;
+    private ResourceFactory $resourceFactory;
     private CompressorInterface&MockObject $compressorMock;
     private ExtensionConfiguration&MockObject $extensionConfigurationMock;
 
@@ -51,7 +52,10 @@ final class CompressImageCommandTest extends TestCase
         $this->fileStorageRepositoryMock = $this->createMock(FileStorageRepository::class);
         $this->fileRepositoryMock = $this->createMock(FileRepository::class);
         $this->fileProcessedRepositoryMock = $this->createMock(FileProcessedRepository::class);
-        $this->resourceFactoryMock = $this->createMock(ResourceFactory::class);
+        // ResourceFactory is a readonly class and cannot be doubled by PHPUnit;
+        // the code paths under test never touch it, so an instance created
+        // without invoking the constructor is sufficient to satisfy the type.
+        $this->resourceFactory = (new ReflectionClass(ResourceFactory::class))->newInstanceWithoutConstructor();
         $this->compressorMock = $this->createMock(CompressorInterface::class);
         $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
 
@@ -59,7 +63,7 @@ final class CompressImageCommandTest extends TestCase
             $this->fileStorageRepositoryMock,
             $this->fileRepositoryMock,
             $this->fileProcessedRepositoryMock,
-            $this->resourceFactoryMock,
+            $this->resourceFactory,
             $this->compressorMock,
             $this->extensionConfigurationMock,
         );
