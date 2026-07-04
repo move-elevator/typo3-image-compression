@@ -45,6 +45,8 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
     private const PROVIDER_IDENTIFIER = 'tinify';
     private const FREE_TIER_LIMIT = 500;
 
+    private bool $initialized = false;
+
     public function __construct(
         protected readonly FileRepository $fileRepository,
         protected readonly FileProcessedRepository $fileProcessedRepository,
@@ -58,16 +60,29 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
     }
 
     /**
+     * Configures and validates the TinyPNG client.
+     *
+     * Runs at most once per request: the API key is validated a single time
+     * regardless of how many files are compressed in a batch.
+     *
      * @throws ExtensionConfigurationExtensionNotConfiguredException
      * @throws ExtensionConfigurationPathDoesNotExistException
      */
     public function initAction(): void
     {
-        if ('' === $this->extensionConfiguration->getApiKey()) {
+        if ($this->initialized) {
             return;
         }
 
-        \Tinify\setKey($this->extensionConfiguration->getApiKey());
+        $this->initialized = true;
+
+        $apiKey = $this->extensionConfiguration->getApiKey();
+
+        if ('' === $apiKey) {
+            return;
+        }
+
+        \Tinify\setKey($apiKey);
         \Tinify\validate();
     }
 
@@ -112,8 +127,6 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
             return;
         }
 
-        $this->initAction();
-
         if ($this->isFileInExcludeFolder($file)) {
             return;
         }
@@ -128,40 +141,43 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
             return;
         }
 
-        if (!$this->extensionConfiguration->isDebug()) {
-            try {
-                $this->assureFileExists($file);
-                $originalFileSize = (int) $file->getSize();
-                $filePath = $this->getAbsoluteFilePath($file);
-                /** @var \Tinify\Source $source */
-                $source = \Tinify\fromFile($filePath);
-                $source->toFile($filePath);
+        if ($this->extensionConfiguration->isDebug()) {
+            $this->addFlashMessage('debugMode', [], ContextualFeedbackSeverity::INFO);
 
-                clearstatcache(true, $filePath);
-                $newFileSize = (int) filesize($filePath);
-                $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
+            return;
+        }
 
-                $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize);
-                $this->markFileAsCompressed($file, $compressInfo);
-                $this->updateFileInformation($file);
+        try {
+            $this->initAction();
+            $this->assureFileExists($file);
+            $originalFileSize = (int) $file->getSize();
+            $filePath = $this->getAbsoluteFilePath($file);
+            /** @var \Tinify\Source $source */
+            $source = \Tinify\fromFile($filePath);
+            $source->toFile($filePath);
 
-                if ($percentageSaved > 0) {
-                    $this->addFlashMessage(
-                        'success',
-                        [$percentageSaved.'%'],
-                        ContextualFeedbackSeverity::INFO,
-                    );
-                }
-            } catch (Exception $e) {
-                $this->saveError($file, $e);
+            clearstatcache(true, $filePath);
+            $newFileSize = (int) filesize($filePath);
+            $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
+
+            $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize);
+            $this->markFileAsCompressed($file, $compressInfo);
+            $this->updateFileInformation($file);
+
+            if ($percentageSaved > 0) {
                 $this->addFlashMessage(
-                    'compressionFailed',
-                    [$e->getMessage()],
-                    ContextualFeedbackSeverity::WARNING,
+                    'success',
+                    [$percentageSaved.'%'],
+                    ContextualFeedbackSeverity::INFO,
                 );
             }
-        } else {
-            $this->addFlashMessage('debugMode', [], ContextualFeedbackSeverity::INFO);
+        } catch (Exception $e) {
+            $this->saveError($file, $e);
+            $this->addFlashMessage(
+                'compressionFailed',
+                [$e->getMessage()],
+                ContextualFeedbackSeverity::WARNING,
+            );
         }
     }
 

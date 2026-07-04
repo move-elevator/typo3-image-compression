@@ -20,7 +20,7 @@ use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepositor
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use TYPO3\CMS\Core\Resource\StorageRepository;
+use TYPO3\CMS\Core\Resource\{FileInterface, StorageRepository};
 
 /**
  * TinifyCompressorTest.
@@ -83,5 +83,31 @@ final class TinifyCompressorTest extends TestCase
         // because Tinify is not mocked and would throw an error.
         // The expects(self::once()) assertion validates the early return.
         $this->subject->initAction();
+    }
+
+    #[Test]
+    public function initActionValidatesOnlyOncePerRequest(): void
+    {
+        // The API key must be read (and validation attempted) only once, even
+        // across multiple files in a batch: the second call short-circuits.
+        $this->extensionConfigurationMock
+            ->expects(self::once())
+            ->method('getApiKey')
+            ->willReturn('');
+
+        $this->subject->initAction();
+        $this->subject->initAction();
+    }
+
+    #[Test]
+    public function compressDoesNothingForNonFileInstance(): void
+    {
+        $fileInterfaceMock = $this->createMock(FileInterface::class);
+
+        // A non-File resource must be ignored before any configuration is read.
+        $this->extensionConfigurationMock->expects(self::never())->method('getApiKey');
+        $this->extensionConfigurationMock->expects(self::never())->method('getExcludeFolders');
+
+        $this->subject->compress($fileInterfaceMock);
     }
 }
