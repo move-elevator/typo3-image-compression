@@ -21,6 +21,7 @@ use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use ReflectionMethod;
 use TYPO3\CMS\Core\Resource\StorageRepository;
 
 /**
@@ -78,5 +79,50 @@ final class LocalToolsCompressorTest extends TestCase
 
         // Verify logger was set by ensuring no exception was thrown
         self::assertInstanceOf(LocalToolsCompressor::class, $this->subject);
+    }
+
+    #[Test]
+    public function executeOptimizationReturnsFalseWhenToolPathMissing(): void
+    {
+        $this->toolDetectionMock
+            ->method('getToolPath')
+            ->with('gifsicle')
+            ->willReturn(null);
+
+        self::assertFalse($this->invokeExecuteOptimization('gifsicle', '/tmp/example.gif'));
+    }
+
+    #[Test]
+    public function executeOptimizationReturnsFalseWhenToolExitsNonZero(): void
+    {
+        // /usr/bin/false exits with code 1: a non-zero exit must be reported as
+        // failure instead of being silently treated as a successful compression.
+        $this->toolDetectionMock
+            ->method('getToolPath')
+            ->with('gifsicle')
+            ->willReturn('/usr/bin/false');
+
+        self::assertFalse($this->invokeExecuteOptimization('gifsicle', '/tmp/example.gif'));
+    }
+
+    #[Test]
+    public function executeOptimizationReturnsTrueWhenToolExitsZero(): void
+    {
+        $this->toolDetectionMock
+            ->method('getToolPath')
+            ->with('gifsicle')
+            ->willReturn('/usr/bin/true');
+
+        self::assertTrue($this->invokeExecuteOptimization('gifsicle', '/tmp/example.gif'));
+    }
+
+    private function invokeExecuteOptimization(string $tool, string $filePath): bool
+    {
+        $method = new ReflectionMethod($this->subject, 'executeOptimization');
+
+        /** @var bool $result */
+        $result = $method->invoke($this->subject, $tool, $filePath);
+
+        return $result;
     }
 }
