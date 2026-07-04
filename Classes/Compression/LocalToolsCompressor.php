@@ -17,7 +17,6 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
-use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
@@ -152,9 +151,9 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
 
             /** @var ResourceStorage $storage */
             $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
-            $filePath = Environment::getPublicPath().'/'.($storage->getConfiguration()['basePath'] ?? '').urldecode($file['identifier']);
+            $filePath = $this->resolveProcessedFilePath($storage, (string) $file['identifier']);
 
-            if (!file_exists($filePath)) {
+            if (null === $filePath || !file_exists($filePath)) {
                 $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file not found');
 
                 continue;
