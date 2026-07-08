@@ -17,7 +17,7 @@ namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, LocalToolsCompressor, ToolDetection};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
-use PHPUnit\Framework\Attributes\{CoversClass, Test};
+use PHPUnit\Framework\Attributes\{CoversClass, DataProvider, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -122,6 +122,58 @@ final class LocalToolsCompressorTest extends TestCase
 
         /** @var bool $result */
         $result = $method->invoke($this->subject, $tool, $filePath);
+
+        return $result;
+    }
+
+    #[Test]
+    public function buildStoragePathJoinsPublicPathBaseAndIdentifier(): void
+    {
+        self::assertSame(
+            '/var/www/public/fileadmin/_processed_/8/f/csm_img.png',
+            $this->invokeBuildStoragePath('/var/www/public/', 'fileadmin', '/_processed_/8/f/csm_img.png'),
+        );
+    }
+
+    #[Test]
+    public function buildStoragePathDoesNotUrlDecodeIdentifier(): void
+    {
+        // A literal percent sequence must stay literal and must not be decoded
+        // into a traversal sequence (../).
+        self::assertSame(
+            '/var/www/public/fileadmin/user_upload/foo%2e%2e%2fbar.png',
+            $this->invokeBuildStoragePath('/var/www/public/', 'fileadmin/', 'user_upload/foo%2e%2e%2fbar.png'),
+        );
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function traversalIdentifierDataProvider(): array
+    {
+        return [
+            'parent traversal' => ['/_processed_/../../typo3conf/system/settings.php'],
+            'nested traversal' => ['/user_upload/../../../etc/passwd'],
+            'backslash traversal' => ['\\..\\..\\windows'],
+            'empty identifier' => [''],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('traversalIdentifierDataProvider')]
+    public function buildStoragePathReturnsNullForUnsafeIdentifier(string $identifier): void
+    {
+        self::assertNull(
+            $this->invokeBuildStoragePath('/var/www/public/', 'fileadmin/', $identifier),
+        );
+    }
+
+    private function invokeBuildStoragePath(string $publicPath, string $basePath, string $identifier): ?string
+    {
+        $method = new ReflectionMethod($this->subject, 'buildStoragePath');
+
+        /** @var string|null $result */
+        $result = $method->invoke($this->subject, $publicPath, $basePath, $identifier);
 
         return $result;
     }

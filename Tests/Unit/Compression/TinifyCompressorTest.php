@@ -20,7 +20,8 @@ use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepositor
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use TYPO3\CMS\Core\Resource\StorageRepository;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
+use TYPO3\CMS\Core\Resource\{FileInterface, StorageRepository};
 
 /**
  * TinifyCompressorTest.
@@ -37,6 +38,7 @@ final class TinifyCompressorTest extends TestCase
     private FileProcessedRepository&MockObject $fileProcessedRepositoryMock;
     private ExtensionConfiguration&MockObject $extensionConfigurationMock;
     private StorageRepository&MockObject $storageRepositoryMock;
+    private FrontendInterface&MockObject $cacheMock;
 
     protected function setUp(): void
     {
@@ -44,12 +46,14 @@ final class TinifyCompressorTest extends TestCase
         $this->fileProcessedRepositoryMock = $this->createMock(FileProcessedRepository::class);
         $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
         $this->storageRepositoryMock = $this->createMock(StorageRepository::class);
+        $this->cacheMock = $this->createMock(FrontendInterface::class);
 
         $this->subject = new TinifyCompressor(
             $this->fileRepositoryMock,
             $this->fileProcessedRepositoryMock,
             $this->extensionConfigurationMock,
             $this->storageRepositoryMock,
+            $this->cacheMock,
         );
     }
 
@@ -83,5 +87,102 @@ final class TinifyCompressorTest extends TestCase
         // because Tinify is not mocked and would throw an error.
         // The expects(self::once()) assertion validates the early return.
         $this->subject->initAction();
+    }
+
+    #[Test]
+    public function initActionValidatesOnlyOncePerRequest(): void
+    {
+        // The API key must be read (and validation attempted) only once, even
+        // across multiple files in a batch: the second call short-circuits.
+        $this->extensionConfigurationMock
+            ->expects(self::once())
+            ->method('getApiKey')
+            ->willReturn('');
+
+        $this->subject->initAction();
+        $this->subject->initAction();
+    }
+
+    #[Test]
+    public function compressDoesNothingForNonFileInstance(): void
+    {
+        $fileInterfaceMock = $this->createMock(FileInterface::class);
+
+        // A non-File resource must be ignored before any configuration is read.
+        $this->extensionConfigurationMock->expects(self::never())->method('getApiKey');
+        $this->extensionConfigurationMock->expects(self::never())->method('getExcludeFolders');
+
+        $this->subject->compress($fileInterfaceMock);
+    }
+
+    #[Test]
+    public function getCompressionCountReturnsCachedValueWithoutCallingApi(): void
+    {
+        $this->cacheMock
+            ->expects(self::once())
+            ->method('get')
+            ->with('compression-count')
+            ->willReturn(42);
+
+        // A cache hit must short-circuit before any API interaction; the API
+        // key is only read on the (uncached) fetch path.
+        $this->extensionConfigurationMock->expects(self::never())->method('getApiKey');
+        $this->cacheMock->expects(self::never())->method('set');
+
+        self::assertSame(42, $this->subject->getCompressionCount());
+    }
+
+    #[Test]
+    public function getCompressionCountReturnsNullFromCachedNull(): void
+    {
+        $this->cacheMock
+            ->method('get')
+            ->with('compression-count')
+            ->willReturn(null);
+
+        $this->extensionConfigurationMock->expects(self::never())->method('getApiKey');
+
+        self::assertNull($this->subject->getCompressionCount());
+    }
+
+    #[Test]
+    public function getCompressionCountResolvesOnlyOncePerRequest(): void
+    {
+        // The persistent cache must be read at most once; the second call is
+        // served from the per-request memoization.
+        $this->cacheMock
+            ->expects(self::once())
+            ->method('get')
+            ->with('compression-count')
+            ->willReturn(123);
+
+        self::assertSame(123, $this->subject->getCompressionCount());
+        self::assertSame(123, $this->subject->getCompressionCount());
+    }
+
+    #[Test]
+    public function getQuotaLimitReusesCachedCompressionCount(): void
+    {
+        // getQuotaLimit() delegates to getCompressionCount(); with a cache hit
+        // no second lookup and no API call must happen.
+        $this->cacheMock
+            ->expects(self::once())
+            ->method('get')
+            ->with('compression-count')
+            ->willReturn(10);
+
+        $this->extensionConfigurationMock->expects(self::never())->method('getApiKey');
+
+        self::assertSame(500, $this->subject->getQuotaLimit());
+    }
+
+    #[Test]
+    public function getQuotaLimitReturnsNullForPaidPlanAboveFreeTier(): void
+    {
+        $this->cacheMock
+            ->method('get')
+            ->willReturn(750);
+
+        self::assertNull($this->subject->getQuotaLimit());
     }
 }
