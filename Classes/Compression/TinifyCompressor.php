@@ -243,8 +243,13 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
 
                 if (false !== $source->toFile($filePath)) {
                     $this->fileProcessedRepository->updateCompressState($fileId);
+                } else {
+                    $this->fileProcessedRepository->updateCompressState($fileId, 0, 'failed to write compressed file');
                 }
             } catch (Exception $e) {
+                // Persist the error so the file is not retried on every run,
+                // which would otherwise keep consuming the TinyPNG quota.
+                $this->fileProcessedRepository->updateCompressState($fileId, 0, $e->getCode().' : '.$e->getMessage());
                 $this->addFlashMessage(
                     'compressionFailed',
                     [$e->getMessage()],
