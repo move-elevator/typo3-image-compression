@@ -1,0 +1,3 @@
+# Local DDEV/Traefik dev TLS certificate, removed from the working tree and
+# gitignored since — only present in git history. Not a real credential.
+b156c9b36749befb23a9fc8856829a1b289b2b5d:.ddev/traefik/certs/typo3-login-warning.key:private-key:2
