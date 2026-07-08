@@ -116,16 +116,6 @@ final class LocalToolsCompressorTest extends TestCase
         self::assertTrue($this->invokeExecuteOptimization('gifsicle', '/tmp/example.gif'));
     }
 
-    private function invokeExecuteOptimization(string $tool, string $filePath): bool
-    {
-        $method = new ReflectionMethod($this->subject, 'executeOptimization');
-
-        /** @var bool $result */
-        $result = $method->invoke($this->subject, $tool, $filePath);
-
-        return $result;
-    }
-
     #[Test]
     public function buildStoragePathJoinsPublicPathBaseAndIdentifier(): void
     {
@@ -166,6 +156,16 @@ final class LocalToolsCompressorTest extends TestCase
         self::assertNull(
             $this->invokeBuildStoragePath('/var/www/public/', 'fileadmin/', $identifier),
         );
+    }
+
+    private function invokeExecuteOptimization(string $tool, string $filePath): bool
+    {
+        $method = new ReflectionMethod($this->subject, 'executeOptimization');
+
+        /** @var bool $result */
+        $result = $method->invoke($this->subject, $tool, $filePath);
+
+        return $result;
     }
 
     private function invokeBuildStoragePath(string $publicPath, string $basePath, string $identifier): ?string
