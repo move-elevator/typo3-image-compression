@@ -205,7 +205,20 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         $command = $this->buildCommand($tool, $toolPath, $filePath);
 
         $output = [];
-        CommandUtility::exec($command, $output);
+        $returnValue = 0;
+        CommandUtility::exec($command, $output, $returnValue);
+
+        if (0 !== $returnValue) {
+            $this->logger?->warning('Image optimization failed', [
+                'tool' => $tool,
+                'file' => $filePath,
+                'command' => $command,
+                'exitCode' => $returnValue,
+                'output' => implode("\n", $output ?? []),
+            ]);
+
+            return false;
+        }
 
         $this->logger?->debug('Image optimized with local tool', [
             'tool' => $tool,

@@ -100,6 +100,13 @@ final class CompressImageCommand extends Command
 
         $stats = $this->compressFiles($limit, $includeProcessed, $retryErrors);
 
+        // Flush the page cache only once per run, and only when files were
+        // actually compressed, to avoid repeatedly invalidating the whole
+        // page cache of a production site during a batch run.
+        if ($stats['original']['success'] + $stats['processed']['success'] > 0) {
+            $this->clearPageCache();
+        }
+
         CompressionResultHandler::outputToConsole($output, $stats);
         CompressionResultHandler::addFlashMessage($stats);
 
@@ -131,7 +138,6 @@ final class CompressImageCommand extends Command
             if ([] !== $filesProcessed) {
                 $limit -= count($filesProcessed);
                 $stats['processed'] = $this->compressProcessedFilesWithStats($filesProcessed);
-                $this->clearPageCache();
             }
         }
 
@@ -172,7 +178,6 @@ final class CompressImageCommand extends Command
                 $stats['success'] += $fileStats['success'];
                 $stats['errors'] += $fileStats['errors'];
                 $remaining -= $fileStats['total'];
-                $this->clearPageCache();
             }
         }
 

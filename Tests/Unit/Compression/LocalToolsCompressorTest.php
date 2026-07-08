@@ -82,6 +82,41 @@ final class LocalToolsCompressorTest extends TestCase
     }
 
     #[Test]
+    public function executeOptimizationReturnsFalseWhenToolPathMissing(): void
+    {
+        $this->toolDetectionMock
+            ->method('getToolPath')
+            ->with('gifsicle')
+            ->willReturn(null);
+
+        self::assertFalse($this->invokeExecuteOptimization('gifsicle', '/tmp/example.gif'));
+    }
+
+    #[Test]
+    public function executeOptimizationReturnsFalseWhenToolExitsNonZero(): void
+    {
+        // /usr/bin/false exits with code 1: a non-zero exit must be reported as
+        // failure instead of being silently treated as a successful compression.
+        $this->toolDetectionMock
+            ->method('getToolPath')
+            ->with('gifsicle')
+            ->willReturn('/usr/bin/false');
+
+        self::assertFalse($this->invokeExecuteOptimization('gifsicle', '/tmp/example.gif'));
+    }
+
+    #[Test]
+    public function executeOptimizationReturnsTrueWhenToolExitsZero(): void
+    {
+        $this->toolDetectionMock
+            ->method('getToolPath')
+            ->with('gifsicle')
+            ->willReturn('/usr/bin/true');
+
+        self::assertTrue($this->invokeExecuteOptimization('gifsicle', '/tmp/example.gif'));
+    }
+
+    #[Test]
     public function buildStoragePathJoinsPublicPathBaseAndIdentifier(): void
     {
         self::assertSame(
@@ -121,6 +156,16 @@ final class LocalToolsCompressorTest extends TestCase
         self::assertNull(
             $this->invokeBuildStoragePath('/var/www/public/', 'fileadmin/', $identifier),
         );
+    }
+
+    private function invokeExecuteOptimization(string $tool, string $filePath): bool
+    {
+        $method = new ReflectionMethod($this->subject, 'executeOptimization');
+
+        /** @var bool $result */
+        $result = $method->invoke($this->subject, $tool, $filePath);
+
+        return $result;
     }
 
     private function invokeBuildStoragePath(string $publicPath, string $basePath, string $identifier): ?string
