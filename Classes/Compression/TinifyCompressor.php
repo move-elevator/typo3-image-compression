@@ -21,7 +21,6 @@ use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepositor
 use RuntimeException;
 use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException,
     ExtensionConfigurationPathDoesNotExistException};
-use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
@@ -183,9 +182,9 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
 
             /** @var ResourceStorage $storage */
             $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
-            $filePath = Environment::getPublicPath().'/'.($storage->getConfiguration()['basePath'] ?? '').urldecode($file['identifier']);
+            $filePath = $this->resolveProcessedFilePath($storage, (string) $file['identifier']);
 
-            if (false === file_exists($filePath)) {
+            if (null === $filePath || false === file_exists($filePath)) {
                 $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file not found');
                 continue;
             }
