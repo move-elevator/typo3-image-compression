@@ -19,9 +19,9 @@ use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use RuntimeException;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException,
     ExtensionConfigurationPathDoesNotExistException};
-use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
@@ -44,6 +44,11 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
 
     private const PROVIDER_IDENTIFIER = 'tinify';
     private const FREE_TIER_LIMIT = 500;
+    private const CACHE_ENTRY_COMPRESSION_COUNT = 'compression-count';
+    private const CACHE_LIFETIME = 900;
+
+    private ?int $compressionCount = null;
+    private bool $compressionCountResolved = false;
 
     private bool $initialized = false;
 
@@ -52,6 +57,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
         protected readonly FileProcessedRepository $fileProcessedRepository,
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly StorageRepository $storageRepository,
+        protected readonly FrontendInterface $cache,
     ) {}
 
     public function getProviderIdentifier(): string
@@ -89,16 +95,32 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
     /**
      * Returns the current compression count from the TinyPNG API.
      * Returns null if the API key is not configured or validation fails.
+     *
+     * The count is cached (both per request and persistently) to avoid an
+     * API round-trip on every backend request.
      */
     public function getCompressionCount(): ?int
     {
-        try {
-            $this->initAction();
-
-            return \Tinify\getCompressionCount();
-        } catch (Exception) {
-            return null;
+        if ($this->compressionCountResolved) {
+            return $this->compressionCount;
         }
+
+        $cached = $this->cache->get(self::CACHE_ENTRY_COMPRESSION_COUNT);
+
+        if (false !== $cached) {
+            $this->compressionCount = null === $cached ? null : (int) $cached;
+            $this->compressionCountResolved = true;
+
+            return $this->compressionCount;
+        }
+
+        $count = $this->fetchCompressionCount();
+
+        $this->cache->set(self::CACHE_ENTRY_COMPRESSION_COUNT, $count, [], self::CACHE_LIFETIME);
+        $this->compressionCount = $count;
+        $this->compressionCountResolved = true;
+
+        return $count;
     }
 
     /**
@@ -199,9 +221,9 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
 
             /** @var ResourceStorage $storage */
             $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
-            $filePath = Environment::getPublicPath().'/'.($storage->getConfiguration()['basePath'] ?? '').urldecode($file['identifier']);
+            $filePath = $this->resolveProcessedFilePath($storage, (string) $file['identifier']);
 
-            if (false === file_exists($filePath)) {
+            if (null === $filePath || false === file_exists($filePath)) {
                 $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file not found');
                 continue;
             }
@@ -273,5 +295,16 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
     {
         $errorMessage = $e->getCode().' : '.$e->getMessage();
         $this->fileRepository->updateCompressionStatus($file->getUid(), false, $errorMessage, '');
+    }
+
+    private function fetchCompressionCount(): ?int
+    {
+        try {
+            $this->initAction();
+
+            return \Tinify\getCompressionCount();
+        } catch (Exception) {
+            return null;
+        }
     }
 }
