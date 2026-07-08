@@ -110,7 +110,9 @@ final class CompressImageCommand extends Command
         CompressionResultHandler::outputToConsole($output, $stats);
         CompressionResultHandler::addFlashMessage($stats);
 
-        return 0;
+        $errors = $stats['original']['errors'] + $stats['processed']['errors'];
+
+        return $errors > 0 ? Command::FAILURE : Command::SUCCESS;
     }
 
     /**
@@ -157,19 +159,25 @@ final class CompressImageCommand extends Command
     private function compressOriginalFiles(int $limit, bool $retryErrors): array
     {
         $stats = ['total' => 0, 'success' => 0, 'errors' => 0];
+        $remaining = $limit;
 
         /** @var FileStorage $fileStorage */
         foreach ($this->fileStorageRepository->findAll() as $fileStorage) {
+            if ($remaining <= 0) {
+                break;
+            }
+
             $excludeFolders = $this->extensionConfiguration->getExcludeFolders();
             $files = $retryErrors
-                ? $this->fileRepository->findAllWithErrorsInStorageWithLimit($fileStorage, $limit, $excludeFolders)
-                : $this->fileRepository->findAllNonCompressedInStorageWithLimit($fileStorage, $limit, $excludeFolders);
+                ? $this->fileRepository->findAllWithErrorsInStorageWithLimit($fileStorage, $remaining, $excludeFolders)
+                : $this->fileRepository->findAllNonCompressedInStorageWithLimit($fileStorage, $remaining, $excludeFolders);
 
             if ($files->count() > 0) {
                 $fileStats = $this->compressImagesWithStats($files);
                 $stats['total'] += $fileStats['total'];
                 $stats['success'] += $fileStats['success'];
                 $stats['errors'] += $fileStats['errors'];
+                $remaining -= $fileStats['total'];
             }
         }
 
