@@ -153,6 +153,17 @@ final class CompressionInfoElementTest extends FunctionalTestCase
         // args both have defaults, the DI container can construct it with an
         // empty $data on some TYPO3 versions instead of honoring the arguments
         // passed here. A plain `new` sidesteps that ambiguity entirely.
-        return new CompressionInfoElement($nodeFactoryMock, $data);
+        $subject = new CompressionInfoElement($nodeFactoryMock, $data);
+
+        // TYPO3 v13 removed AbstractFormElement's constructor-based $data
+        // injection entirely in favor of a setData() setter, so the
+        // constructor argument above is silently discarded there (the
+        // implicit, argument-less default constructor is used instead).
+        // Calling setData() when it exists covers both APIs.
+        if (method_exists($subject, 'setData')) {
+            $subject->setData($data);
+        }
+
+        return $subject;
     }
 }
