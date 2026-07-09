@@ -49,6 +49,7 @@
 		"typo3/cms-reports": "^12.4 || ^13.4 || ^14.3"
 	},
 	"require-dev": {
+		"composer/class-map-generator": "^1.7 || ^2.0",
 		"eliashaeussler/version-bumper": "^2.4 || ^3.0 || ^4.0",
 		"phpunit/phpcov": "^10.0 || ^11.0 || ^12.0",
 		"phpunit/phpunit": "^11.0 || ^12.0 || ^13.0",
