@@ -19,7 +19,6 @@ use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use TYPO3\CMS\Backend\Form\NodeFactory;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 /**
@@ -148,6 +147,12 @@ final class CompressionInfoElementTest extends FunctionalTestCase
     {
         $nodeFactoryMock = $this->createMock(NodeFactory::class);
 
-        return GeneralUtility::makeInstance(CompressionInfoElement::class, $nodeFactoryMock, $data);
+        // GeneralUtility::makeInstance() is not used here: CompressionInfoElement
+        // is also registered as an autowired DI service (via the extension's
+        // blanket Services.yaml resource), and since AbstractNode's constructor
+        // args both have defaults, the DI container can construct it with an
+        // empty $data on some TYPO3 versions instead of honoring the arguments
+        // passed here. A plain `new` sidesteps that ambiguity entirely.
+        return new CompressionInfoElement($nodeFactoryMock, $data);
     }
 }
