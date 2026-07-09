@@ -21,9 +21,12 @@ use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
+use Tinify\Tinify;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Core\{ApplicationContext, Environment};
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
+use TYPO3\CMS\Core\Resource\Index\Indexer;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * TinifyCompressorTest.
@@ -87,6 +90,14 @@ final class TinifyCompressorTest extends TestCase
             }
         }
         $this->tmpFiles = [];
+
+        // Tinify's key/client/compression-count are process-wide statics;
+        // setKey(null) also resets the client, so a single call is enough to
+        // stop them leaking into other tests.
+        Tinify::setKey(null);
+        Tinify::setCompressionCount(null);
+
+        GeneralUtility::purgeInstances();
     }
 
     #[Test]
@@ -190,6 +201,31 @@ final class TinifyCompressorTest extends TestCase
 
         self::assertSame(123, $this->subject->getCompressionCount());
         self::assertSame(123, $this->subject->getCompressionCount());
+    }
+
+    #[Test]
+    public function getCompressionCountFetchesFromApiOnCacheMiss(): void
+    {
+        // A cache miss falls through to fetchCompressionCount(), which reads
+        // the Tinify SDK's own static counter (populated as a side effect of
+        // any successful API request). With no API key configured,
+        // initAction() no-ops without touching that counter, so the value set
+        // here is exactly what gets read back and persisted to the cache.
+        $this->cacheMock
+            ->expects(self::once())
+            ->method('get')
+            ->with('compression-count')
+            ->willReturn(false);
+        $this->cacheMock
+            ->expects(self::once())
+            ->method('set')
+            ->with('compression-count', 77, [], 900);
+
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+
+        Tinify::setCompressionCount(77);
+
+        self::assertSame(77, $this->subject->getCompressionCount());
     }
 
     #[Test]
@@ -308,6 +344,66 @@ final class TinifyCompressorTest extends TestCase
             ->with(12, false, self::stringContains('Filesize is 0'), '');
 
         $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressSucceedsAndMarksFileAsCompressedUsingFakeTinifyHttpClient(): void
+    {
+        // The extension's own apiKey config stays empty, so initAction() is a
+        // no-op that never touches Tinify's static key/client. That lets us
+        // set them directly: Tinify::setClient() is a genuine, public seam in
+        // the SDK for swapping out its HTTP transport, so the real
+        // shrink-then-download request sequence in compress() can run to
+        // completion (and actually rewrite the file) without any network
+        // access or a real API key.
+        $tmpFile = $this->createTmpFile(str_repeat('original-bytes', 100));
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('isDebug')->willReturn(false);
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+
+        $storageMock = $this->createMock(ResourceStorage::class);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/photo.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+        $fileMock->method('getStorage')->willReturn($storageMock);
+
+        $indexerMock = $this->createMock(Indexer::class);
+        $indexerMock->expects(self::once())->method('updateIndexEntry')->with($fileMock);
+        GeneralUtility::addInstance(Indexer::class, $indexerMock);
+
+        Tinify::setKey('fake-key-for-test');
+        Tinify::setClient(new class {
+            private int $calls = 0;
+
+            public function request(string $method, string $url, mixed $body = null): object
+            {
+                ++$this->calls;
+
+                // First call is the "/shrink" upload, which responds with a
+                // Location header pointing at the compressed result; the
+                // second is the download of that result.
+                if (1 === $this->calls) {
+                    return (object) ['headers' => ['location' => 'https://fake.tinify.test/output/abc'], 'body' => ''];
+                }
+
+                return (object) ['headers' => [], 'body' => 'short'];
+            }
+        });
+
+        $this->fileRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressionStatus')
+            ->with(99, true, '', self::stringContains('tinify:'));
+
+        $this->subject->compress($fileMock);
+
+        self::assertSame('short', file_get_contents($tmpFile));
     }
 
     #[Test]
