@@ -14,9 +14,14 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Functional\Report;
 
+use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, QuotaAwareInterface};
+use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
+use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use MoveElevator\Typo3ImageCompression\Report\CompressionStatusProvider;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
+use TYPO3\CMS\Core\Resource\{File, FileInterface};
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 /**
@@ -83,5 +88,84 @@ final class CompressionStatusProviderTest extends FunctionalTestCase
 
         self::assertSame('2 / 6', $statuses['statistics']->getValue());
         self::assertStringContainsString('Original Files', $statuses['statistics']->getMessage());
+    }
+
+    #[Test]
+    public function getStatusReportsUnlimitedApiUsageAsOkSeverity(): void
+    {
+        // CompressorFactory would normally resolve the real (apiKey-empty)
+        // TinifyCompressor; a fake QuotaAwareInterface compressor is
+        // constructed directly here to drive getApiUsageStatus() with
+        // deterministic quota values, none of which are reachable through
+        // the real provider without a live TinyPNG account at each tier.
+        $subject = $this->createProviderWithQuotaAwareCompressor(250, null);
+
+        $status = $subject->getStatus()['apiUsage'];
+
+        self::assertSame('250 / ∞', $status->getValue());
+        self::assertSame(ContextualFeedbackSeverity::OK, $status->getSeverity());
+    }
+
+    #[Test]
+    public function getStatusReportsWarningSeverityWhenUsageIsAboveSeventyFivePercent(): void
+    {
+        $subject = $this->createProviderWithQuotaAwareCompressor(400, 500);
+
+        $status = $subject->getStatus()['apiUsage'];
+
+        self::assertSame('400 / 500', $status->getValue());
+        self::assertSame(ContextualFeedbackSeverity::WARNING, $status->getSeverity());
+    }
+
+    #[Test]
+    public function getStatusReportsErrorSeverityWhenUsageIsAboveNinetyPercent(): void
+    {
+        $subject = $this->createProviderWithQuotaAwareCompressor(475, 500);
+
+        $status = $subject->getStatus()['apiUsage'];
+
+        self::assertSame('475 / 500', $status->getValue());
+        self::assertSame(ContextualFeedbackSeverity::ERROR, $status->getSeverity());
+    }
+
+    private function createProviderWithQuotaAwareCompressor(
+        int $compressionCount,
+        ?int $quotaLimit,
+    ): CompressionStatusProvider {
+        $this->get(\TYPO3\CMS\Core\Configuration\ExtensionConfiguration::class)->set(
+            'typo3_image_compression',
+            ['showStatusReport' => true, 'mimeTypes' => 'image/jpeg'],
+        );
+
+        return new CompressionStatusProvider(
+            $this->get(ExtensionConfiguration::class),
+            $this->get(FileRepository::class),
+            $this->get(FileProcessedRepository::class),
+            new class($compressionCount, $quotaLimit) implements CompressorInterface, QuotaAwareInterface {
+                public function __construct(
+                    private readonly int $compressionCount,
+                    private readonly ?int $quotaLimit,
+                ) {}
+
+                public function compress(File|FileInterface $file): void {}
+
+                public function compressProcessedFiles(array $files): void {}
+
+                public function getProviderIdentifier(): string
+                {
+                    return 'quota-aware-test-double';
+                }
+
+                public function getCompressionCount(): ?int
+                {
+                    return $this->compressionCount;
+                }
+
+                public function getQuotaLimit(): ?int
+                {
+                    return $this->quotaLimit;
+                }
+            },
+        );
     }
 }
