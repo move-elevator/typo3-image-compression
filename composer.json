@@ -49,14 +49,22 @@
 		"typo3/cms-reports": "^12.4 || ^13.4 || ^14.3"
 	},
 	"require-dev": {
+		"composer/class-map-generator": "^1.7 || ^2.0",
 		"eliashaeussler/version-bumper": "^2.4 || ^3.0 || ^4.0",
-		"phpunit/phpcov": "^10.0 || ^11.0 || ^12.0",
-		"phpunit/phpunit": "^11.0 || ^12.0 || ^13.0",
-		"typo3/cms-lowlevel": "^12.4 || ^13.4 || ^14.3"
+		"phpunit/phpcov": "^9.0 || ^10.0 || ^11.0 || ^12.0",
+		"phpunit/phpunit": "^10.5 || ^11.0 || ^12.0 || ^13.0",
+		"typo3/cms-install": "^12.4 || ^13.4 || ^14.3",
+		"typo3/cms-lowlevel": "^12.4 || ^13.4 || ^14.3",
+		"typo3/testing-framework": "^8.3 || ^9.5"
 	},
 	"autoload": {
 		"psr-4": {
 			"MoveElevator\\Typo3ImageCompression\\": "Classes/"
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"MoveElevator\\Typo3ImageCompression\\Tests\\": "Tests/"
 		}
 	},
 	"config": {
@@ -67,10 +75,8 @@
 			"typo3/class-alias-loader": true,
 			"typo3/cms-composer-installers": true
 		},
-		"policy": {
-			"advisories": {
-				"block": false
-			}
+		"audit": {
+			"block-insecure": false
 		},
 		"sort-packages": true
 	},
@@ -92,7 +98,18 @@
 			"@cgl install"
 		],
 		"cgl": "@composer -d Tests/CGL --",
-		"test": "@test:coverage --no-coverage",
-		"test:coverage": "phpunit -c phpunit.xml"
+		"test": [
+			"@test:unit",
+			"@test:functional"
+		],
+		"test:coverage": [
+			"rm -rf .Build/coverage/cov",
+			"phpunit -c phpunit.xml --coverage-php=.Build/coverage/cov/unit.cov",
+			"phpunit -c FunctionalTests.xml --coverage-php=.Build/coverage/cov/functional.cov",
+			"phpcov merge --clover=.Build/coverage/clover.xml --html=.Build/coverage/html --text=php://stdout .Build/coverage/cov"
+		],
+		"test:coverage:unit": "phpunit -c phpunit.xml",
+		"test:functional": "phpunit -c FunctionalTests.xml",
+		"test:unit": "phpunit -c phpunit.xml --no-coverage"
 	}
 }

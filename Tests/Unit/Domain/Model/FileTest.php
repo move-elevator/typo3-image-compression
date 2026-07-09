@@ -82,4 +82,18 @@ final class FileTest extends TestCase
         $this->subject->resetCompressError();
         self::assertSame('', $this->subject->getCompressError());
     }
+
+    #[Test]
+    public function getCompressInfoReturnsInitialValueEmptyString(): void
+    {
+        self::assertSame('', $this->subject->getCompressInfo());
+    }
+
+    #[Test]
+    public function setCompressInfoSetsCompressInfo(): void
+    {
+        $compressInfo = 'tinify: 1 KB -> 512 B (-50%) - 01.01.2026';
+        $this->subject->setCompressInfo($compressInfo);
+        self::assertSame($compressInfo, $this->subject->getCompressInfo());
+    }
 }

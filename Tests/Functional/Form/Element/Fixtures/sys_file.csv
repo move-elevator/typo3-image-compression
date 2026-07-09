@@ -1,0 +1,5 @@
+"sys_file"
+,"uid","pid","storage","identifier","identifier_hash","folder_hash","extension","mime_type","name","sha1","size","missing","compressed","compress_error","compress_info"
+,1,0,1,"/error.jpg","hash1","fhash1","jpg","image/jpeg","error.jpg","sha1hash1",1000,0,0,"tinify error: 429 Too Many Requests",""
+,2,0,1,"/compressed.jpg","hash2","fhash2","jpg","image/jpeg","compressed.jpg","sha1hash2",2000,0,1,"","provider=tinify;original=2000;compressed=1500"
+,3,0,1,"/not-compressed.jpg","hash3","fhash3","jpg","image/jpeg","not-compressed.jpg","sha1hash3",3000,0,0,"",""

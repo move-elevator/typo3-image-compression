@@ -1,0 +1,12 @@
+"sys_file_storage"
+,"uid","pid","name"
+,1,0,"fileadmin"
+
+"sys_file"
+,"uid","pid","storage","identifier","name","mime_type","missing","compressed"
+,1,0,1,"/image1.jpg","image1.jpg","image/jpeg",0,1
+
+"sys_file_processedfile"
+,"uid","storage","original","identifier","name","compressed","compress_error"
+,1,1,1,"/_processed_/image1.jpg","image1.jpg",0,\NULL
+,2,1,1,"/_processed_/image1_error.jpg","image1_error.jpg",0,"previous failure"
