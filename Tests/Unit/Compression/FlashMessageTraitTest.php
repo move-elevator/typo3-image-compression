@@ -124,7 +124,15 @@ final class FlashMessageTraitTest extends TestCase
 
         $languageServiceMock = $this->createMock(LanguageService::class);
         $languageServiceMock->method('getLocale')->willReturn(new Locale('en'));
+        // TYPO3 v12/v13's LocalizationUtility::translate() resolves labels via
+        // LanguageService::sL(), while v14 calls LanguageService::translate()
+        // directly instead (a method that doesn't exist at all on v12/v13, so
+        // it can only be stubbed when present). Covering both handles every
+        // supported version.
         $languageServiceMock->method('sL')->willReturn('translated label');
+        if (method_exists(LanguageService::class, 'translate')) {
+            $languageServiceMock->method('translate')->willReturn('translated label');
+        }
 
         $languageServiceFactoryMock = $this->createMock(LanguageServiceFactory::class);
         $languageServiceFactoryMock->method('createFromUserPreferences')->willReturn($languageServiceMock);
