@@ -16,21 +16,30 @@
 
 This TYPO3 extension automatically compresses images uploaded to the TYPO3 backend. Choose between the TinyPNG API for best results or local tools for cost-free compression.
 
+> [!NOTE]
+> Uncompressed images are one of the most common causes of slow-loading TYPO3 websites. This extension compresses images automatically as part of the file processing pipeline, so editors don't have to remember to optimize every upload manually.
+
 ## ✨ Features
 
-- **Multiple compression providers**: TinyPNG API, local optimized tools, or ImageMagick/GraphicsMagick
+- **Multiple compression providers**: [TinyPNG API](#tinify-tinypng-api), [local optimized tools](#local-tools-optimized-tools), or [ImageMagick/GraphicsMagick](#local-basic-imagemagick--graphicsmagick)
 - Automatic compression of JPG, PNG, GIF, AVIF and WebP images on upload
-- CLI command for batch processing existing images
-- Configurable quality settings for local compression
-- Image compression statistics in the system information toolbar
-- Compression status visible in sys_file_metadata edit view
-- System report with per-provider statistics in Admin Tools
+- [CLI command](#batch-processing-cli) for batch processing existing images
+- [Configurable quality settings](#quality-settings) for local compression
+- Image compression statistics in the [system information toolbar](#backend-integration)
+- Compression status visible in the [sys_file_metadata edit view](#backend-integration)
+- [System report](#backend-integration) with per-provider statistics in Admin Tools
 
 ## 🔥 Installation
 
-**Requirements:** TYPO3 >= 12.4 · PHP 8.2+
+### Requirements
+
+- TYPO3 >= 12.4
+- PHP >= 8.2
 
 ### Composer
+
+[![Packagist Version](https://img.shields.io/packagist/v/move-elevator/typo3-image-compression?label=packagist&logo=packagist)](https://packagist.org/packages/move-elevator/typo3-image-compression)
+[![Packagist Downloads](https://img.shields.io/packagist/dt/move-elevator/typo3-image-compression?logo=packagist)](https://packagist.org/packages/move-elevator/typo3-image-compression)
 
 ```bash
 composer require move-elevator/typo3-image-compression
