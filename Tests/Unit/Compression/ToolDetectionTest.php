@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
+use KonradMichalik\Ttt\Attribute\WithTypo3ConfVars;
 use MoveElevator\Typo3ImageCompression\Compression\ToolDetection;
 use PHPUnit\Framework\Attributes\{CoversClass, DataProvider, Test};
 use PHPUnit\Framework\TestCase;
@@ -26,25 +27,18 @@ use PHPUnit\Framework\TestCase;
  * @license GPL-2.0-or-later
  */
 #[CoversClass(ToolDetection::class)]
+#[WithTypo3ConfVars([
+    'SYS' => ['binSetup' => '', 'binPath' => '/usr/bin/'],
+    'BE' => ['disable_exec_function' => false],
+    'GFX' => ['processor' => 'ImageMagick', 'processor_path' => '/usr/bin/'],
+])]
 final class ToolDetectionTest extends TestCase
 {
     private ToolDetection $subject;
 
     protected function setUp(): void
     {
-        // Initialize TYPO3_CONF_VARS to prevent warnings from CommandUtility
-        $GLOBALS['TYPO3_CONF_VARS']['SYS']['binSetup'] = '';
-        $GLOBALS['TYPO3_CONF_VARS']['SYS']['binPath'] = '/usr/bin/';
-        $GLOBALS['TYPO3_CONF_VARS']['BE']['disable_exec_function'] = false;
-        $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] = 'ImageMagick';
-        $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor_path'] = '/usr/bin/';
-
         $this->subject = new ToolDetection();
-    }
-
-    protected function tearDown(): void
-    {
-        unset($GLOBALS['TYPO3_CONF_VARS']);
     }
 
     #[Test]
