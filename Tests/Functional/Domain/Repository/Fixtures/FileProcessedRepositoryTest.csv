@@ -1,0 +1,17 @@
+"sys_file_storage"
+,"uid","pid","name"
+,1,0,"fileadmin"
+
+"sys_file"
+,"uid","pid","storage","identifier","name","mime_type","missing"
+,1,0,1,"/image1.jpg","image1.jpg","image/jpeg",0
+,2,0,1,"/image2.jpg","image2.jpg","image/jpeg",0
+
+"sys_file_processedfile"
+,"uid","storage","original","identifier","name","compressed","compress_error"
+,1,1,1,"/_processed_/image1.jpg","image1.jpg",1,\NULL
+,2,1,1,"/_processed_/image2.jpg","image2.jpg",0,\NULL
+,3,1,2,"/_processed_/image3.jpg","image3.jpg",0,"Compression failed: timeout"
+,4,1,2,"/_processed_/image4.jpg","image4.jpg",0,"Another error"
+,5,1,1,"/_processed_/image5.jpg",\NULL,0,\NULL
+,6,1,1,"/_processed_/image6.jpg","image6.jpg",0,\NULL

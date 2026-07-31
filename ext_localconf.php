@@ -19,3 +19,6 @@ $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeRegistry'][1733320000] = [
     'priority' => 50,
     'class' => CompressionInfoElement::class,
 ];
+
+// Cache for the TinyPNG compression count, avoiding an API round-trip on every backend request.
+$GLOBALS['TYPO3_CONF_VARS']['SYS']['caching']['cacheConfigurations']['typo3_image_compression'] ??= [];

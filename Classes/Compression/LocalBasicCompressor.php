@@ -17,7 +17,6 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
-use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
@@ -93,7 +92,10 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
 
         $originalFileSize = (int) filesize($filePath);
         $processor = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] ?? 'ImageMagick';
-        $this->compressWithGraphicsProcessor($filePath, $mimeType);
+
+        if (!$this->compressWithGraphicsProcessor($filePath, $mimeType)) {
+            return;
+        }
 
         // Log compression result and show flash message
         clearstatcache(true, $filePath);
@@ -133,9 +135,9 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
 
             /** @var ResourceStorage $storage */
             $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
-            $filePath = Environment::getPublicPath().'/'.($storage->getConfiguration()['basePath'] ?? '').urldecode($file['identifier']);
+            $filePath = $this->resolveProcessedFilePath($storage, (string) $file['identifier']);
 
-            if (!file_exists($filePath)) {
+            if (null === $filePath || !file_exists($filePath)) {
                 $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file not found');
 
                 continue;
@@ -153,12 +155,13 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
                 continue;
             }
 
-            $this->compressWithGraphicsProcessor($filePath, $mimeType);
-            $this->fileProcessedRepository->updateCompressState($fileId);
+            if ($this->compressWithGraphicsProcessor($filePath, $mimeType)) {
+                $this->fileProcessedRepository->updateCompressState($fileId);
+            }
         }
     }
 
-    protected function compressWithGraphicsProcessor(string $filePath, string $mimeType): void
+    protected function compressWithGraphicsProcessor(string $filePath, string $mimeType): bool
     {
         $processor = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] ?? 'ImageMagick';
         $quality = $this->getQualityForMimeType($mimeType);
@@ -169,7 +172,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             if (null === $binary) {
                 $this->logger?->warning('GraphicsMagick not found', ['file' => $filePath]);
 
-                return;
+                return false;
             }
 
             $command = sprintf(
@@ -185,7 +188,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             if (null === $binary) {
                 $this->logger?->warning('ImageMagick not found', ['file' => $filePath]);
 
-                return;
+                return false;
             }
 
             // ImageMagick v7+ uses "magick convert", v6 uses "convert" directly
@@ -202,7 +205,20 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
         }
 
         $output = [];
-        CommandUtility::exec($command, $output);
+        $returnValue = 0;
+        CommandUtility::exec($command, $output, $returnValue);
+
+        if (0 !== $returnValue) {
+            $this->logger?->warning('Image compression failed', [
+                'processor' => $processor,
+                'file' => $filePath,
+                'quality' => $quality,
+                'exitCode' => $returnValue,
+                'output' => implode("\n", $output ?? []),
+            ]);
+
+            return false;
+        }
 
         $this->logger?->debug('Image compressed with basic processor', [
             'processor' => $processor,
@@ -210,6 +226,8 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             'quality' => $quality,
             'output' => implode("\n", $output ?? []),
         ]);
+
+        return true;
     }
 
     protected function getQualityForMimeType(string $mimeType): int

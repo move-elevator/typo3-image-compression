@@ -1,0 +1,8 @@
+"pages"
+,"uid","pid","title"
+,1,0,"Root"
+
+"sys_file_storage"
+,"uid","pid","name"
+,1,0,"fileadmin"
+,2,1,"other"

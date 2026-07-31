@@ -17,7 +17,7 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
 use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Core\Resource\File;
+use TYPO3\CMS\Core\Resource\{File, ResourceStorage};
 use TYPO3\CMS\Core\Resource\Index\Indexer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -132,6 +132,36 @@ trait CompressorTrait
         }
 
         return sprintf('%d B', $bytes);
+    }
+
+    /**
+     * Resolves the absolute filesystem path for a processed file.
+     *
+     * Returns null when the identifier contains directory traversal
+     * sequences, preventing compression tools from writing to files
+     * outside the storage's base path.
+     */
+    protected function resolveProcessedFilePath(ResourceStorage $storage, string $identifier): ?string
+    {
+        $basePath = (string) ($storage->getConfiguration()['basePath'] ?? '');
+
+        return $this->buildStoragePath(Environment::getPublicPath(), $basePath, $identifier);
+    }
+
+    /**
+     * Assembles a storage-relative identifier into an absolute path.
+     *
+     * The identifier is a filesystem-relative path (not URL-encoded) and is
+     * validated against traversal sequences before being joined. Returns null
+     * for empty or unsafe identifiers.
+     */
+    protected function buildStoragePath(string $publicPath, string $basePath, string $identifier): ?string
+    {
+        if ('' === $identifier || !GeneralUtility::validPathStr($identifier)) {
+            return null;
+        }
+
+        return rtrim($publicPath, '/').'/'.$basePath.$identifier;
     }
 
     /**

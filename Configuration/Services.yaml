@@ -12,6 +12,17 @@ services:
     factory: ['@MoveElevator\Typo3ImageCompression\Compression\CompressorFactory', 'create']
     public: true
 
+  cache.typo3_image_compression:
+    class: TYPO3\CMS\Core\Cache\Frontend\FrontendInterface
+    factory: ['@TYPO3\CMS\Core\Cache\CacheManager', 'getCache']
+    arguments:
+      - 'typo3_image_compression'
+
+  MoveElevator\Typo3ImageCompression\Compression\TinifyCompressor:
+    public: true
+    arguments:
+      $cache: '@cache.typo3_image_compression'
+
   # Event Listeners
   # Note: When TYPO3 v12 support is dropped, these can be replaced with #[AsEventListener] attributes
   MoveElevator\Typo3ImageCompression\EventListener\AfterFileAdded:
