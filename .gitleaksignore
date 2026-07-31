@@ -1,3 +1,5 @@
-# Local DDEV/Traefik dev TLS certificate, removed from the working tree and
-# gitignored since — only present in git history. Not a real credential.
+# Local, self-signed DDEV Traefik development certificate (regenerated per environment by
+# `ddev start`). Already removed from the working tree and .gitignore'd in an earlier change;
+# this fingerprint suppresses the finding for the historical commit that still carries it, so the
+# full-history gitleaks scan passes without rewriting the default branch history.
 b156c9b36749befb23a9fc8856829a1b289b2b5d:.ddev/traefik/certs/typo3-login-warning.key:private-key:2
