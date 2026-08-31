@@ -55,7 +55,7 @@ final class ViewUtility
     {
         $viewFactory = GeneralUtility::makeInstance(ViewFactoryInterface::class);
         $viewFactoryData = new ViewFactoryData(
-            templateRootPaths: ['EXT:'.Configuration::EXT_KEY.'/Resources/Private/Templates/'.$templatePath],
+            ['EXT:'.Configuration::EXT_KEY.'/Resources/Private/Templates/'.$templatePath],
         );
         $view = $viewFactory->create($viewFactoryData);
         $view->assignMultiple($variables);

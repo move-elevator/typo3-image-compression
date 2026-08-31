@@ -203,11 +203,11 @@ final class SystemInformationToolbarTest extends TestCase
  */
 abstract class QuotaAwareCompressorTestDouble implements CompressorInterface, QuotaAwareInterface
 {
-    public function compress(File|FileInterface $file): void {}
+    final public function compress(File|FileInterface $file): void {}
 
-    public function compressProcessedFiles(array $files): void {}
+    final public function compressProcessedFiles(array $files): void {}
 
-    public function getProviderIdentifier(): string
+    final public function getProviderIdentifier(): string
     {
         return 'test-double';
     }

@@ -61,9 +61,9 @@ final class AfterFileListRenderedTest extends TestCase
         // shape used in v12/v13.
         $majorVersion = GeneralUtility::makeInstance(Typo3Version::class)->getMajorVersion();
         if ($majorVersion >= 14) {
-            $primaryGroup = new ComponentGroup('primary'); // @phpstan-ignore class.notFound (TYPO3 v14-only class, not part of the pinned v12 API this is analysed against)
-            $secondaryGroup = new ComponentGroup('secondary'); // @phpstan-ignore class.notFound (TYPO3 v14-only class, not part of the pinned v12 API this is analysed against)
-            $event = new ProcessFileListActionsEvent($primaryGroup, $secondaryGroup, $resourceMock, $this->createMock(RequestInterface::class)); // @phpstan-ignore argument.type, argument.type, arguments.count (TYPO3 v14-only constructor shape, not part of the pinned v12 API this is analysed against)
+            $primaryGroup = new ComponentGroup('primary');
+            $secondaryGroup = new ComponentGroup('secondary');
+            $event = new ProcessFileListActionsEvent($primaryGroup, $secondaryGroup, $resourceMock, $this->createMock(RequestInterface::class));
         } else {
             $event = new ProcessFileListActionsEvent($resourceMock, []);
         }

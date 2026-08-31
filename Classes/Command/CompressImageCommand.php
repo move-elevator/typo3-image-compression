@@ -132,8 +132,8 @@ final class CompressImageCommand extends Command
 
         if ($includeProcessed) {
             $filesProcessed = $retryErrors
-                ? $this->fileProcessedRepository->findAllWithErrors(limit: $limit)
-                : $this->fileProcessedRepository->findAllNonCompressed(limit: $limit);
+                ? $this->fileProcessedRepository->findAllWithErrors($limit)
+                : $this->fileProcessedRepository->findAllNonCompressed($limit);
 
             if ([] !== $filesProcessed) {
                 $limit -= count($filesProcessed);
