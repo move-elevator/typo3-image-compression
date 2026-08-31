@@ -30,3 +30,29 @@ parameters:
 			message: '#Call to method .+ on an unknown class TYPO3\\CMS\\Core\\View\\ViewFactoryInterface#'
 			path: ../../Classes/Utility/ViewUtility.php
 			reportUnmatched: false
+		# ComponentGroup and the 4-argument ProcessFileListActionsEvent constructor are TYPO3 v14-only,
+		# not part of the pinned v12 API this is analysed against
+		-
+			message: '#Instantiated class TYPO3\\CMS\\Backend\\Template\\Components\\ComponentGroup not found#'
+			path: ../../Tests/Unit/EventListener/AfterFileListRenderedTest.php
+			reportUnmatched: false
+		-
+			message: '#Class TYPO3\\CMS\\Filelist\\Event\\ProcessFileListActionsEvent constructor invoked with 4 parameters, 2 required#'
+			path: ../../Tests/Unit/EventListener/AfterFileListRenderedTest.php
+			reportUnmatched: false
+		-
+			message: '#Parameter \#1 \$fileOrFolder of class TYPO3\\CMS\\Filelist\\Event\\ProcessFileListActionsEvent constructor expects TYPO3\\CMS\\Core\\Resource\\ResourceInterface, TYPO3\\CMS\\Backend\\Template\\Components\\ComponentGroup given#'
+			path: ../../Tests/Unit/EventListener/AfterFileListRenderedTest.php
+			reportUnmatched: false
+		-
+			message: '#Parameter \#2 \$actionItems of class TYPO3\\CMS\\Filelist\\Event\\ProcessFileListActionsEvent constructor expects array, TYPO3\\CMS\\Backend\\Template\\Components\\ComponentGroup given#'
+			path: ../../Tests/Unit/EventListener/AfterFileListRenderedTest.php
+			reportUnmatched: false
+		# Symfony Command's own constructor signature requires this default
+		-
+			message: '#Constructor .+CompressImageCommand has parameter \$name with default value#'
+			path: ../../Classes/Command/CompressImageCommand.php
+		# Named booleans/int disambiguate this private test helper's call sites; positional args would be unclear
+		-
+			message: '#Method .+CompressImageCommandTest::invokeExecute\(\) is invoked with named argument#'
+			path: ../../Tests/Unit/Command/CompressImageCommandTest.php
