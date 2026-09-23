@@ -18,6 +18,7 @@ use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent;
 use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
+use TYPO3\CMS\Core\Resource\Index\Indexer;
 use TYPO3\CMS\Core\Resource\Processing\FileDeletionAspect;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\SingletonInterface;
@@ -61,13 +62,23 @@ class RestoreService implements SingletonInterface
         );
 
         if (!$this->backupService->restore($backupPath, $absoluteFilePath)) {
-            $this->fileRepository->updateBackupPath($fileUid, '');
+            // Only forget the reference once the backup is confirmed gone; a
+            // failed restore with an intact backup (e.g. the target was
+            // temporarily unwritable) must stay retryable.
+            if (!$this->backupService->backupExists($backupPath)) {
+                $this->fileRepository->updateBackupPath($fileUid, '');
+            }
 
             return false;
         }
 
         $this->fileRepository->updateCompressionStatus($fileUid, false, '', '');
         $this->fileRepository->updateBackupPath($fileUid, '');
+
+        // The restored bytes differ from what FAL last indexed (size, hash);
+        // re-index before the cleanup below, which itself reads the file.
+        $fileIndexer = GeneralUtility::makeInstance(Indexer::class, $resourceFile->getStorage());
+        $fileIndexer->updateIndexEntry($resourceFile);
 
         $fileDeletionAspect = GeneralUtility::makeInstance(FileDeletionAspect::class);
         $fileDeletionAspect->cleanupProcessedFilesPostFileReplace(new AfterFileReplacedEvent($resourceFile, ''));

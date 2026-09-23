@@ -23,6 +23,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 use function dirname;
+use function strlen;
 
 /**
  * RestoreImageCommandTest.
@@ -73,6 +74,30 @@ final class RestoreImageCommandTest extends FunctionalTestCase
         self::assertSame(0, (int) $row['compressed']);
         self::assertSame('', (string) $row['compress_error']);
         self::assertSame('', (string) $row['backup_path']);
+    }
+
+    #[Test]
+    public function executeReindexesTheFalRecordSoSizeAndHashReflectTheRestoredContent(): void
+    {
+        $storageUid = $this->createLocalTestStorage();
+        $this->writeRealFile('photo.jpg', 'compressed-bytes');
+        $backupRelativePath = $storageUid.'/backup-hash.jpg';
+        $this->writeBackupFile($backupRelativePath, 'a-different-length-original');
+        $fileUid = $this->importSysFileRow($storageUid, '/photo.jpg', 'photo.jpg', $backupRelativePath);
+
+        $this->commandTester->execute(['uid' => $fileUid]);
+
+        $row = $this->getConnectionPool()
+            ->getQueryBuilderForTable('sys_file')
+            ->select('size', 'sha1')
+            ->from('sys_file')
+            ->where('uid = '.$fileUid)
+            ->executeQuery()
+            ->fetchAssociative();
+
+        self::assertNotFalse($row);
+        self::assertSame(strlen('a-different-length-original'), (int) $row['size']);
+        self::assertSame(sha1('a-different-length-original'), (string) $row['sha1']);
     }
 
     #[Test]

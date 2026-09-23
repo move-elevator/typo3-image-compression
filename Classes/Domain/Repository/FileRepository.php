@@ -214,6 +214,22 @@ class FileRepository extends Repository
     }
 
     /**
+     * Clears backup_path on every sys_file row still pointing at a given
+     * relative backup path, so pruning a backup file doesn't leave the file
+     * list offering to restore from a path that no longer exists.
+     */
+    public function clearBackupPathByRelativePath(string $backupPath): void
+    {
+        $connection = $this->connectionPool->getConnectionForTable('sys_file');
+
+        $connection->update(
+            'sys_file',
+            ['backup_path' => ''],
+            ['backup_path' => $backupPath],
+        );
+    }
+
+    /**
      * Returns the relative backup path for a file, or null if none is set.
      *
      * @throws Exception

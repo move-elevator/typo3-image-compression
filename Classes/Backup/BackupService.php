@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Backup;
 
 use FilesystemIterator;
+use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -26,7 +27,10 @@ use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 use function dirname;
+use function ltrim;
 use function sprintf;
+use function strlen;
+use function substr;
 
 /**
  * BackupService.
@@ -43,6 +47,8 @@ class BackupService implements LoggerAwareInterface, SingletonInterface
     use LoggerAwareTrait;
 
     private const BACKUP_DIR_NAME = 'image_compression/backup';
+
+    public function __construct(private readonly FileRepository $fileRepository) {}
 
     /**
      * Copies the file at $absoluteFilePath into the backup directory.
@@ -86,13 +92,13 @@ class BackupService implements LoggerAwareInterface, SingletonInterface
      */
     public function restore(string $backupRelativePath, string $absoluteFilePath): bool
     {
-        $absoluteBackupPath = $this->getBackupBasePath().'/'.$backupRelativePath;
-
-        if (!file_exists($absoluteBackupPath)) {
-            $this->logger?->warning('Backup file not found', ['path' => $absoluteBackupPath]);
+        if (!$this->backupExists($backupRelativePath)) {
+            $this->logger?->warning('Backup file not found', ['path' => $this->getBackupBasePath().'/'.$backupRelativePath]);
 
             return false;
         }
+
+        $absoluteBackupPath = $this->getBackupBasePath().'/'.$backupRelativePath;
 
         if (!copy($absoluteBackupPath, $absoluteFilePath)) {
             $this->logger?->warning('Could not restore backup file', ['source' => $absoluteBackupPath, 'target' => $absoluteFilePath]);
@@ -101,6 +107,17 @@ class BackupService implements LoggerAwareInterface, SingletonInterface
         }
 
         return true;
+    }
+
+    /**
+     * Whether the backup file itself still exists. Lets callers distinguish
+     * a genuinely missing backup (safe to forget the reference to) from a
+     * failed restore where the backup is intact but the target couldn't be
+     * written (a stale reference would make the backup unreachable).
+     */
+    public function backupExists(string $backupRelativePath): bool
+    {
+        return file_exists($this->getBackupBasePath().'/'.$backupRelativePath);
     }
 
     /**
@@ -127,10 +144,16 @@ class BackupService implements LoggerAwareInterface, SingletonInterface
                 continue;
             }
 
-            if (!$dryRun && !unlink($fileInfo->getPathname())) {
-                $this->logger?->warning('Could not delete backup file during prune', ['path' => $fileInfo->getPathname()]);
+            if (!$dryRun) {
+                if (!unlink($fileInfo->getPathname())) {
+                    $this->logger?->warning('Could not delete backup file during prune', ['path' => $fileInfo->getPathname()]);
 
-                continue;
+                    continue;
+                }
+
+                $this->fileRepository->clearBackupPathByRelativePath(
+                    ltrim(substr($fileInfo->getPathname(), strlen($basePath)), '/'),
+                );
             }
 
             ++$deleted;

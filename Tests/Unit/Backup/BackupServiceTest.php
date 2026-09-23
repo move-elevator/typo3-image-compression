@@ -16,7 +16,9 @@ namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Backup;
 
 use FilesystemIterator;
 use MoveElevator\Typo3ImageCompression\Backup\BackupService;
+use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -35,6 +37,7 @@ use TYPO3\CMS\Core\Resource\{File, ResourceStorage};
 final class BackupServiceTest extends TestCase
 {
     private BackupService $subject;
+    private FileRepository&MockObject $fileRepositoryMock;
 
     /**
      * @var string[]
@@ -61,7 +64,8 @@ final class BackupServiceTest extends TestCase
         // the test process.
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['folderCreateMask'] = '0755';
 
-        $this->subject = new BackupService();
+        $this->fileRepositoryMock = $this->createMock(FileRepository::class);
+        $this->subject = new BackupService($this->fileRepositoryMock);
     }
 
     protected function tearDown(): void
@@ -121,6 +125,49 @@ final class BackupServiceTest extends TestCase
     }
 
     #[Test]
+    public function backupExistsReturnsFalseForAMissingBackup(): void
+    {
+        self::assertFalse($this->subject->backupExists('does-not-exist/'.bin2hex(random_bytes(8)).'.jpg'));
+    }
+
+    #[Test]
+    public function backupExistsReturnsTrueForAnIntactBackup(): void
+    {
+        $sourcePath = $this->createTmpFile('original-bytes');
+        $fileMock = $this->createFileMock(8);
+        $relativePath = $this->subject->backup($fileMock, $sourcePath);
+        self::assertNotNull($relativePath);
+
+        self::assertTrue($this->subject->backupExists($relativePath));
+    }
+
+    #[Test]
+    public function restoreLeavesTheBackupFileInPlaceWhenTheTargetCannotBeWritten(): void
+    {
+        $sourcePath = $this->createTmpFile('original-bytes');
+        $fileMock = $this->createFileMock(11);
+        $relativePath = $this->subject->backup($fileMock, $sourcePath);
+        self::assertNotNull($relativePath);
+
+        // A directory as the target makes copy() fail without touching the backup.
+        $unwritableTarget = sys_get_temp_dir().'/bs_'.bin2hex(random_bytes(8));
+        mkdir($unwritableTarget);
+
+        // copy() emits its own E_WARNING for the expected failure here;
+        // let it through instead of suppressing it, but stop it from being
+        // promoted to an exception so the return value can be asserted.
+        set_error_handler(static fn (): bool => true, \E_WARNING);
+
+        try {
+            self::assertFalse($this->subject->restore($relativePath, $unwritableTarget));
+            self::assertTrue($this->subject->backupExists($relativePath));
+        } finally {
+            restore_error_handler();
+            rmdir($unwritableTarget);
+        }
+    }
+
+    #[Test]
     public function pruneReturnsZeroWhenBackupDirectoryDoesNotExist(): void
     {
         self::assertSame(0, $this->subject->prune(30));
@@ -149,7 +196,24 @@ final class BackupServiceTest extends TestCase
     }
 
     #[Test]
-    public function pruneWithDryRunDoesNotDeleteFiles(): void
+    public function pruneClearsTheBackupPathReferenceForEachDeletedFile(): void
+    {
+        $sourcePath = $this->createTmpFile('original-bytes');
+        $oldFileMock = $this->createFileMock(1);
+        $oldRelativePath = $this->subject->backup($oldFileMock, $sourcePath);
+        self::assertNotNull($oldRelativePath);
+
+        touch(sys_get_temp_dir().'/image_compression/backup/'.$oldRelativePath, time() - (31 * 86400));
+
+        $this->fileRepositoryMock->expects(self::once())
+            ->method('clearBackupPathByRelativePath')
+            ->with($oldRelativePath);
+
+        $this->subject->prune(30);
+    }
+
+    #[Test]
+    public function pruneWithDryRunDoesNotDeleteFilesOrClearReferences(): void
     {
         $sourcePath = $this->createTmpFile('original-bytes');
         $fileMock = $this->createFileMock(9);
@@ -158,6 +222,8 @@ final class BackupServiceTest extends TestCase
 
         $absolutePath = sys_get_temp_dir().'/image_compression/backup/'.$relativePath;
         touch($absolutePath, time() - (31 * 86400));
+
+        $this->fileRepositoryMock->expects(self::never())->method('clearBackupPathByRelativePath');
 
         $deleted = $this->subject->prune(30, true);
 
