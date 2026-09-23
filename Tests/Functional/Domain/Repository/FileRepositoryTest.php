@@ -259,6 +259,20 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         self::assertSame(400, $this->subject->getTotalBytesSaved());
     }
 
+    #[Test]
+    public function getTotalBytesSavedExcludesRowsWhereCompressedOutputIsLarger(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        // uid 1 genuinely saved space; uid 2 is still marked compressed even
+        // though the output grew. That row must not drag the total below
+        // the real savings from uid 1.
+        $this->subject->updateCompressionStatus(1, true, '', 'tinify', '', 1000, 700);
+        $this->subject->updateCompressionStatus(2, true, '', 'tinify', '', 500, 550);
+
+        self::assertSame(300, $this->subject->getTotalBytesSaved());
+    }
+
     private function getStorage(int $uid): FileStorage
     {
         $storage = $this->get(FileStorageRepository::class)->findByUid($uid);

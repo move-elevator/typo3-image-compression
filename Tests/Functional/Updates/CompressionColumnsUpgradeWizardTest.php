@@ -83,7 +83,10 @@ final class CompressionColumnsUpgradeWizardTest extends FunctionalTestCase
         self::assertNotFalse($row);
         self::assertSame(1, (int) $row['compressed']);
         self::assertSame('unknown', $row['compress_provider']);
-        self::assertGreaterThan(0, (int) $row['compress_tstamp']);
+        // The actual compression time of a legacy row is not known, so
+        // compress_tstamp is left at its column default (0) rather than
+        // being fabricated as "now".
+        self::assertSame(0, (int) $row['compress_tstamp']);
     }
 
     #[Test]

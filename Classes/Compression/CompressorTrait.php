@@ -98,7 +98,11 @@ trait CompressorTrait
      */
     protected function buildCompressInfo(string $provider, int $originalSize, int $newSize, ?string $tool = null): string
     {
-        return CompressionInfoFormatter::format($provider, $originalSize, $newSize, $tool ?? '');
+        // Compression just happened, so the timestamp is known: passed
+        // explicitly rather than relying on CompressionInfoFormatter's
+        // null-timestamp default, which means "unknown" (e.g. a legacy row
+        // migrated by CompressionColumnsUpgradeWizard), not "now".
+        return CompressionInfoFormatter::format($provider, $originalSize, $newSize, $tool ?? '', time());
     }
 
     /**
