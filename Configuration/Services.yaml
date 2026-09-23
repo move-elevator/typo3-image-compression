@@ -49,6 +49,12 @@ services:
         identifier: typo3-image-compression-system-information-toolbar-event
         event: TYPO3\CMS\Backend\Backend\Event\SystemInformationToolbarCollectorEvent
 
+  # Message Handlers
+  # Note: When TYPO3 v12 support is dropped, this can be replaced with #[AsMessageHandler]
+  MoveElevator\Typo3ImageCompression\MessageHandler\CompressImageMessageHandler:
+    tags:
+      - name: messenger.message_handler
+
   # Console Commands
   # Note: When TYPO3 v12 support is dropped, this can be replaced with #[AsCommand] attribute
   MoveElevator\Typo3ImageCompression\Command\CompressImageCommand:
