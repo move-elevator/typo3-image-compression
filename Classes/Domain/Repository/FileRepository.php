@@ -102,7 +102,7 @@ class FileRepository extends Repository
     /**
      * Finds compression status data for a file by its UID.
      *
-     * @return array{compressed: bool, compress_error: string, compress_info: string}|null
+     * @return array{compressed: bool, compress_error: string, compress_provider: string, compress_tool: string, compress_original_size: int, compress_size: int, compress_tstamp: int}|null
      *
      * @throws Exception
      */
@@ -111,7 +111,15 @@ class FileRepository extends Repository
         $queryBuilder = $this->connectionPool->getQueryBuilderForTable('sys_file');
 
         $row = $queryBuilder
-            ->select('compressed', 'compress_error', 'compress_info')
+            ->select(
+                'compressed',
+                'compress_error',
+                'compress_provider',
+                'compress_tool',
+                'compress_original_size',
+                'compress_size',
+                'compress_tstamp',
+            )
             ->from('sys_file')
             ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($fileUid, ParameterType::INTEGER)))
             ->executeQuery()
@@ -124,7 +132,11 @@ class FileRepository extends Repository
         return [
             'compressed' => (bool) $row['compressed'],
             'compress_error' => (string) $row['compress_error'],
-            'compress_info' => (string) $row['compress_info'],
+            'compress_provider' => (string) $row['compress_provider'],
+            'compress_tool' => (string) $row['compress_tool'],
+            'compress_original_size' => (int) $row['compress_original_size'],
+            'compress_size' => (int) $row['compress_size'],
+            'compress_tstamp' => (int) $row['compress_tstamp'],
         ];
     }
 
@@ -179,12 +191,20 @@ class FileRepository extends Repository
 
     /**
      * Updates the compression status for a file using DBAL.
+     *
+     * @param string $provider     Provider identifier (e.g. "tinify", "local-tools"), empty on failure/reset
+     * @param string $tool         Tool name (e.g. "jpegoptim", "ImageMagick"), empty when not applicable
+     * @param int    $originalSize Original file size in bytes, 0 on failure/reset
+     * @param int    $newSize      New file size in bytes, 0 on failure/reset
      */
     public function updateCompressionStatus(
         int $fileUid,
         bool $compressed,
         string $compressError = '',
-        string $compressInfo = '',
+        string $provider = '',
+        string $tool = '',
+        int $originalSize = 0,
+        int $newSize = 0,
     ): void {
         $connection = $this->connectionPool->getConnectionForTable('sys_file');
 
@@ -193,7 +213,11 @@ class FileRepository extends Repository
             [
                 'compressed' => $compressed ? 1 : 0,
                 'compress_error' => $compressError,
-                'compress_info' => $compressInfo,
+                'compress_provider' => $provider,
+                'compress_tool' => $tool,
+                'compress_original_size' => $originalSize,
+                'compress_size' => $newSize,
+                'compress_tstamp' => $compressed ? time() : 0,
             ],
             ['uid' => $fileUid],
         );
@@ -232,5 +256,24 @@ class FileRepository extends Repository
             'not_compressed' => (int) ($result['not_compressed'] ?? 0),
             'errors' => (int) ($result['errors'] ?? 0),
         ];
+    }
+
+    /**
+     * Returns the total bytes saved across all successfully compressed files.
+     */
+    public function getTotalBytesSaved(): int
+    {
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable('sys_file');
+
+        $result = $queryBuilder
+            ->selectLiteral('SUM(compress_original_size - compress_size) AS saved')
+            ->from('sys_file')
+            ->where(
+                $queryBuilder->expr()->eq('compressed', $queryBuilder->createNamedParameter(1, ParameterType::INTEGER)),
+            )
+            ->executeQuery()
+            ->fetchOne();
+
+        return (int) ($result ?? 0);
     }
 }

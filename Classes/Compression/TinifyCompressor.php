@@ -182,8 +182,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
             $newFileSize = (int) filesize($filePath);
             $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
 
-            $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize);
-            $this->markFileAsCompressed($file, $compressInfo);
+            $this->markFileAsCompressed($file, self::PROVIDER_IDENTIFIER, '', $originalFileSize, $newFileSize);
             $this->updateFileInformation($file);
 
             if ($percentageSaved > 0) {

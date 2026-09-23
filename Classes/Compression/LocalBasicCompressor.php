@@ -102,8 +102,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
         $newFileSize = (int) filesize($filePath);
         $savedPercent = $this->calculateSavedPercent($originalFileSize, $newFileSize);
 
-        $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize, $processor);
-        $this->markFileAsCompressed($file, $compressInfo);
+        $this->markFileAsCompressed($file, self::PROVIDER_IDENTIFIER, $processor, $originalFileSize, $newFileSize);
         $this->updateFileInformation($file);
 
         if ($savedPercent > 0) {

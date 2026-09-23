@@ -16,6 +16,7 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
+use MoveElevator\Typo3ImageCompression\Utility\CompressionInfoFormatter;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\{File, ResourceStorage};
 use TYPO3\CMS\Core\Resource\Index\Indexer;
@@ -71,18 +72,24 @@ trait CompressorTrait
     /**
      * Marks the file as compressed in the database.
      *
-     * Updates the sys_file record to indicate successful compression
-     * and clears any previous compression errors.
+     * Updates the sys_file record with structured compression results and
+     * clears any previous compression errors.
      *
-     * @param string $compressInfo Compression info (e.g. "tinify: -45% (2025-12-04)")
+     * @param string $provider     Provider identifier (e.g. "tinify", "local-tools")
+     * @param string $tool         Tool name (e.g. "jpegoptim", "ImageMagick"), empty when not applicable
+     * @param int    $originalSize Original file size in bytes
+     * @param int    $newSize      New file size in bytes
      */
-    protected function markFileAsCompressed(File $file, string $compressInfo = ''): void
+    protected function markFileAsCompressed(File $file, string $provider, string $tool, int $originalSize, int $newSize): void
     {
-        $this->fileRepository->updateCompressionStatus($file->getUid(), true, '', $compressInfo);
+        $this->fileRepository->updateCompressionStatus($file->getUid(), true, '', $provider, $tool, $originalSize, $newSize);
     }
 
     /**
-     * Builds the compression info string.
+     * Builds the human-readable compression info string.
+     *
+     * Presentation only: the structured `sys_file` columns are the source of
+     * truth, this is derived from them on demand instead of being persisted.
      *
      * @param string      $provider     Provider identifier (e.g. "tinify", "local-tools")
      * @param int         $originalSize Original file size in bytes
@@ -91,31 +98,7 @@ trait CompressorTrait
      */
     protected function buildCompressInfo(string $provider, int $originalSize, int $newSize, ?string $tool = null): string
     {
-        $date = date('d.m.Y');
-        $savedPercent = $this->calculateSavedPercent($originalSize, $newSize);
-        $originalFormatted = $this->formatFileSize($originalSize);
-        $newFormatted = $this->formatFileSize($newSize);
-
-        if (null !== $tool && '' !== $tool) {
-            return sprintf(
-                '%s (%s): %s -> %s (-%d%%) - %s',
-                $provider,
-                $tool,
-                $originalFormatted,
-                $newFormatted,
-                $savedPercent,
-                $date,
-            );
-        }
-
-        return sprintf(
-            '%s: %s -> %s (-%d%%) - %s',
-            $provider,
-            $originalFormatted,
-            $newFormatted,
-            $savedPercent,
-            $date,
-        );
+        return CompressionInfoFormatter::format($provider, $originalSize, $newSize, $tool ?? '');
     }
 
     /**
