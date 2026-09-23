@@ -35,6 +35,22 @@ use function sprintf;
  */
 trait CompressorTrait
 {
+    private const LOCAL_DRIVER_TYPE = 'Local';
+
+    /**
+     * Checks whether the storage uses TYPO3's Local driver.
+     *
+     * Compression reads and writes files directly on the filesystem, which
+     * only works for storages backed by the Local driver. A non-local
+     * storage (S3, Azure, ...) resolves its public URL to a remote
+     * location, not a filesystem path, so a path built from that URL would
+     * never exist on disk.
+     */
+    protected function isLocalStorage(ResourceStorage $storage): bool
+    {
+        return self::LOCAL_DRIVER_TYPE === $storage->getDriverType();
+    }
+
     /**
      * Checks if the file is located in an excluded folder.
      *
