@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\EventListener;
 
-use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
+use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface};
 use MoveElevator\Typo3ImageCompression\EventListener\AfterFileReplaced;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\TestCase;
@@ -38,7 +38,7 @@ final class AfterFileReplacedTest extends TestCase
         $event = new AfterFileReplacedEvent($fileMock, '/tmp/local-file.jpg');
 
         $compressorMock = $this->createMock(CompressorInterface::class);
-        $compressorMock->expects(self::once())->method('compress')->with($fileMock);
+        $compressorMock->expects(self::once())->method('compress')->with($fileMock)->willReturn(CompressionOutcome::Compressed);
 
         $subject = new AfterFileReplaced($compressorMock);
         $result = $subject($event);
