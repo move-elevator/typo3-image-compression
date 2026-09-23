@@ -176,6 +176,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
             $filePath = $this->getAbsoluteFilePath($file);
             /** @var \Tinify\Source $source */
             $source = \Tinify\fromFile($filePath);
+            $source = $this->applyPreserveOptions($source);
             $source->toFile($filePath);
 
             clearstatcache(true, $filePath);
@@ -240,6 +241,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
             try {
                 /** @var \Tinify\Source $source */
                 $source = \Tinify\fromFile($filePath);
+                $source = $this->applyPreserveOptions($source);
 
                 if (false !== $source->toFile($filePath)) {
                     $this->fileProcessedRepository->updateCompressState($fileId);
@@ -300,6 +302,29 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
     {
         $errorMessage = $e->getCode().' : '.$e->getMessage();
         $this->fileRepository->updateCompressionStatus($file->getUid(), false, $errorMessage, '');
+    }
+
+    /**
+     * Applies configured metadata preservation. GPS location is never
+     * preserved, it is a data protection concern rather than a compression setting.
+     */
+    protected function applyPreserveOptions(\Tinify\Source $source): \Tinify\Source
+    {
+        $options = [];
+
+        if ($this->extensionConfiguration->isPreserveCopyright()) {
+            $options[] = 'copyright';
+        }
+
+        if ($this->extensionConfiguration->isPreserveCreationDate()) {
+            $options[] = 'creation';
+        }
+
+        if ([] === $options) {
+            return $source;
+        }
+
+        return $source->preserve(...$options);
     }
 
     private function fetchCompressionCount(): ?int

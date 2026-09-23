@@ -118,4 +118,28 @@ class ExtensionConfiguration
 
         return max(1, min(100, $quality));
     }
+
+    /**
+     * Whether the EXIF/IPTC copyright tag should be preserved instead of stripped.
+     */
+    public function isPreserveCopyright(): bool
+    {
+        return (bool) ($this->extConf['preserveCopyright'] ?? false);
+    }
+
+    /**
+     * Whether the EXIF/IPTC creation date should be preserved instead of stripped.
+     */
+    public function isPreserveCreationDate(): bool
+    {
+        return (bool) ($this->extConf['preserveCreationDate'] ?? false);
+    }
+
+    /**
+     * Whether the embedded ICC color profile should be preserved instead of stripped.
+     */
+    public function isPreserveColorProfile(): bool
+    {
+        return (bool) ($this->extConf['preserveColorProfile'] ?? false);
+    }
 }

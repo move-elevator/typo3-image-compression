@@ -236,8 +236,9 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
 
         return match ($tool) {
             'jpegoptim' => sprintf(
-                '%s --strip-all --all-progressive --max=%d %s',
+                '%s %s --all-progressive --max=%d %s',
                 $toolPath,
+                $this->getJpegoptimStripArgument(),
                 $this->extensionConfiguration->getJpegQuality(),
                 $escapedPath,
             ),
@@ -268,5 +269,30 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
                 sprintf(self::TOOL_COMMANDS[$tool] ?? '%s', $escapedPath),
             ),
         };
+    }
+
+    /**
+     * Builds the jpegoptim strip flags from configuration. jpegoptim has
+     * native per-block strip flags, unlike ImageMagick, so copyright,
+     * creation date and the color profile can be preserved independently.
+     * Comments carry none of that data and are always stripped.
+     */
+    protected function getJpegoptimStripArgument(): string
+    {
+        $preserveCopyrightOrDate = $this->extensionConfiguration->isPreserveCopyright()
+            || $this->extensionConfiguration->isPreserveCreationDate();
+
+        $flags = ['--strip-com', '--strip-xmp'];
+
+        if (!$preserveCopyrightOrDate) {
+            $flags[] = '--strip-exif';
+            $flags[] = '--strip-iptc';
+        }
+
+        if (!$this->extensionConfiguration->isPreserveColorProfile()) {
+            $flags[] = '--strip-icc';
+        }
+
+        return implode(' ', $flags);
     }
 }

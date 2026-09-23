@@ -165,6 +165,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
     {
         $processor = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] ?? 'ImageMagick';
         $quality = $this->getQualityForMimeType($mimeType);
+        $metadataArgument = $this->getMetadataArgument();
 
         if ('GraphicsMagick' === $processor) {
             $binary = $this->toolDetection->getToolPath('graphicsmagick');
@@ -175,13 +176,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
                 return false;
             }
 
-            $command = sprintf(
-                '%s convert -quality %d -strip %s %s',
-                $binary,
-                $quality,
-                escapeshellarg($filePath),
-                escapeshellarg($filePath),
-            );
+            $commandParts = [$binary, 'convert', sprintf('-quality %d', $quality), $metadataArgument, escapeshellarg($filePath), escapeshellarg($filePath)];
         } else {
             $binary = $this->toolDetection->getToolPath('imagemagick');
 
@@ -192,17 +187,12 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             }
 
             // ImageMagick v7+ uses "magick convert", v6 uses "convert" directly
-            $subCommand = str_ends_with($binary, 'magick') ? 'convert ' : '';
+            $subCommand = str_ends_with($binary, 'magick') ? 'convert' : '';
 
-            $command = sprintf(
-                '%s %s-quality %d -strip %s %s',
-                $binary,
-                $subCommand,
-                $quality,
-                escapeshellarg($filePath),
-                escapeshellarg($filePath),
-            );
+            $commandParts = [$binary, $subCommand, sprintf('-quality %d', $quality), $metadataArgument, escapeshellarg($filePath), escapeshellarg($filePath)];
         }
+
+        $command = implode(' ', array_filter($commandParts, static fn (string $part): bool => '' !== $part));
 
         $output = [];
         $returnValue = 0;
@@ -236,5 +226,25 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             'image/jpeg' => $this->extensionConfiguration->getJpegQuality(),
             default => 85,
         };
+    }
+
+    /**
+     * Builds the ImageMagick/GraphicsMagick metadata argument from configuration.
+     *
+     * Plain "convert" has no per-tag strip flag, only "strip everything" or
+     * "strip all profiles except one". Preserving copyright or the creation
+     * date therefore keeps all metadata rather than stripping selectively.
+     */
+    protected function getMetadataArgument(): string
+    {
+        if ($this->extensionConfiguration->isPreserveCopyright() || $this->extensionConfiguration->isPreserveCreationDate()) {
+            return '';
+        }
+
+        if ($this->extensionConfiguration->isPreserveColorProfile()) {
+            return '+profile "!icc,*"';
+        }
+
+        return '-strip';
     }
 }
