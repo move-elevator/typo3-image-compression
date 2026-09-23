@@ -101,6 +101,15 @@ For local providers, configure quality (1–100) for JPEG, PNG, and WebP compres
 
 Once configured, all images with a supported MIME type uploaded via the TYPO3 backend are automatically compressed.
 
+By default this happens synchronously, within the upload request. To run it on a queue worker instead (recommended with the `tinify` provider, so an editor's upload does not wait on a round trip to the TinyPNG API), route `MoveElevator\Typo3ImageCompression\Message\CompressImageMessage` to an async [Messenger transport](https://docs.typo3.org/m/typo3/reference-coreapi/main/en-us/ApiOverview/MessageBus/Index.html), for example:
+
+```php
+// config/system/additional.php
+$GLOBALS['TYPO3_CONF_VARS']['SYS']['messenger']['routing'][\MoveElevator\Typo3ImageCompression\Message\CompressImageMessage::class] = 'doctrine';
+```
+
+With that in place, run `vendor/bin/typo3 messenger:consume doctrine` (typically as a scheduler task) to process compressions in the background.
+
 ### Batch processing (CLI)
 
 Use the CLI command to compress images that were uploaded before the extension was installed.
