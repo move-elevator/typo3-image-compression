@@ -22,6 +22,7 @@ use TYPO3\CMS\Core\Resource\Index\Indexer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 use function sprintf;
+use function strlen;
 
 /**
  * CompressorTrait.
@@ -116,6 +117,12 @@ trait CompressorTrait
      * before its size could be compared. Operating on a copy first keeps the
      * original untouched until the result is known to be worth keeping.
      *
+     * The temporary path keeps the original file's extension (inserting the
+     * random token before it) instead of always appending a literal `.tmp`.
+     * Tools that infer the output format from the filename, e.g. pngquant's
+     * `--ext .png`, would otherwise write their result to a different,
+     * never-checked sibling path and leave the temp file itself untouched.
+     *
      * @param callable(string $tempPath): bool $optimize Mutates the file at the given temp path in place, returns whether the tool succeeded
      *
      * @return array{originalSize: int, newSize: int, replaced: bool}|null Null when the optimize step itself failed or the temp file could not be created
@@ -123,7 +130,11 @@ trait CompressorTrait
     protected function compressToTempAndReplace(string $filePath, callable $optimize): ?array
     {
         $originalSize = (int) filesize($filePath);
-        $tempPath = $filePath.'.compress-'.bin2hex(random_bytes(4)).'.tmp';
+        $extension = pathinfo($filePath, \PATHINFO_EXTENSION);
+        $suffix = '.compress-'.bin2hex(random_bytes(4));
+        $tempPath = '' !== $extension
+            ? substr($filePath, 0, -(strlen($extension) + 1)).$suffix.'.'.$extension
+            : $filePath.$suffix.'.tmp';
 
         if (!copy($filePath, $tempPath)) {
             return null;
