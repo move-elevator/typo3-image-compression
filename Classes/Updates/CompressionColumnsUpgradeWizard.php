@@ -34,12 +34,12 @@ use TYPO3\CMS\Install\Updates\{DatabaseUpdatedPrerequisite, UpgradeWizardInterfa
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-final class CompressionColumnsUpgradeWizard implements UpgradeWizardInterface
+final readonly class CompressionColumnsUpgradeWizard implements UpgradeWizardInterface
 {
     private const UNKNOWN_PROVIDER = 'unknown';
 
     public function __construct(
-        private readonly ConnectionPool $connectionPool,
+        private ConnectionPool $connectionPool,
     ) {}
 
     public function getTitle(): string
