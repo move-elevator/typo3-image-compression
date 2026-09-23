@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Command;
 
 use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
+use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
@@ -47,6 +48,13 @@ use function count;
 final class CompressImageCommand extends Command
 {
     private const DEFAULT_LIMIT_TO_PROCESS = 100;
+
+    /**
+     * Set when a provider signals an unrecoverable, run-wide problem (e.g. an
+     * invalid API key or an exhausted quota). Stops further files from being
+     * attempted for the remainder of this run.
+     */
+    private bool $aborted = false;
 
     public function __construct(
         private readonly FileStorageRepository $fileStorageRepository,
@@ -110,9 +118,13 @@ final class CompressImageCommand extends Command
         CompressionResultHandler::outputToConsole($output, $stats);
         CompressionResultHandler::addFlashMessage($stats);
 
+        if ($this->aborted) {
+            $output->writeln('<error>Compression run aborted: the provider reported an unrecoverable error (e.g. invalid API key or exhausted quota). Remaining files were not attempted.</error>');
+        }
+
         $errors = $stats['original']['errors'] + $stats['processed']['errors'];
 
-        return $errors > 0 ? Command::FAILURE : Command::SUCCESS;
+        return $errors > 0 || $this->aborted ? Command::FAILURE : Command::SUCCESS;
     }
 
     /**
@@ -125,6 +137,7 @@ final class CompressImageCommand extends Command
      */
     private function compressFiles(int $limit, bool $includeProcessed, bool $retryErrors): array
     {
+        $this->aborted = false;
         $stats = [
             'original' => ['total' => 0, 'success' => 0, 'errors' => 0],
             'processed' => ['total' => 0, 'success' => 0, 'errors' => 0],
@@ -141,7 +154,7 @@ final class CompressImageCommand extends Command
             }
         }
 
-        if ($limit > 0) {
+        if ($limit > 0 && !$this->aborted) {
             $stats['original'] = $this->compressOriginalFiles($limit, $retryErrors);
         }
 
@@ -163,7 +176,7 @@ final class CompressImageCommand extends Command
 
         /** @var FileStorage $fileStorage */
         foreach ($this->fileStorageRepository->findAll() as $fileStorage) {
-            if ($remaining <= 0) {
+            if ($remaining <= 0 || $this->aborted) {
                 break;
             }
 
@@ -191,6 +204,8 @@ final class CompressImageCommand extends Command
      *
      * @throws FileDoesNotExistException
      * @throws Exception
+     *
+     * @phpstan-impure sets $this->aborted when a provider signals a run-wide abort
      */
     private function compressImagesWithStats(QueryResultInterface $files): array
     {
@@ -198,6 +213,10 @@ final class CompressImageCommand extends Command
         $stats = ['total' => 0, 'success' => 0, 'errors' => 0];
 
         foreach ($files as $file) {
+            if ($this->aborted) {
+                break;
+            }
+
             $uid = $file->getUid();
             if (null === $uid) {
                 continue;
@@ -209,6 +228,8 @@ final class CompressImageCommand extends Command
             try {
                 $this->compressor->compress($resourceFile);
                 ++$stats['success'];
+            } catch (CompressionAbortedException) {
+                $this->aborted = true;
             } catch (Throwable) {
                 ++$stats['errors'];
             }
@@ -225,15 +246,25 @@ final class CompressImageCommand extends Command
      * @param array<int, array<string, mixed>> $files
      *
      * @return array{total: int, success: int, errors: int}
+     *
+     * @phpstan-impure sets $this->aborted when a provider signals a run-wide abort
      */
     private function compressProcessedFilesWithStats(array $files): array
     {
-        $stats = ['total' => count($files), 'success' => 0, 'errors' => 0];
+        $stats = ['total' => 0, 'success' => 0, 'errors' => 0];
 
         foreach ($files as $file) {
+            if ($this->aborted) {
+                break;
+            }
+
+            ++$stats['total'];
+
             try {
                 $this->compressor->compressProcessedFiles([$file]);
                 ++$stats['success'];
+            } catch (CompressionAbortedException) {
+                $this->aborted = true;
             } catch (Throwable) {
                 ++$stats['errors'];
             }
