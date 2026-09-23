@@ -18,6 +18,8 @@ use Exception;
 use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
+use MoveElevator\Typo3ImageCompression\Event\{AfterImageCompressionEvent, BeforeImageCompressionEvent};
+use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException,
@@ -58,6 +60,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly StorageRepository $storageRepository,
         protected readonly FrontendInterface $cache,
+        protected readonly EventDispatcherInterface $eventDispatcher,
     ) {}
 
     public function getProviderIdentifier(): string
@@ -169,6 +172,19 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
             return;
         }
 
+        $beforeEvent = new BeforeImageCompressionEvent(
+            $file,
+            self::PROVIDER_IDENTIFIER,
+            $this->extensionConfiguration->getJpegQuality(),
+            $this->extensionConfiguration->getPngQuality(),
+            $this->extensionConfiguration->getWebpQuality(),
+        );
+        $this->eventDispatcher->dispatch($beforeEvent);
+
+        if ($beforeEvent->isCompressionSkipped()) {
+            return;
+        }
+
         try {
             $this->initAction();
             $this->assureFileExists($file);
@@ -185,6 +201,14 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
             $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize);
             $this->markFileAsCompressed($file, $compressInfo);
             $this->updateFileInformation($file);
+
+            $this->eventDispatcher->dispatch(new AfterImageCompressionEvent(
+                $file,
+                self::PROVIDER_IDENTIFIER,
+                null,
+                $originalFileSize,
+                $newFileSize,
+            ));
 
             if ($percentageSaved > 0) {
                 $this->addFlashMessage(
