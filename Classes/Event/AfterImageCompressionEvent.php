@@ -26,14 +26,14 @@ use TYPO3\CMS\Core\Resource\File;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-final class AfterImageCompressionEvent
+final readonly class AfterImageCompressionEvent
 {
     public function __construct(
-        private readonly File $file,
-        private readonly string $provider,
-        private readonly ?string $tool,
-        private readonly int $originalSize,
-        private readonly int $newSize,
+        private File $file,
+        private string $provider,
+        private ?string $tool,
+        private int $originalSize,
+        private int $newSize,
     ) {}
 
     public function getFile(): File
