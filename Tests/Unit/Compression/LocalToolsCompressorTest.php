@@ -17,9 +17,11 @@ namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, LocalToolsCompressor, ToolDetection};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
+use MoveElevator\Typo3ImageCompression\Event\{AfterImageCompressionEvent, BeforeImageCompressionEvent};
 use PHPUnit\Framework\Attributes\{CoversClass, DataProvider, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use ReflectionMethod;
 use TYPO3\CMS\Core\Core\{ApplicationContext, Environment};
@@ -43,6 +45,7 @@ final class LocalToolsCompressorTest extends TestCase
     private ExtensionConfiguration&MockObject $extensionConfigurationMock;
     private StorageRepository&MockObject $storageRepositoryMock;
     private ToolDetection&MockObject $toolDetectionMock;
+    private EventDispatcherInterface&MockObject $eventDispatcherMock;
 
     /**
      * @var string[]
@@ -68,6 +71,8 @@ final class LocalToolsCompressorTest extends TestCase
         $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
         $this->storageRepositoryMock = $this->createMock(StorageRepository::class);
         $this->toolDetectionMock = $this->createMock(ToolDetection::class);
+        $this->eventDispatcherMock = $this->createMock(EventDispatcherInterface::class);
+        $this->eventDispatcherMock->method('dispatch')->willReturnArgument(0);
 
         $this->subject = new LocalToolsCompressor(
             $this->fileRepositoryMock,
@@ -75,6 +80,7 @@ final class LocalToolsCompressorTest extends TestCase
             $this->extensionConfigurationMock,
             $this->storageRepositoryMock,
             $this->toolDetectionMock,
+            $this->eventDispatcherMock,
         );
     }
 
@@ -279,6 +285,96 @@ final class LocalToolsCompressorTest extends TestCase
     }
 
     #[Test]
+    public function compressDispatchesBeforeEventAndSkipsWhenListenerSkipsCompression(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('getPngQuality')->willReturn(85);
+        $this->extensionConfigurationMock->method('getWebpQuality')->willReturn(80);
+        $this->toolDetectionMock->method('getFirstAvailable')->with(['jpegoptim'])->willReturn('jpegoptim');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+
+        $this->eventDispatcherMock = $this->createMock(EventDispatcherInterface::class);
+        $this->eventDispatcherMock
+            ->expects(self::once())
+            ->method('dispatch')
+            ->with(self::isInstanceOf(BeforeImageCompressionEvent::class))
+            ->willReturnCallback(function (BeforeImageCompressionEvent $event) use ($fileMock) {
+                self::assertSame($fileMock, $event->getFile());
+                self::assertSame('local-tools', $event->getProvider());
+                $event->skipCompression();
+
+                return $event;
+            });
+        $this->subject = new LocalToolsCompressor(
+            $this->fileRepositoryMock,
+            $this->fileProcessedRepositoryMock,
+            $this->extensionConfigurationMock,
+            $this->storageRepositoryMock,
+            $this->toolDetectionMock,
+            $this->eventDispatcherMock,
+        );
+
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+
+        $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressUsesListenerAdjustedQualityWhenBuildingCommand(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('getPngQuality')->willReturn(85);
+        $this->extensionConfigurationMock->method('getWebpQuality')->willReturn(80);
+        $this->toolDetectionMock->method('getFirstAvailable')->with(['jpegoptim'])->willReturn('jpegoptim');
+        $this->toolDetectionMock->method('getToolPath')->with('jpegoptim')->willReturn('/usr/bin/true');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->method('getStorage')->willReturn($this->createMock(ResourceStorage::class));
+
+        GeneralUtility::addInstance(Indexer::class, $this->createMock(Indexer::class));
+
+        $this->eventDispatcherMock = $this->createMock(EventDispatcherInterface::class);
+        $this->eventDispatcherMock
+            ->method('dispatch')
+            ->willReturnCallback(function (object $event) {
+                // A listener presses this one folder to near-lossless quality.
+                if ($event instanceof BeforeImageCompressionEvent) {
+                    $event->setJpegQuality(100);
+                }
+
+                return $event;
+            });
+        $this->subject = new LocalToolsCompressor(
+            $this->fileRepositoryMock,
+            $this->fileProcessedRepositoryMock,
+            $this->extensionConfigurationMock,
+            $this->storageRepositoryMock,
+            $this->toolDetectionMock,
+            $this->eventDispatcherMock,
+        );
+
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true);
+
+        $this->subject->compress($fileMock);
+    }
+
+    #[Test]
     public function compressMarksFileAsCompressedWhenOptimizationSucceeds(): void
     {
         $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
@@ -304,6 +400,74 @@ final class LocalToolsCompressorTest extends TestCase
         // optimization, regardless of whether savedPercent ends up > 0
         // (the tool mock does not actually shrink the file).
         $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true);
+
+        $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressDispatchesBeforeAndAfterEventsOnSuccess(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->toolDetectionMock->method('getFirstAvailable')->with(['jpegoptim'])->willReturn('jpegoptim');
+        $this->toolDetectionMock->method('getToolPath')->with('jpegoptim')->willReturn('/usr/bin/true');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->method('getStorage')->willReturn($this->createMock(ResourceStorage::class));
+
+        GeneralUtility::addInstance(Indexer::class, $this->createMock(Indexer::class));
+
+        $dispatched = [];
+        $this->eventDispatcherMock
+            ->expects(self::exactly(2))
+            ->method('dispatch')
+            ->willReturnCallback(function (object $event) use (&$dispatched) {
+                $dispatched[] = $event;
+
+                return $event;
+            });
+
+        $this->subject->compress($fileMock);
+
+        self::assertCount(2, $dispatched);
+        self::assertInstanceOf(BeforeImageCompressionEvent::class, $dispatched[0]);
+        self::assertInstanceOf(AfterImageCompressionEvent::class, $dispatched[1]);
+        self::assertSame('jpegoptim', $dispatched[1]->getTool());
+    }
+
+    #[Test]
+    public function compressSkipsCompressionWhenBeforeEventVetoesIt(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->toolDetectionMock->method('getFirstAvailable')->with(['jpegoptim'])->willReturn('jpegoptim');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+
+        $this->eventDispatcherMock
+            ->method('dispatch')
+            ->willReturnCallback(function (object $event) {
+                if ($event instanceof BeforeImageCompressionEvent) {
+                    $event->skipCompression();
+                }
+
+                return $event;
+            });
+
+        $this->toolDetectionMock->expects(self::never())->method('getToolPath');
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
         $this->subject->compress($fileMock);
     }
@@ -458,6 +622,17 @@ final class LocalToolsCompressorTest extends TestCase
     }
 
     #[Test]
+    public function buildCommandUsesQualityOverrideForJpegoptimWhenGiven(): void
+    {
+        $this->extensionConfigurationMock->expects(self::never())->method('getJpegQuality');
+
+        self::assertSame(
+            "/usr/bin/jpegoptim --strip-all --all-progressive --max=100 '/tmp/example.jpg'",
+            $this->invokeBuildCommand('jpegoptim', '/usr/bin/jpegoptim', '/tmp/example.jpg', 100),
+        );
+    }
+
+    #[Test]
     public function buildCommandBuildsPngquantCommand(): void
     {
         $this->extensionConfigurationMock->method('getPngQuality')->willReturn(85);
@@ -573,12 +748,12 @@ final class LocalToolsCompressorTest extends TestCase
         return $result;
     }
 
-    private function invokeBuildCommand(string $tool, string $toolPath, string $filePath): string
+    private function invokeBuildCommand(string $tool, string $toolPath, string $filePath, ?int $qualityOverride = null): string
     {
         $method = new ReflectionMethod($this->subject, 'buildCommand');
 
         /** @var string $result */
-        $result = $method->invoke($this->subject, $tool, $toolPath, $filePath);
+        $result = $method->invoke($this->subject, $tool, $toolPath, $filePath, $qualityOverride);
 
         return $result;
     }
