@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Command;
 
-use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
+use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, MimeTypeAwareInterface};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
@@ -160,6 +160,9 @@ final class CompressImageCommand extends Command
     {
         $stats = ['total' => 0, 'success' => 0, 'errors' => 0];
         $remaining = $limit;
+        $mimeTypes = $this->compressor instanceof MimeTypeAwareInterface
+            ? $this->compressor->getSupportedMimeTypes()
+            : null;
 
         /** @var FileStorage $fileStorage */
         foreach ($this->fileStorageRepository->findAll() as $fileStorage) {
@@ -169,8 +172,8 @@ final class CompressImageCommand extends Command
 
             $excludeFolders = $this->extensionConfiguration->getExcludeFolders();
             $files = $retryErrors
-                ? $this->fileRepository->findAllWithErrorsInStorageWithLimit($fileStorage, $remaining, $excludeFolders)
-                : $this->fileRepository->findAllNonCompressedInStorageWithLimit($fileStorage, $remaining, $excludeFolders);
+                ? $this->fileRepository->findAllWithErrorsInStorageWithLimit($fileStorage, $remaining, $excludeFolders, $mimeTypes)
+                : $this->fileRepository->findAllNonCompressedInStorageWithLimit($fileStorage, $remaining, $excludeFolders, $mimeTypes);
 
             if ($files->count() > 0) {
                 $fileStats = $this->compressImagesWithStats($files);

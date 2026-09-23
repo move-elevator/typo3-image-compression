@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
-use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, LocalToolsCompressor, ToolDetection};
+use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, LocalToolsCompressor, MimeTypeAwareInterface, ToolDetection};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use PHPUnit\Framework\Attributes\{CoversClass, DataProvider, Test};
@@ -561,6 +561,39 @@ final class LocalToolsCompressorTest extends TestCase
         $this->toolDetectionMock->method('isAvailable')->with('svgo')->willReturn(false);
 
         self::assertFalse($this->invokeIsMimeTypeSupported('image/svg+xml'));
+    }
+
+    #[Test]
+    public function implementsMimeTypeAwareInterface(): void
+    {
+        self::assertInstanceOf(MimeTypeAwareInterface::class, $this->subject);
+    }
+
+    #[Test]
+    public function getSupportedMimeTypesAppendsSvgWhenSvgoIsAvailableAndNotConfigured(): void
+    {
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->toolDetectionMock->method('isAvailable')->with('svgo')->willReturn(true);
+
+        self::assertSame(['image/jpeg', 'image/svg+xml'], $this->subject->getSupportedMimeTypes());
+    }
+
+    #[Test]
+    public function getSupportedMimeTypesOmitsSvgWhenSvgoIsNotAvailable(): void
+    {
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->toolDetectionMock->method('isAvailable')->with('svgo')->willReturn(false);
+
+        self::assertSame(['image/jpeg'], $this->subject->getSupportedMimeTypes());
+    }
+
+    #[Test]
+    public function getSupportedMimeTypesDoesNotDuplicateSvgWhenAlreadyConfigured(): void
+    {
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg', 'image/svg+xml']);
+        $this->toolDetectionMock->method('isAvailable')->with('svgo')->willReturn(true);
+
+        self::assertSame(['image/jpeg', 'image/svg+xml'], $this->subject->getSupportedMimeTypes());
     }
 
     #[Test]
