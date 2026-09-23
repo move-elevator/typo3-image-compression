@@ -424,27 +424,35 @@ final class LocalBasicCompressorTest extends TestCase
     }
 
     #[Test]
-    public function getMetadataArgumentReturnsEmptyWhenCopyrightPreserved(): void
+    public function getMetadataArgumentBlanksGpsTagsWhenCopyrightPreserved(): void
     {
         $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(true);
         $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
         $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
 
-        self::assertSame('', $this->invokeGetMetadataArgument());
+        $result = $this->invokeGetMetadataArgument();
+
+        self::assertStringContainsString('-set exif:GPSLatitude ""', $result);
+        self::assertStringContainsString('-set exif:GPSLongitude ""', $result);
+        self::assertStringNotContainsString('-strip', $result);
     }
 
     #[Test]
-    public function getMetadataArgumentReturnsEmptyWhenCreationDatePreserved(): void
+    public function getMetadataArgumentBlanksGpsTagsWhenCreationDatePreserved(): void
     {
         $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(false);
         $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(true);
         $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
 
-        self::assertSame('', $this->invokeGetMetadataArgument());
+        $result = $this->invokeGetMetadataArgument();
+
+        self::assertStringContainsString('-set exif:GPSLatitude ""', $result);
+        self::assertStringContainsString('-set exif:GPSLongitude ""', $result);
+        self::assertStringNotContainsString('-strip', $result);
     }
 
     #[Test]
-    public function compressWithGraphicsProcessorOmitsDoubleSpacesWhenMetadataArgumentIsEmpty(): void
+    public function compressWithGraphicsProcessorSucceedsWhenCopyrightPreservationBlanksGpsTags(): void
     {
         $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
         $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);

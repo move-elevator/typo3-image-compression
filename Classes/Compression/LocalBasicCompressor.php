@@ -49,6 +49,24 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
         'image/jpeg',
     ];
 
+    /**
+     * Standard EXIF GPS position tags. Blanked explicitly whenever the
+     * EXIF/IPTC block as a whole is kept, since plain "convert" has no
+     * per-tag strip flag and GPS location must never be preserved.
+     */
+    private const GPS_EXIF_TAGS = [
+        'GPSVersionID',
+        'GPSLatitudeRef',
+        'GPSLatitude',
+        'GPSLongitudeRef',
+        'GPSLongitude',
+        'GPSAltitudeRef',
+        'GPSAltitude',
+        'GPSTimeStamp',
+        'GPSDateStamp',
+        'GPSMapDatum',
+    ];
+
     public function __construct(
         protected readonly FileRepository $fileRepository,
         protected readonly FileProcessedRepository $fileProcessedRepository,
@@ -233,12 +251,18 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
      *
      * Plain "convert" has no per-tag strip flag, only "strip everything" or
      * "strip all profiles except one". Preserving copyright or the creation
-     * date therefore keeps all metadata rather than stripping selectively.
+     * date therefore keeps the whole EXIF/IPTC block rather than stripping
+     * selectively, so the GPS position tags are explicitly blanked in that
+     * case instead: GPS location must never be preserved regardless of the
+     * other settings.
      */
     protected function getMetadataArgument(): string
     {
         if ($this->extensionConfiguration->isPreserveCopyright() || $this->extensionConfiguration->isPreserveCreationDate()) {
-            return '';
+            return implode(' ', array_map(
+                static fn (string $tag): string => sprintf('-set exif:%s ""', $tag),
+                self::GPS_EXIF_TAGS,
+            ));
         }
 
         if ($this->extensionConfiguration->isPreserveColorProfile()) {
