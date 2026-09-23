@@ -403,6 +403,31 @@ final class LocalBasicCompressorTest extends TestCase
         self::assertFalse($this->invokeCompressWithGraphicsProcessor($tmpFile, 'image/jpeg'));
     }
 
+    #[Test]
+    public function compressWithGraphicsProcessorReturnsFalseWhenProcessTimesOut(): void
+    {
+        // A binary that ignores its arguments and just sleeps past a
+        // near-zero timeout must be treated as a failure, not left to hang.
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+        $sleepScript = $this->createExecutableSleepScript();
+
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('getCommandTimeout')->willReturn(1);
+        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn($sleepScript);
+
+        self::assertFalse($this->invokeCompressWithGraphicsProcessor($tmpFile, 'image/jpeg'));
+    }
+
+    private function createExecutableSleepScript(): string
+    {
+        $script = sys_get_temp_dir().'/lbc_sleep_'.bin2hex(random_bytes(8)).'.sh';
+        file_put_contents($script, "#!/bin/sh\nsleep 5\n");
+        chmod($script, 0o755);
+        $this->tmpFiles[] = $script;
+
+        return $script;
+    }
+
     private function createTmpFile(string $content, string $suffix = '.jpg'): string
     {
         $tmpFile = sys_get_temp_dir().'/lbc_'.bin2hex(random_bytes(8)).$suffix;

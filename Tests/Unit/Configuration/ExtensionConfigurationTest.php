@@ -258,6 +258,30 @@ final class ExtensionConfigurationTest extends TestCase
         self::assertSame(100, $subject->getWebpQuality());
     }
 
+    #[Test]
+    public function getCommandTimeoutReturnsConfiguredValue(): void
+    {
+        $subject = $this->createSubject(['commandTimeout' => 30]);
+
+        self::assertSame(30, $subject->getCommandTimeout());
+    }
+
+    #[Test]
+    public function getCommandTimeoutDefaultsTo60(): void
+    {
+        $subject = $this->createSubject([]);
+
+        self::assertSame(60, $subject->getCommandTimeout());
+    }
+
+    #[Test]
+    public function getCommandTimeoutClampsBelowOneToOne(): void
+    {
+        $subject = $this->createSubject(['commandTimeout' => -5]);
+
+        self::assertSame(1, $subject->getCommandTimeout());
+    }
+
     /**
      * @param array<string, mixed> $extConf
      */
