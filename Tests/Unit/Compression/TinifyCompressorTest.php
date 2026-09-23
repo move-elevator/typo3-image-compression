@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
 use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, QuotaAwareInterface, TinifyCompressor};
+use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
@@ -407,6 +408,158 @@ final class TinifyCompressorTest extends TestCase
     }
 
     #[Test]
+    public function compressThrowsCompressionAbortedExceptionOnAccountExceptionAndSkipsErrorRecord(): void
+    {
+        // An invalid key or exhausted quota is a run-wide problem, not a
+        // per-file one: no error record is written, but the caller is told
+        // to stop attempting further files via the aborted exception.
+        $tmpFile = $this->createTmpFile(str_repeat('original-bytes', 100));
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('isDebug')->willReturn(false);
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/photo.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(101);
+        $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+
+        Tinify::setKey('fake-key-for-test');
+        Tinify::setClient(new class {
+            public function request(string $method, string $url, mixed $body = null): never
+            {
+                throw new \Tinify\AccountException('quota exceeded', 'AccountError', 401);
+            }
+        });
+
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+
+        $this->expectException(CompressionAbortedException::class);
+
+        $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressLeavesFileUncompressedWithoutErrorOnServerException(): void
+    {
+        $tmpFile = $this->createTmpFile(str_repeat('original-bytes', 100));
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('isDebug')->willReturn(false);
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/photo.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(102);
+        $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+
+        Tinify::setKey('fake-key-for-test');
+        Tinify::setClient(new class {
+            public function request(string $method, string $url, mixed $body = null): never
+            {
+                throw new \Tinify\ServerException('upstream error', 'ServerError', 503);
+            }
+        });
+
+        // No error is persisted: the next scheduled run must pick this file
+        // up again instead of skipping it as permanently failed.
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+
+        $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressLeavesFileUncompressedWithoutErrorOnConnectionException(): void
+    {
+        $tmpFile = $this->createTmpFile(str_repeat('original-bytes', 100));
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('isDebug')->willReturn(false);
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/photo.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(103);
+        $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+
+        Tinify::setKey('fake-key-for-test');
+        Tinify::setClient(new class {
+            public function request(string $method, string $url, mixed $body = null): never
+            {
+                throw new \Tinify\ConnectionException('network unreachable');
+            }
+        });
+
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+
+        $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressSavesErrorOnClientException(): void
+    {
+        // A ClientException (e.g. unsupported/corrupt file) is a permanent,
+        // per-file failure and keeps the existing error-recording behavior.
+        $tmpFile = $this->createTmpFile(str_repeat('original-bytes', 100));
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('isDebug')->willReturn(false);
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/photo.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(104);
+        $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+
+        Tinify::setKey('fake-key-for-test');
+        Tinify::setClient(new class {
+            public function request(string $method, string $url, mixed $body = null): never
+            {
+                throw new \Tinify\ClientException('unsupported image', 'ClientError', 415);
+            }
+        });
+
+        $this->fileRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressionStatus')
+            ->with(104, false, self::stringContains('unsupported image'), '');
+
+        $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressProcessedFilesThrowsCompressionAbortedExceptionOnAccountExceptionDuringInit(): void
+    {
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('fake-key-for-test');
+
+        Tinify::setKey('fake-key-for-test');
+        Tinify::setClient(new class {
+            public function request(string $method, string $url, mixed $body = null): never
+            {
+                throw new \Tinify\AccountException('invalid key', 'AccountError', 401);
+            }
+        });
+
+        $this->fileProcessedRepositoryMock->expects(self::never())->method('updateCompressState');
+
+        $this->expectException(CompressionAbortedException::class);
+
+        $this->subject->compressProcessedFiles([['uid' => 5, 'identifier' => '/_processed_/foo.jpg']]);
+    }
+
+    #[Test]
     public function compressProcessedFilesReportsFileStorageNotFound(): void
     {
         $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
@@ -475,6 +628,61 @@ final class TinifyCompressorTest extends TestCase
     }
 
     #[Test]
+    public function compressProcessedFilesLeavesFileUncompressedWithoutErrorOnServerException(): void
+    {
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+
+        $tmpFile = $this->createTmpJpegFile();
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getConfiguration')->willReturn(['basePath' => '']);
+
+        $this->fileProcessedRepositoryMock->method('findStorageId')->with(6)->willReturn(1);
+        $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
+
+        Tinify::setKey('fake-key-for-test');
+        Tinify::setClient(new class {
+            public function request(string $method, string $url, mixed $body = null): never
+            {
+                throw new \Tinify\ServerException('upstream error', 'ServerError', 503);
+            }
+        });
+
+        $this->fileProcessedRepositoryMock->expects(self::never())->method('updateCompressState');
+
+        $this->subject->compressProcessedFiles([['uid' => 6, 'identifier' => basename($tmpFile)]]);
+    }
+
+    #[Test]
+    public function compressProcessedFilesSavesErrorOnClientException(): void
+    {
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+
+        $tmpFile = $this->createTmpJpegFile();
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getConfiguration')->willReturn(['basePath' => '']);
+
+        $this->fileProcessedRepositoryMock->method('findStorageId')->with(7)->willReturn(1);
+        $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
+
+        Tinify::setKey('fake-key-for-test');
+        Tinify::setClient(new class {
+            public function request(string $method, string $url, mixed $body = null): never
+            {
+                throw new \Tinify\ClientException('unsupported image', 'ClientError', 415);
+            }
+        });
+
+        $this->fileProcessedRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressState')
+            ->with(7, 0, self::stringContains('unsupported image'));
+
+        $this->subject->compressProcessedFiles([['uid' => 7, 'identifier' => basename($tmpFile)]]);
+    }
+
+    #[Test]
     public function isFileInExcludeFolderOverrideReturnsTrueForMatchingIdentifier(): void
     {
         $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn(['/excluded/']);
@@ -500,6 +708,17 @@ final class TinifyCompressorTest extends TestCase
     {
         $tmpFile = sys_get_temp_dir().'/tinify_'.bin2hex(random_bytes(8)).$suffix;
         file_put_contents($tmpFile, $content);
+        $this->tmpFiles[] = $tmpFile;
+
+        return $tmpFile;
+    }
+
+    private function createTmpJpegFile(): string
+    {
+        $tmpFile = sys_get_temp_dir().'/tinify_'.bin2hex(random_bytes(8)).'.jpg';
+        $image = imagecreatetruecolor(1, 1);
+        imagejpeg($image, $tmpFile);
+        imagedestroy($image);
         $this->tmpFiles[] = $tmpFile;
 
         return $tmpFile;
