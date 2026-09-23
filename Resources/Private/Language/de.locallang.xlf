@@ -27,6 +27,10 @@
 				<source/>
 				<target>Die Bildkomprimierung hat Ihnen etwa %s Ihrer Dateigröße eingespart.</target>
 			</trans-unit>
+			<trans-unit id="flashMessage.message.alreadyOptimal">
+				<source/>
+				<target>Bild ist bereits optimal komprimiert, Original wurde beibehalten.</target>
+			</trans-unit>
 			<trans-unit id="flashMessage.title">
 				<source/>
 				<target>Komprimierung</target>
@@ -75,6 +79,10 @@
 				<source/>
 				<target>WebP-Qualität (1-100): Qualitätseinstellung für lokale WebP-Komprimierung</target>
 			</trans-unit>
+			<trans-unit id="minimumSavingPercent">
+				<source/>
+				<target>Mindesteinsparung (%, 0-100): Das komprimierte Ergebnis muss mindestens so viel kleiner sein als das Original, um übernommen zu werden. Darunter bleibt die Originaldatei erhalten.</target>
+			</trans-unit>
 			<trans-unit id="tab.compression">
 				<source/>
 				<target>Komprimierung</target>
@@ -90,6 +98,10 @@
 			<trans-unit id="status.not_compressed">
 				<source/>
 				<target>Nicht komprimiert</target>
+			</trans-unit>
+			<trans-unit id="status.optimal">
+				<source/>
+				<target>Bereits optimal</target>
 			</trans-unit>
 			<trans-unit id="status.error">
 				<source/>
