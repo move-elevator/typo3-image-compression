@@ -20,6 +20,7 @@ use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
 use MoveElevator\Typo3ImageCompression\Utility\{CompressionResultHandler, FileSizeFormatter};
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Exception\InvalidArgumentException;
 use Symfony\Component\Console\Input\{InputArgument, InputInterface, InputOption};
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -38,6 +39,7 @@ use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
 
 use function count;
 use function is_string;
+use function preg_match;
 use function sprintf;
 
 /**
@@ -119,10 +121,17 @@ final class CompressImageCommand extends Command
         $includeProcessed = (bool) $input->getOption('include-processed');
         $retryErrors = (bool) $input->getOption('retry-errors');
         $dryRun = (bool) $input->getOption('dry-run');
-        $storageUid = $this->resolveStorageUidOption($input);
         $folder = $this->resolveFolderOption($input);
 
         $io = new SymfonyStyle($input, $output);
+
+        try {
+            $storageUid = $this->resolveStorageUidOption($input);
+        } catch (InvalidArgumentException $e) {
+            $io->error($e->getMessage());
+
+            return Command::INVALID;
+        }
 
         if ($dryRun) {
             $this->previewFiles($io, $limit, $includeProcessed, $retryErrors, $storageUid, $folder);
@@ -147,11 +156,22 @@ final class CompressImageCommand extends Command
         return $errors > 0 ? Command::FAILURE : Command::SUCCESS;
     }
 
+    /**
+     * @throws InvalidArgumentException when --storage is given but is not a positive integer
+     */
     private function resolveStorageUidOption(InputInterface $input): ?int
     {
         $storageOption = $input->getOption('storage');
 
-        return null !== $storageOption ? (int) $storageOption : null;
+        if (null === $storageOption) {
+            return null;
+        }
+
+        if (1 !== preg_match('/^[1-9]\d*$/', (string) $storageOption)) {
+            throw new InvalidArgumentException(sprintf('Invalid --storage value "%s", expected a positive integer.', (string) $storageOption), 1287528355);
+        }
+
+        return (int) $storageOption;
     }
 
     private function resolveFolderOption(InputInterface $input): ?string
@@ -268,9 +288,11 @@ final class CompressImageCommand extends Command
                 CompressionOutcome::Failed => ++$stats['errors'],
             };
 
-            $fileDeletionAspect->cleanupProcessedFilesPostFileReplace(
-                new AfterFileReplacedEvent($resourceFile, ''),
-            );
+            if (CompressionOutcome::Compressed === $outcome) {
+                $fileDeletionAspect->cleanupProcessedFilesPostFileReplace(
+                    new AfterFileReplacedEvent($resourceFile, ''),
+                );
+            }
 
             $progressBar->advance();
         }
@@ -294,9 +316,11 @@ final class CompressImageCommand extends Command
         $progressBar->start();
 
         foreach ($files as $file) {
+            $uid = (int) ($file['uid'] ?? 0);
+
             try {
                 $this->compressor->compressProcessedFiles([$file]);
-                ++$stats['success'];
+                ++$stats[$this->fileProcessedRepository->classifyOutcome($uid)];
             } catch (Throwable) {
                 ++$stats['errors'];
             }

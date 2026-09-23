@@ -18,7 +18,7 @@ use MoveElevator\Typo3ImageCompression\Command\CompressImageCommand;
 use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
-use PHPUnit\Framework\Attributes\{CoversClass, Test};
+use PHPUnit\Framework\Attributes\{CoversClass, DataProvider, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -116,6 +116,29 @@ final class CompressImageCommandTest extends TestCase
         $exitCode = $this->invokeExecute(includeProcessed: false, retryErrors: false, limit: 100, storage: '7');
 
         self::assertSame(Command::SUCCESS, $exitCode);
+    }
+
+    #[Test]
+    #[DataProvider('invalidStorageOptionProvider')]
+    public function executeWithInvalidStorageOptionReturnsInvalidWithoutQueryingAnything(string $storage): void
+    {
+        $this->fileStorageRepositoryMock->expects(self::never())->method('findAll');
+        $this->fileStorageRepositoryMock->expects(self::never())->method('findByUid');
+
+        $exitCode = $this->invokeExecute(includeProcessed: false, retryErrors: false, limit: 100, storage: $storage);
+
+        self::assertSame(Command::INVALID, $exitCode);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function invalidStorageOptionProvider(): iterable
+    {
+        yield 'non-numeric' => ['abc'];
+        yield 'empty string' => [''];
+        yield 'negative' => ['-1'];
+        yield 'zero' => ['0'];
     }
 
     private function invokeExecute(bool $includeProcessed, bool $retryErrors, int $limit, bool $dryRun = false, ?string $storage = null): int

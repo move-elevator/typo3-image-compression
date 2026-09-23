@@ -92,9 +92,13 @@ final class CompressImageCommandTest extends FunctionalTestCase
 
         $this->commandTester->execute(['--include-processed' => true]);
 
-        self::assertSame(0, $this->commandTester->getStatusCode());
+        // No API key is configured, so the (real) TinifyCompressor fails for
+        // this processed file too. Before this outcome was read back from the
+        // row instead of assumed, this asserted "1/1 compressed" here, which
+        // was wrong: compressProcessedFiles() never actually compressed it.
+        self::assertSame(1, $this->commandTester->getStatusCode());
         $display = $this->commandTester->getDisplay();
-        self::assertStringContainsString('Processed files: 1/1 compressed, 0 skipped, 0 errors', $display);
+        self::assertStringContainsString('Processed files: 0/1 compressed, 0 skipped, 1 errors', $display);
         self::assertStringContainsString('Compression Summary', $display);
     }
 
@@ -105,11 +109,12 @@ final class CompressImageCommandTest extends FunctionalTestCase
 
         $this->commandTester->execute(['--include-processed' => true, '--retry-errors' => true]);
 
-        self::assertSame(0, $this->commandTester->getStatusCode());
         // With --retry-errors, findAllWithErrors() is used instead of
         // findAllNonCompressed(), so only the single previously-failed
-        // processed file (uid 2) is picked up.
-        self::assertStringContainsString('Processed files: 1/1 compressed, 0 skipped, 0 errors', $this->commandTester->getDisplay());
+        // processed file (uid 2) is picked up. No API key is configured, so
+        // it still fails to compress.
+        self::assertSame(1, $this->commandTester->getStatusCode());
+        self::assertStringContainsString('Processed files: 0/1 compressed, 0 skipped, 1 errors', $this->commandTester->getDisplay());
     }
 
     #[Test]
