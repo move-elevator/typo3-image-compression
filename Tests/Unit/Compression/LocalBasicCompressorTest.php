@@ -403,6 +403,59 @@ final class LocalBasicCompressorTest extends TestCase
         self::assertFalse($this->invokeCompressWithGraphicsProcessor($tmpFile, 'image/jpeg'));
     }
 
+    #[Test]
+    public function getMetadataArgumentReturnsStripByDefault(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+
+        self::assertSame('-strip', $this->invokeGetMetadataArgument());
+    }
+
+    #[Test]
+    public function getMetadataArgumentReturnsProfileFlagWhenOnlyColorProfilePreserved(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(true);
+
+        self::assertSame('+profile "!icc,*"', $this->invokeGetMetadataArgument());
+    }
+
+    #[Test]
+    public function getMetadataArgumentReturnsEmptyWhenCopyrightPreserved(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(true);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+
+        self::assertSame('', $this->invokeGetMetadataArgument());
+    }
+
+    #[Test]
+    public function getMetadataArgumentReturnsEmptyWhenCreationDatePreserved(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(true);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+
+        self::assertSame('', $this->invokeGetMetadataArgument());
+    }
+
+    #[Test]
+    public function compressWithGraphicsProcessorOmitsDoubleSpacesWhenMetadataArgumentIsEmpty(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(true);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn('/usr/bin/true');
+
+        self::assertTrue($this->invokeCompressWithGraphicsProcessor($tmpFile, 'image/jpeg'));
+    }
+
     private function createTmpFile(string $content, string $suffix = '.jpg'): string
     {
         $tmpFile = sys_get_temp_dir().'/lbc_'.bin2hex(random_bytes(8)).$suffix;
@@ -433,6 +486,16 @@ final class LocalBasicCompressorTest extends TestCase
 
         /** @var int $result */
         $result = $method->invoke($this->subject, $mimeType);
+
+        return $result;
+    }
+
+    private function invokeGetMetadataArgument(): string
+    {
+        $method = new ReflectionMethod($this->subject, 'getMetadataArgument');
+
+        /** @var string $result */
+        $result = $method->invoke($this->subject);
 
         return $result;
     }
