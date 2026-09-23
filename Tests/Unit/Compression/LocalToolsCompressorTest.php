@@ -306,7 +306,7 @@ final class LocalToolsCompressorTest extends TestCase
             ->expects(self::once())
             ->method('dispatch')
             ->with(self::isInstanceOf(BeforeImageCompressionEvent::class))
-            ->willReturnCallback(function (BeforeImageCompressionEvent $event) use ($fileMock) {
+            ->willReturnCallback(static function (BeforeImageCompressionEvent $event) use ($fileMock) {
                 self::assertSame($fileMock, $event->getFile());
                 self::assertSame('local-tools', $event->getProvider());
                 $event->skipCompression();
@@ -352,7 +352,7 @@ final class LocalToolsCompressorTest extends TestCase
         $this->eventDispatcherMock = $this->createMock(EventDispatcherInterface::class);
         $this->eventDispatcherMock
             ->method('dispatch')
-            ->willReturnCallback(function (object $event) {
+            ->willReturnCallback(static function (object $event) {
                 // A listener presses this one folder to near-lossless quality.
                 if ($event instanceof BeforeImageCompressionEvent) {
                     $event->setJpegQuality(100);
@@ -428,7 +428,7 @@ final class LocalToolsCompressorTest extends TestCase
         $this->eventDispatcherMock
             ->expects(self::exactly(2))
             ->method('dispatch')
-            ->willReturnCallback(function (object $event) use (&$dispatched) {
+            ->willReturnCallback(static function (object $event) use (&$dispatched) {
                 $dispatched[] = $event;
 
                 return $event;
@@ -458,7 +458,7 @@ final class LocalToolsCompressorTest extends TestCase
 
         $this->eventDispatcherMock
             ->method('dispatch')
-            ->willReturnCallback(function (object $event) {
+            ->willReturnCallback(static function (object $event) {
                 if ($event instanceof BeforeImageCompressionEvent) {
                     $event->skipCompression();
                 }
