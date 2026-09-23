@@ -85,10 +85,20 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
         }
 
         if (!$this->isLocalStorage($file->getStorage())) {
+            $driver = $file->getStorage()->getDriverType();
             $this->logger?->info('Skipping compression: unsupported storage driver', [
                 'file' => $file->getIdentifier(),
-                'driver' => $file->getStorage()->getDriverType(),
+                'driver' => $driver,
             ]);
+
+            // Persisted as an error (rather than left as compressed=false)
+            // so the CLI batch command's non-compressed query excludes this
+            // file instead of reselecting and reattempting it indefinitely.
+            $this->fileRepository->updateCompressionStatus(
+                $file->getUid(),
+                false,
+                sprintf('skipped: unsupported storage driver (%s)', $driver),
+            );
 
             return;
         }

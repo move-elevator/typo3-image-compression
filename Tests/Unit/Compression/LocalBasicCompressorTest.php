@@ -257,7 +257,7 @@ final class LocalBasicCompressorTest extends TestCase
     }
 
     #[Test]
-    public function compressReturnsEarlyWhenStorageIsNotLocal(): void
+    public function compressPersistsErrorAndReturnsEarlyWhenStorageIsNotLocal(): void
     {
         $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
         $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
@@ -269,9 +269,16 @@ final class LocalBasicCompressorTest extends TestCase
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getStorage')->willReturn($storageMock);
+        $fileMock->method('getUid')->willReturn(7);
         $fileMock->expects(self::never())->method('getPublicUrl');
 
-        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+        // The error must be persisted (not left as compressed=false), so the
+        // CLI batch command's non-compressed query stops reselecting this
+        // file on every run.
+        $this->fileRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressionStatus')
+            ->with(7, false, self::stringContains('Aws3'));
 
         $this->subject->compress($fileMock);
     }

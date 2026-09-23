@@ -302,7 +302,7 @@ final class TinifyCompressorTest extends TestCase
     }
 
     #[Test]
-    public function compressReturnsEarlyWhenStorageIsNotLocal(): void
+    public function compressPersistsErrorAndReturnsEarlyWhenStorageIsNotLocal(): void
     {
         $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
         $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
@@ -316,8 +316,15 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getStorage')->willReturn($storageMock);
+        $fileMock->method('getUid')->willReturn(7);
 
-        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+        // The error must be persisted (not left as compressed=false), so the
+        // CLI batch command's non-compressed query stops reselecting this
+        // file on every run.
+        $this->fileRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressionStatus')
+            ->with(7, false, self::stringContains('Aws3'));
 
         $this->subject->compress($fileMock);
     }
@@ -449,6 +456,27 @@ final class TinifyCompressorTest extends TestCase
     public function compressProcessedFilesReportsUnsupportedStorageDriver(): void
     {
         $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Aws3');
+
+        $this->fileProcessedRepositoryMock->method('findStorageId')->with(6)->willReturn(1);
+        $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
+        $this->fileProcessedRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressState')
+            ->with(6, 0, 'unsupported storage driver: Aws3');
+
+        $this->subject->compressProcessedFiles([['uid' => 6, 'identifier' => '/_processed_/foo.jpg']]);
+    }
+
+    #[Test]
+    public function compressProcessedFilesDoesNotInitializeTinifyWhenBatchHasOnlyRemoteStorageFiles(): void
+    {
+        // initAction() validates the TinyPNG API key with a real HTTP
+        // request; a batch made up only of remote-storage files must never
+        // trigger it.
+        $this->extensionConfigurationMock->expects(self::never())->method('getApiKey');
 
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getDriverType')->willReturn('Aws3');

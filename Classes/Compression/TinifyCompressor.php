@@ -28,6 +28,7 @@ use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 
 use function in_array;
+use function sprintf;
 
 /**
  * TinifyCompressor.
@@ -172,10 +173,20 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
         }
 
         if (!$this->isLocalStorage($file->getStorage())) {
+            $driver = $file->getStorage()->getDriverType();
             $this->logger?->info('Skipping compression: unsupported storage driver', [
                 'file' => $file->getIdentifier(),
-                'driver' => $file->getStorage()->getDriverType(),
+                'driver' => $driver,
             ]);
+
+            // Persisted as an error (rather than left as compressed=false)
+            // so the CLI batch command's non-compressed query excludes this
+            // file instead of reselecting and reattempting it indefinitely.
+            $this->fileRepository->updateCompressionStatus(
+                $file->getUid(),
+                false,
+                sprintf('skipped: unsupported storage driver (%s)', $driver),
+            );
 
             return;
         }
@@ -219,8 +230,6 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
      */
     public function compressProcessedFiles(array $files): void
     {
-        $this->initAction();
-
         foreach ($files as $file) {
             $fileId = $file['uid'];
             $fileStorageId = $this->fileProcessedRepository->findStorageId($fileId);
@@ -237,6 +246,13 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                 $this->fileProcessedRepository->updateCompressState($fileId, 0, 'unsupported storage driver: '.$storage->getDriverType());
                 continue;
             }
+
+            // Deferred until the first local file in the batch: initAction()
+            // validates the TinyPNG API key with a real HTTP request, which
+            // a batch made up only of remote-storage files should never
+            // trigger. The internal $initialized guard keeps this a no-op
+            // on subsequent iterations.
+            $this->initAction();
 
             $filePath = $this->resolveProcessedFilePath($storage, (string) $file['identifier']);
 
