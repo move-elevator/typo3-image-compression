@@ -216,7 +216,11 @@ final class LocalBasicCompressorTest extends TestCase
         $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
         $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
         $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
-        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn('/usr/bin/true');
+        $this->extensionConfigurationMock->method('getMinimumSavingPercent')->willReturn(0);
+        $this->toolDetectionMock->method('getToolPath')->willReturnMap([
+            ['imagemagick', '/usr/bin/true'],
+            ['identify', null],
+        ]);
 
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
@@ -229,9 +233,79 @@ final class LocalBasicCompressorTest extends TestCase
         $indexerMock->expects(self::once())->method('updateIndexEntry')->with($fileMock);
         GeneralUtility::addInstance(Indexer::class, $indexerMock);
 
+        // A minimum saving threshold of 0% counts a byte-identical result
+        // (the tool mock does not actually shrink the file) as "meets the
+        // threshold", so it still replaces the original.
         $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true);
 
         $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressMarksFileAsOptimalWhenResultDoesNotMeetMinimumSaving(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('getMinimumSavingPercent')->willReturn(5);
+        $this->toolDetectionMock->method('getToolPath')->willReturnMap([
+            ['imagemagick', '/usr/bin/true'],
+            ['identify', null],
+        ]);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->expects(self::never())->method('getStorage');
+
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionSkipped')
+            ->with(99, self::stringContains('already optimal'));
+
+        $this->subject->compress($fileMock);
+
+        self::assertSame('fake-jpeg-bytes', file_get_contents($tmpFile));
+    }
+
+    #[Test]
+    public function compressMarksFileAsOptimalWhenTargetQualityIsNotBelowSourceQuality(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+        // Source is already at a lower (or equal) quality than the
+        // configured target (80): re-encoding it would not improve
+        // anything, only degrade it further.
+        $identifyStub = $this->createExecutableStub('echo 70');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->toolDetectionMock->method('getToolPath')->willReturnMap([
+            ['imagemagick', '/usr/bin/true'],
+            ['identify', $identifyStub],
+        ]);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->expects(self::never())->method('getStorage');
+
+        // Configured target quality (80) is not below the source's own
+        // encoding quality (70, reported by the "identify" tool mock), so
+        // re-encoding is skipped entirely without invoking the graphics
+        // processor at all.
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionSkipped')
+            ->with(99, self::stringContains('already optimal'));
+
+        $this->subject->compress($fileMock);
+
+        self::assertSame('fake-jpeg-bytes', file_get_contents($tmpFile));
     }
 
     #[Test]
@@ -241,7 +315,10 @@ final class LocalBasicCompressorTest extends TestCase
 
         $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
         $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
-        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn(null);
+        $this->toolDetectionMock->method('getToolPath')->willReturnMap([
+            ['imagemagick', null],
+            ['identify', null],
+        ]);
 
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
@@ -410,6 +487,19 @@ final class LocalBasicCompressorTest extends TestCase
         $this->tmpFiles[] = $tmpFile;
 
         return $tmpFile;
+    }
+
+    /**
+     * Creates a tiny executable shell script that prints a fixed value to
+     * stdout, standing in for a CLI tool binary (e.g. "identify") whose
+     * output the code under test parses.
+     */
+    private function createExecutableStub(string $body): string
+    {
+        $stub = $this->createTmpFile("#!/bin/sh\n{$body}\n", '.sh');
+        chmod($stub, 0755);
+
+        return $stub;
     }
 
     /**
