@@ -184,6 +184,7 @@ final class LocalBasicCompressorTest extends TestCase
         $fileMock->method('getIdentifier')->willReturn('/user_upload/does-not-exist.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn('does-not-exist-'.bin2hex(random_bytes(8)).'.jpg');
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
@@ -202,6 +203,7 @@ final class LocalBasicCompressorTest extends TestCase
         $fileMock->method('getIdentifier')->willReturn('/user_upload/empty.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
@@ -223,7 +225,7 @@ final class LocalBasicCompressorTest extends TestCase
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
         $fileMock->method('getUid')->willReturn(99);
-        $fileMock->method('getStorage')->willReturn($this->createMock(ResourceStorage::class));
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         $indexerMock = $this->createMock(Indexer::class);
         $indexerMock->expects(self::once())->method('updateIndexEntry')->with($fileMock);
@@ -247,6 +249,27 @@ final class LocalBasicCompressorTest extends TestCase
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
+
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+
+        $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressReturnsEarlyWhenStorageIsNotLocal(): void
+    {
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Aws3');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getStorage')->willReturn($storageMock);
+        $fileMock->expects(self::never())->method('getPublicUrl');
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
@@ -266,10 +289,27 @@ final class LocalBasicCompressorTest extends TestCase
     }
 
     #[Test]
+    public function compressProcessedFilesReportsUnsupportedStorageDriver(): void
+    {
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Aws3');
+
+        $this->fileProcessedRepositoryMock->method('findStorageId')->with(6)->willReturn(1);
+        $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
+        $this->fileProcessedRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressState')
+            ->with(6, 0, 'unsupported storage driver: Aws3');
+
+        $this->subject->compressProcessedFiles([['uid' => 6, 'identifier' => '/_processed_/foo.jpg']]);
+    }
+
+    #[Test]
     public function compressProcessedFilesReportsFileNotFound(): void
     {
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getConfiguration')->willReturn(['basePath' => 'fileadmin/']);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $this->fileProcessedRepositoryMock->method('findStorageId')->with(2)->willReturn(1);
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
@@ -287,6 +327,7 @@ final class LocalBasicCompressorTest extends TestCase
         $tmpFile = $this->createTmpFile('');
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getConfiguration')->willReturn(['basePath' => '']);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $this->fileProcessedRepositoryMock->method('findStorageId')->with(3)->willReturn(1);
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
@@ -304,6 +345,7 @@ final class LocalBasicCompressorTest extends TestCase
         $tmpFile = $this->createTmpFile('plain text content, not an image');
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getConfiguration')->willReturn(['basePath' => '']);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $this->fileProcessedRepositoryMock->method('findStorageId')->with(4)->willReturn(1);
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
@@ -318,6 +360,7 @@ final class LocalBasicCompressorTest extends TestCase
         $tmpFile = $this->createTmpJpegFile();
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getConfiguration')->willReturn(['basePath' => '']);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $this->fileProcessedRepositoryMock->method('findStorageId')->with(5)->willReturn(1);
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
@@ -425,6 +468,14 @@ final class LocalBasicCompressorTest extends TestCase
         $this->tmpFiles[] = $tmpFile;
 
         return $tmpFile;
+    }
+
+    private function createLocalStorageMock(): ResourceStorage&MockObject
+    {
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+
+        return $storageMock;
     }
 
     private function invokeGetQualityForMimeType(string $mimeType): int
