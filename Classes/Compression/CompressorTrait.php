@@ -16,6 +16,7 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
+use MoveElevator\Typo3ImageCompression\Utility\FileSizeFormatter;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\{File, ResourceStorage};
 use TYPO3\CMS\Core\Resource\Index\Indexer;
@@ -123,15 +124,7 @@ trait CompressorTrait
      */
     protected function formatFileSize(int $bytes): string
     {
-        if ($bytes >= 1048576) {
-            return sprintf('%.1f MB', $bytes / 1048576);
-        }
-
-        if ($bytes >= 1024) {
-            return sprintf('%.0f KB', $bytes / 1024);
-        }
-
-        return sprintf('%d B', $bytes);
+        return FileSizeFormatter::format($bytes);
     }
 
     /**
