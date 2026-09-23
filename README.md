@@ -22,7 +22,7 @@ This TYPO3 extension automatically compresses images uploaded to the TYPO3 backe
 ## ✨ Features
 
 - **Multiple compression providers**: [TinyPNG API](#tinify-tinypng-api), [local optimized tools](#local-tools-optimized-tools), or [ImageMagick/GraphicsMagick](#local-basic-imagemagick--graphicsmagick)
-- Automatic compression of JPG, PNG, GIF, AVIF and WebP images on upload
+- Automatic compression of JPG, PNG, GIF, AVIF and WebP images on upload, plus SVG when svgo is installed
 - [CLI command](#batch-processing-cli) for batch processing existing images
 - [Configurable quality settings](#quality-settings) for local compression
 - Image compression statistics in the [system information toolbar](#backend-integration)
@@ -61,7 +61,7 @@ Configure the extension in **Admin Tools > Settings > Extension Configuration**.
 | Provider | Tools | Compression | Cost | Best for |
 |----------|-------|-------------|------|----------|
 | `tinify` | TinyPNG API | ~70–80% | API quota | Production, best quality |
-| `local-tools` | jpegoptim, optipng, pngquant, gifsicle, cwebp | ~50–60% | Free | Self-hosted, no API costs |
+| `local-tools` | jpegoptim, optipng, pngquant, gifsicle, cwebp, svgo (optional) | ~50–60% | Free | Self-hosted, no API costs |
 | `local-basic` | ImageMagick / GraphicsMagick | ~30–40% | Free | JPEG only, quick setup |
 
 ### `tinify` (TinyPNG API)
@@ -86,6 +86,9 @@ brew install jpegoptim optipng pngquant gifsicle webp
 ```
 
 Set **Provider** to `local-tools`. The extension auto-detects available tools.
+
+> [!NOTE]
+> SVG optimization via [svgo](https://github.com/svg/svgo) is supported but not listed above on purpose: svgo is a **Node package** (`npm install -g svgo`), not something the system package manager provides. It's optional — once detected, SVGs are optimized automatically with no configuration change needed; without it, SVG support stays off exactly as before.
 
 ### `local-basic` (ImageMagick / GraphicsMagick)
 
