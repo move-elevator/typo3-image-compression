@@ -137,7 +137,7 @@ vendor/bin/typo3 imagecompression:compressImages 200 --include-processed --retry
 ### Backend integration
 
 - **System information toolbar** — displays current API usage (TinyPNG) or compression statistics.
-- **System Reports** (`Admin Tools > System Reports`) — active provider, per-file-type statistics, and API usage.
+- **System Reports** (`Admin Tools > System Reports`) — active provider, per-file-type statistics, total bytes saved, and API usage.
 - **File metadata** (`sys_file_metadata`) — per-file compression status and error messages.
 
 ## 🙏 Acknowledgments

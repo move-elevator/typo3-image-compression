@@ -111,6 +111,33 @@
 			<trans-unit id="report.api_usage.description">
 				<source>TinyPNG API compression count for this month. &lt;a href="https://tinify.com/dashboard/api" target="_blank" rel="noopener"&gt;View Dashboard&lt;/a&gt;</source>
 			</trans-unit>
+			<trans-unit id="report.bytes_saved">
+				<source>Bytes Saved</source>
+			</trans-unit>
+			<trans-unit id="report.bytes_saved.description">
+				<source>Total disk space saved across all successfully compressed files.</source>
+			</trans-unit>
+			<trans-unit id="compress_provider">
+				<source>Compression Provider</source>
+			</trans-unit>
+			<trans-unit id="compress_tool">
+				<source>Compression Tool</source>
+			</trans-unit>
+			<trans-unit id="compress_original_size">
+				<source>Original Size (Bytes)</source>
+			</trans-unit>
+			<trans-unit id="compress_size">
+				<source>Compressed Size (Bytes)</source>
+			</trans-unit>
+			<trans-unit id="compress_tstamp">
+				<source>Compressed At</source>
+			</trans-unit>
+			<trans-unit id="upgradeWizard.compressionColumns.title">
+				<source>Reset structured image compression columns for legacy compressed files</source>
+			</trans-unit>
+			<trans-unit id="upgradeWizard.compressionColumns.description">
+				<source>Earlier versions of this extension stored the compression result as a single formatted string (compress_info). That column has been replaced with structured columns (provider, tool, original size, compressed size, timestamp). Re-parsing the legacy strings is not attempted; this wizard resets the new columns to "unknown" for files that are already marked as compressed, leaving the compressed flag itself untouched.</source>
+			</trans-unit>
 		</body>
 	</file>
 </xliff>
