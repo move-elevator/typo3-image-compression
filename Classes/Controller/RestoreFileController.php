@@ -33,11 +33,12 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-final class RestoreFileController
+final readonly class RestoreFileController
 {
     public function __construct(
-        private readonly RestoreService $restoreService,
-        private readonly UriBuilder $uriBuilder,
+        private RestoreService $restoreService,
+        private UriBuilder $uriBuilder,
+        private FlashMessageService $flashMessageService,
     ) {}
 
     public function mainAction(ServerRequestInterface $request): RedirectResponse
@@ -67,7 +68,7 @@ final class RestoreFileController
             true,
         );
 
-        GeneralUtility::makeInstance(FlashMessageService::class)
+        $this->flashMessageService
             ->getMessageQueueByIdentifier()
             ->enqueue($flashMessage);
     }

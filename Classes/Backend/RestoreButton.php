@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Backend;
 
+use Stringable;
 use TYPO3\CMS\Backend\Template\Components\Buttons\ButtonInterface;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -29,13 +30,13 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-final class RestoreButton implements ButtonInterface
+final readonly class RestoreButton implements ButtonInterface, Stringable
 {
     public function __construct(
-        private readonly string $actionUrl,
-        private readonly int $fileUid,
-        private readonly string $label,
-        private readonly Icon $icon,
+        private string $actionUrl,
+        private int $fileUid,
+        private string $label,
+        private Icon $icon,
     ) {}
 
     public function __toString(): string
