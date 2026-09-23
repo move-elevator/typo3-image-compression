@@ -16,6 +16,8 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
+use MoveElevator\Typo3ImageCompression\Event\{AfterImageCompressionEvent, BeforeImageCompressionEvent};
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
@@ -55,6 +57,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly StorageRepository $storageRepository,
         protected readonly ToolDetection $toolDetection,
+        protected readonly EventDispatcherInterface $eventDispatcher,
     ) {}
 
     public function getProviderIdentifier(): string
@@ -90,10 +93,23 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             return;
         }
 
+        $beforeEvent = new BeforeImageCompressionEvent(
+            $file,
+            self::PROVIDER_IDENTIFIER,
+            $this->extensionConfiguration->getJpegQuality(),
+            $this->extensionConfiguration->getPngQuality(),
+            $this->extensionConfiguration->getWebpQuality(),
+        );
+        $this->eventDispatcher->dispatch($beforeEvent);
+
+        if ($beforeEvent->isCompressionSkipped()) {
+            return;
+        }
+
         $originalFileSize = (int) filesize($filePath);
         $processor = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] ?? 'ImageMagick';
 
-        if (!$this->compressWithGraphicsProcessor($filePath, $mimeType)) {
+        if (!$this->compressWithGraphicsProcessor($filePath, $mimeType, $beforeEvent->getJpegQuality())) {
             return;
         }
 
@@ -105,6 +121,14 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
         $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize, $processor);
         $this->markFileAsCompressed($file, $compressInfo);
         $this->updateFileInformation($file);
+
+        $this->eventDispatcher->dispatch(new AfterImageCompressionEvent(
+            $file,
+            self::PROVIDER_IDENTIFIER,
+            $processor,
+            $originalFileSize,
+            $newFileSize,
+        ));
 
         if ($savedPercent > 0) {
             $this->logger?->info('Image compressed', [
@@ -161,10 +185,10 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
         }
     }
 
-    protected function compressWithGraphicsProcessor(string $filePath, string $mimeType): bool
+    protected function compressWithGraphicsProcessor(string $filePath, string $mimeType, ?int $qualityOverride = null): bool
     {
         $processor = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] ?? 'ImageMagick';
-        $quality = $this->getQualityForMimeType($mimeType);
+        $quality = $qualityOverride ?? $this->getQualityForMimeType($mimeType);
 
         if ('GraphicsMagick' === $processor) {
             $binary = $this->toolDetection->getToolPath('graphicsmagick');

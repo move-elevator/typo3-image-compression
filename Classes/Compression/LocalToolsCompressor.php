@@ -16,6 +16,8 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
+use MoveElevator\Typo3ImageCompression\Event\{AfterImageCompressionEvent, BeforeImageCompressionEvent};
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
@@ -66,6 +68,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly StorageRepository $storageRepository,
         protected readonly ToolDetection $toolDetection,
+        protected readonly EventDispatcherInterface $eventDispatcher,
     ) {}
 
     public function getProviderIdentifier(): string
@@ -108,8 +111,21 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
             return;
         }
 
+        $beforeEvent = new BeforeImageCompressionEvent(
+            $file,
+            self::PROVIDER_IDENTIFIER,
+            $this->extensionConfiguration->getJpegQuality(),
+            $this->extensionConfiguration->getPngQuality(),
+            $this->extensionConfiguration->getWebpQuality(),
+        );
+        $this->eventDispatcher->dispatch($beforeEvent);
+
+        if ($beforeEvent->isCompressionSkipped()) {
+            return;
+        }
+
         $originalFileSize = (int) filesize($filePath);
-        $success = $this->executeOptimization($tool, $filePath);
+        $success = $this->executeOptimization($tool, $filePath, $this->resolveQualityForTool($tool, $beforeEvent));
 
         if ($success) {
             // Log compression result and show flash message
@@ -120,6 +136,14 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
             $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize, $tool);
             $this->markFileAsCompressed($file, $compressInfo);
             $this->updateFileInformation($file);
+
+            $this->eventDispatcher->dispatch(new AfterImageCompressionEvent(
+                $file,
+                self::PROVIDER_IDENTIFIER,
+                $tool,
+                $originalFileSize,
+                $newFileSize,
+            ));
 
             if ($savedPercent > 0) {
                 $this->logger?->info('Image compressed', [
@@ -192,7 +216,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         return $this->toolDetection->getFirstAvailable($tools);
     }
 
-    protected function executeOptimization(string $tool, string $filePath): bool
+    protected function executeOptimization(string $tool, string $filePath, ?int $qualityOverride = null): bool
     {
         $toolPath = $this->toolDetection->getToolPath($tool);
 
@@ -202,7 +226,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
             return false;
         }
 
-        $command = $this->buildCommand($tool, $toolPath, $filePath);
+        $command = $this->buildCommand($tool, $toolPath, $filePath, $qualityOverride);
 
         $output = [];
         $returnValue = 0;
@@ -230,7 +254,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         return true;
     }
 
-    protected function buildCommand(string $tool, string $toolPath, string $filePath): string
+    protected function buildCommand(string $tool, string $toolPath, string $filePath, ?int $qualityOverride = null): string
     {
         $escapedPath = escapeshellarg($filePath);
 
@@ -238,27 +262,27 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
             'jpegoptim' => sprintf(
                 '%s --strip-all --all-progressive --max=%d %s',
                 $toolPath,
-                $this->extensionConfiguration->getJpegQuality(),
+                $qualityOverride ?? $this->extensionConfiguration->getJpegQuality(),
                 $escapedPath,
             ),
             'pngquant' => sprintf(
                 '%s --force --ext .png --quality %d-%d %s',
                 $toolPath,
-                max(0, $this->extensionConfiguration->getPngQuality() - 15),
-                $this->extensionConfiguration->getPngQuality(),
+                max(0, ($qualityOverride ?? $this->extensionConfiguration->getPngQuality()) - 15),
+                $qualityOverride ?? $this->extensionConfiguration->getPngQuality(),
                 $escapedPath,
             ),
             'cwebp' => sprintf(
                 '%s -q %d %s -o %s',
                 $toolPath,
-                $this->extensionConfiguration->getWebpQuality(),
+                $qualityOverride ?? $this->extensionConfiguration->getWebpQuality(),
                 $escapedPath,
                 $escapedPath,
             ),
             'avifenc' => sprintf(
                 '%s -q %d %s %s',
                 $toolPath,
-                $this->extensionConfiguration->getWebpQuality(),
+                $qualityOverride ?? $this->extensionConfiguration->getWebpQuality(),
                 $escapedPath,
                 $escapedPath,
             ),
@@ -267,6 +291,20 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
                 $toolPath,
                 sprintf(self::TOOL_COMMANDS[$tool] ?? '%s', $escapedPath),
             ),
+        };
+    }
+
+    /**
+     * Maps a tool to the (possibly listener-adjusted) quality setting it
+     * reads. optipng/gifsicle have no quality concept and always return null.
+     */
+    private function resolveQualityForTool(string $tool, BeforeImageCompressionEvent $event): ?int
+    {
+        return match ($tool) {
+            'jpegoptim' => $event->getJpegQuality(),
+            'pngquant' => $event->getPngQuality(),
+            'cwebp', 'avifenc' => $event->getWebpQuality(),
+            default => null,
         };
     }
 }
