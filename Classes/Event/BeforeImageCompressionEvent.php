@@ -43,7 +43,11 @@ final class BeforeImageCompressionEvent
         private int $jpegQuality,
         private int $pngQuality,
         private int $webpQuality,
-    ) {}
+    ) {
+        $this->jpegQuality = self::clampQuality($jpegQuality);
+        $this->pngQuality = self::clampQuality($pngQuality);
+        $this->webpQuality = self::clampQuality($webpQuality);
+    }
 
     public function getFile(): File
     {
@@ -77,9 +81,13 @@ final class BeforeImageCompressionEvent
         return $this->jpegQuality;
     }
 
+    /**
+     * Clamped to 1-100, the same invariant ExtensionConfiguration enforces
+     * for the configured quality settings.
+     */
     public function setJpegQuality(int $jpegQuality): void
     {
-        $this->jpegQuality = $jpegQuality;
+        $this->jpegQuality = self::clampQuality($jpegQuality);
     }
 
     public function getPngQuality(): int
@@ -87,9 +95,13 @@ final class BeforeImageCompressionEvent
         return $this->pngQuality;
     }
 
+    /**
+     * Clamped to 1-100, the same invariant ExtensionConfiguration enforces
+     * for the configured quality settings.
+     */
     public function setPngQuality(int $pngQuality): void
     {
-        $this->pngQuality = $pngQuality;
+        $this->pngQuality = self::clampQuality($pngQuality);
     }
 
     public function getWebpQuality(): int
@@ -97,8 +109,17 @@ final class BeforeImageCompressionEvent
         return $this->webpQuality;
     }
 
+    /**
+     * Clamped to 1-100, the same invariant ExtensionConfiguration enforces
+     * for the configured quality settings.
+     */
     public function setWebpQuality(int $webpQuality): void
     {
-        $this->webpQuality = $webpQuality;
+        $this->webpQuality = self::clampQuality($webpQuality);
+    }
+
+    private static function clampQuality(int $quality): int
+    {
+        return max(1, min(100, $quality));
     }
 }

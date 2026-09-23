@@ -306,6 +306,44 @@ final class LocalBasicCompressorTest extends TestCase
     }
 
     #[Test]
+    public function compressUsesListenerAdjustedJpegQualityInGraphicsProcessorCommand(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+        $recording = $this->createRecordingScript();
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn($recording['script']);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->method('getStorage')->willReturn($this->createMock(ResourceStorage::class));
+
+        GeneralUtility::addInstance(Indexer::class, $this->createMock(Indexer::class));
+
+        // A listener presses this file to near-lossless quality; the
+        // command actually executed must reflect 100, not the configured
+        // default of 80.
+        $this->eventDispatcherMock
+            ->method('dispatch')
+            ->willReturnCallback(static function (object $event) {
+                if ($event instanceof BeforeImageCompressionEvent) {
+                    $event->setJpegQuality(100);
+                }
+
+                return $event;
+            });
+
+        $this->subject->compress($fileMock);
+
+        self::assertStringContainsString('-quality 100', (string) file_get_contents($recording['output']));
+    }
+
+    #[Test]
     public function compressDoesNotMarkFileAsCompressedWhenGraphicsProcessorFails(): void
     {
         $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
@@ -481,6 +519,26 @@ final class LocalBasicCompressorTest extends TestCase
         $this->tmpFiles[] = $tmpFile;
 
         return $tmpFile;
+    }
+
+    /**
+     * Creates a fake "imagemagick" binary that records the arguments it was
+     * invoked with instead of actually processing anything, so a test can
+     * assert on the exact command line CommandUtility::exec() ran (e.g. the
+     * quality flag), not just the tool's exit code.
+     *
+     * @return array{script: string, output: string}
+     */
+    private function createRecordingScript(): array
+    {
+        $scriptPath = sys_get_temp_dir().'/lbc_record_'.bin2hex(random_bytes(8)).'.sh';
+        $outputPath = $scriptPath.'.out';
+        file_put_contents($scriptPath, "#!/bin/sh\necho \"\$@\" > ".escapeshellarg($outputPath)."\nexit 0\n");
+        chmod($scriptPath, 0755);
+        $this->tmpFiles[] = $scriptPath;
+        $this->tmpFiles[] = $outputPath;
+
+        return ['script' => $scriptPath, 'output' => $outputPath];
     }
 
     /**

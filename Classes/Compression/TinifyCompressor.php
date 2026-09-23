@@ -196,33 +196,41 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
 
             clearstatcache(true, $filePath);
             $newFileSize = (int) filesize($filePath);
-            $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
 
             $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize);
             $this->markFileAsCompressed($file, $compressInfo);
             $this->updateFileInformation($file);
-
-            $this->eventDispatcher->dispatch(new AfterImageCompressionEvent(
-                $file,
-                self::PROVIDER_IDENTIFIER,
-                null,
-                $originalFileSize,
-                $newFileSize,
-            ));
-
-            if ($percentageSaved > 0) {
-                $this->addFlashMessage(
-                    'success',
-                    [$percentageSaved.'%'],
-                    ContextualFeedbackSeverity::INFO,
-                );
-            }
         } catch (Exception $e) {
             $this->saveError($file, $e);
             $this->addFlashMessage(
                 'compressionFailed',
                 [$e->getMessage()],
                 ContextualFeedbackSeverity::WARNING,
+            );
+
+            return;
+        }
+
+        // Dispatched outside the try/catch above: compression already
+        // succeeded and was persisted at this point, so an exception from a
+        // listener must propagate as-is instead of being caught here and
+        // mistaken for a compression failure (which would overwrite the
+        // already-persisted success status via saveError()).
+        $this->eventDispatcher->dispatch(new AfterImageCompressionEvent(
+            $file,
+            self::PROVIDER_IDENTIFIER,
+            null,
+            $originalFileSize,
+            $newFileSize,
+        ));
+
+        $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
+
+        if ($percentageSaved > 0) {
+            $this->addFlashMessage(
+                'success',
+                [$percentageSaved.'%'],
+                ContextualFeedbackSeverity::INFO,
             );
         }
     }

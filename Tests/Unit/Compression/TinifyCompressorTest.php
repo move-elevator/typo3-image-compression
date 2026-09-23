@@ -23,6 +23,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionMethod;
+use RuntimeException;
 use Tinify\Tinify;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Core\{ApplicationContext, Environment};
@@ -502,6 +503,70 @@ final class TinifyCompressorTest extends TestCase
         // and must not persist any status change.
         $this->extensionConfigurationMock->expects(self::never())->method('getApiKey');
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+
+        $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressPropagatesAfterEventListenerExceptionWithoutOverwritingSuccessStatus(): void
+    {
+        $tmpFile = $this->createTmpFile(str_repeat('original-bytes', 100));
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('isDebug')->willReturn(false);
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('getPngQuality')->willReturn(85);
+        $this->extensionConfigurationMock->method('getWebpQuality')->willReturn(75);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/photo.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+        $fileMock->method('getStorage')->willReturn($this->createMock(ResourceStorage::class));
+
+        GeneralUtility::addInstance(Indexer::class, $this->createMock(Indexer::class));
+
+        Tinify::setKey('fake-key-for-test');
+        Tinify::setClient(new class {
+            private int $calls = 0;
+
+            public function request(string $method, string $url, mixed $body = null): object
+            {
+                ++$this->calls;
+
+                if (1 === $this->calls) {
+                    return (object) ['headers' => ['location' => 'https://fake.tinify.test/output/abc'], 'body' => ''];
+                }
+
+                return (object) ['headers' => [], 'body' => 'short'];
+            }
+        });
+
+        $this->eventDispatcherMock
+            ->method('dispatch')
+            ->willReturnCallback(static function (object $event) {
+                if ($event instanceof AfterImageCompressionEvent) {
+                    throw new RuntimeException('listener exploded', 6678954305);
+                }
+
+                return $event;
+            });
+
+        // The success status must be persisted exactly once, before the
+        // AfterImageCompressionEvent is dispatched; a listener exception
+        // must propagate rather than being caught and re-classified as a
+        // compression failure via saveError().
+        $this->fileRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressionStatus')
+            ->with(99, true, '', self::stringContains('tinify:'));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('listener exploded');
 
         $this->subject->compress($fileMock);
     }

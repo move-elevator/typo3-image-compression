@@ -331,6 +331,7 @@ final class LocalToolsCompressorTest extends TestCase
     public function compressUsesListenerAdjustedQualityWhenBuildingCommand(): void
     {
         $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+        $recording = $this->createRecordingScript();
 
         $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
         $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
@@ -338,7 +339,7 @@ final class LocalToolsCompressorTest extends TestCase
         $this->extensionConfigurationMock->method('getPngQuality')->willReturn(85);
         $this->extensionConfigurationMock->method('getWebpQuality')->willReturn(80);
         $this->toolDetectionMock->method('getFirstAvailable')->with(['jpegoptim'])->willReturn('jpegoptim');
-        $this->toolDetectionMock->method('getToolPath')->with('jpegoptim')->willReturn('/usr/bin/true');
+        $this->toolDetectionMock->method('getToolPath')->with('jpegoptim')->willReturn($recording['script']);
 
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
@@ -372,6 +373,10 @@ final class LocalToolsCompressorTest extends TestCase
         $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true);
 
         $this->subject->compress($fileMock);
+
+        // The command actually executed must reflect the listener-adjusted
+        // quality of 100, not the configured default of 80.
+        self::assertStringContainsString('--max=100', (string) file_get_contents($recording['output']));
     }
 
     #[Test]
@@ -701,6 +706,26 @@ final class LocalToolsCompressorTest extends TestCase
         $this->tmpFiles[] = $tmpFile;
 
         return $tmpFile;
+    }
+
+    /**
+     * Creates a fake tool binary that records the arguments it was invoked
+     * with instead of actually processing anything, so a test can assert on
+     * the exact command line CommandUtility::exec() ran (e.g. the quality
+     * flag), not just the tool's exit code.
+     *
+     * @return array{script: string, output: string}
+     */
+    private function createRecordingScript(): array
+    {
+        $scriptPath = sys_get_temp_dir().'/ltc_record_'.bin2hex(random_bytes(8)).'.sh';
+        $outputPath = $scriptPath.'.out';
+        file_put_contents($scriptPath, "#!/bin/sh\necho \"\$@\" > ".escapeshellarg($outputPath)."\nexit 0\n");
+        chmod($scriptPath, 0755);
+        $this->tmpFiles[] = $scriptPath;
+        $this->tmpFiles[] = $outputPath;
+
+        return ['script' => $scriptPath, 'output' => $outputPath];
     }
 
     /**

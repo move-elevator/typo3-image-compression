@@ -80,4 +80,28 @@ final class BeforeImageCompressionEventTest extends TestCase
         self::assertSame(85, $event->getPngQuality());
         self::assertSame(75, $event->getWebpQuality());
     }
+
+    #[Test]
+    public function constructorClampsQualitiesToOneToHundredRange(): void
+    {
+        $event = new BeforeImageCompressionEvent($this->createMock(File::class), 'local-basic', 0, -5, 250);
+
+        self::assertSame(1, $event->getJpegQuality());
+        self::assertSame(1, $event->getPngQuality());
+        self::assertSame(100, $event->getWebpQuality());
+    }
+
+    #[Test]
+    public function qualitySettersClampOutOfRangeValuesToOneToHundred(): void
+    {
+        $event = new BeforeImageCompressionEvent($this->createMock(File::class), 'local-basic', 80, 85, 75);
+
+        $event->setJpegQuality(0);
+        $event->setPngQuality(-10);
+        $event->setWebpQuality(150);
+
+        self::assertSame(1, $event->getJpegQuality());
+        self::assertSame(1, $event->getPngQuality());
+        self::assertSame(100, $event->getWebpQuality());
+    }
 }
