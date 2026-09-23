@@ -70,7 +70,7 @@ final class AfterFileListRenderedTest extends TestCase
         $this->fileRepositoryMock = $this->createMock(FileRepository::class);
         $this->uriBuilderMock = $this->createMock(UriBuilder::class);
         // See IconFactoryTestDoubleFactory for why this isn't a plain PHPUnit mock.
-        $this->iconFactoryMock = IconFactoryTestDoubleFactory::create($this, 'actions-delete-restore');
+        $this->iconFactoryMock = IconFactoryTestDoubleFactory::create('actions-delete-restore');
         $this->pageRendererMock = $this->createMock(PageRenderer::class);
 
         $this->originalLang = $GLOBALS['LANG'] ?? null;
