@@ -307,6 +307,11 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
     /**
      * Applies configured metadata preservation. GPS location is never
      * preserved, it is a data protection concern rather than a compression setting.
+     *
+     * The TinyPNG API's `preserve()` option only supports "copyright" and
+     * "creation"; there is no ICC-profile-preservation option, TinyPNG
+     * always converts images to sRGB. `preserveColorProfile` therefore has
+     * no effect for this provider (see README.md's provider support table).
      */
     protected function applyPreserveOptions(\Tinify\Source $source): \Tinify\Source
     {

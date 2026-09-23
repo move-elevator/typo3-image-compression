@@ -97,7 +97,7 @@ For local providers, configure quality (1–100) for JPEG, PNG, and WebP compres
 
 ### Metadata
 
-By default, compression strips all image metadata: EXIF, IPTC, XMP and the embedded ICC color profile. GPS location data is always stripped and cannot be preserved, publishing where a photo was taken is a data protection concern.
+By default, compression strips all image metadata: EXIF, IPTC, XMP and the embedded ICC color profile. GPS location data is always stripped and cannot be preserved for `tinify` and `local-basic`, publishing where a photo was taken is a data protection concern.
 
 For press, stock or agency images where the copyright tag matters, or source images authored in a wide-gamut color space (e.g. Adobe RGB) where dropping the ICC profile shifts colors, enable:
 
@@ -107,7 +107,11 @@ For press, stock or agency images where the copyright tag matters, or source ima
 | `preserveCreationDate` | Keeps the EXIF/IPTC creation date |
 | `preserveColorProfile` | Keeps the embedded ICC color profile |
 
-Support depends on the provider: `tinify` preserves each field independently via the TinyPNG API. `local-tools` (jpegoptim, JPEG only) also preserves each field independently. `local-basic` (ImageMagick/GraphicsMagick) can only preserve the color profile on its own; enabling copyright or creation date preservation keeps all metadata, since plain `convert` has no per-tag strip flag.
+Support depends on the provider:
+
+- `tinify` preserves copyright and creation date independently via the TinyPNG API. `preserveColorProfile` has no effect: TinyPNG always converts images to sRGB and offers no ICC-preservation option.
+- `local-tools` (jpegoptim, JPEG only) preserves the color profile independently (`--strip-icc`). Copyright and creation date are not independent: jpegoptim can only strip the whole EXIF or IPTC block, not individual tags, so enabling either setting keeps both fields, and any other EXIF/IPTC data including GPS.
+- `local-basic` (ImageMagick/GraphicsMagick) can only preserve the color profile on its own; enabling copyright or creation date preservation keeps the whole EXIF/IPTC block too, since plain `convert` has no per-tag strip flag, except GPS position tags, which are always explicitly cleared regardless of the other settings.
 
 ## 💡 Usage
 

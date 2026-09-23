@@ -272,9 +272,15 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
     }
 
     /**
-     * Builds the jpegoptim strip flags from configuration. jpegoptim has
-     * native per-block strip flags, unlike ImageMagick, so copyright,
-     * creation date and the color profile can be preserved independently.
+     * Builds the jpegoptim strip flags from configuration.
+     *
+     * The color profile has its own block (`--strip-icc`) and is preserved
+     * independently. Copyright and creation date, however, both live inside
+     * the same EXIF/IPTC blocks (alongside GPS): jpegoptim can only strip
+     * `--strip-exif`/`--strip-iptc` as whole blocks, not individual tags, so
+     * enabling either `preserveCopyright` or `preserveCreationDate` keeps
+     * the whole EXIF/IPTC data, including the other field and GPS, rather
+     * than that one field alone (see README.md's provider support table).
      * Comments carry none of that data and are always stripped.
      */
     protected function getJpegoptimStripArgument(): string
