@@ -560,6 +560,34 @@ final class TinifyCompressorTest extends TestCase
     }
 
     #[Test]
+    public function compressProcessedFilesLeavesBatchUnprocessedWithoutErrorOnServerExceptionDuringInit(): void
+    {
+        // Same transient-error handling as the per-file path, but triggered
+        // by initAction()'s own Tinify::validate() call rather than by
+        // compressing an individual file. initAction() calls \Tinify\setKey()
+        // internally, which discards any Tinify::setClient() fake set up
+        // beforehand, so the transient exception is stubbed directly on a
+        // partial mock instead of faking the HTTP transport.
+        $subject = $this->getMockBuilder(TinifyCompressor::class)
+            ->onlyMethods(['initAction'])
+            ->setConstructorArgs([
+                $this->fileRepositoryMock,
+                $this->fileProcessedRepositoryMock,
+                $this->extensionConfigurationMock,
+                $this->storageRepositoryMock,
+                $this->cacheMock,
+            ])
+            ->getMock();
+        $subject->method('initAction')->willThrowException(
+            new \Tinify\ServerException('upstream error', 'ServerError', 503),
+        );
+
+        $this->fileProcessedRepositoryMock->expects(self::never())->method('updateCompressState');
+
+        $subject->compressProcessedFiles([['uid' => 8, 'identifier' => '/_processed_/foo.jpg']]);
+    }
+
+    #[Test]
     public function compressProcessedFilesReportsFileStorageNotFound(): void
     {
         $this->extensionConfigurationMock->method('getApiKey')->willReturn('');

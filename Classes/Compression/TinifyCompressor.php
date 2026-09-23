@@ -244,6 +244,16 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
             ]);
 
             throw new CompressionAbortedException($e->getMessage(), 0, $e);
+        } catch (ServerException|ConnectionException $e) {
+            // Transient failure during initialization: leave the whole
+            // batch unprocessed without an error record, so it is retried
+            // on the next scheduled run, consistent with the per-file
+            // transient handling in compressSingleProcessedFile().
+            $this->logger?->warning('Transient TinyPNG error during initialization, batch will be retried on next run', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return;
         }
 
         foreach ($files as $file) {
