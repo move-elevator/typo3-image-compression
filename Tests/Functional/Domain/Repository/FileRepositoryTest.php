@@ -210,6 +210,48 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
     }
 
     #[Test]
+    public function findBackupPathByUidReturnsNullWhenUnset(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        self::assertNull($this->subject->findBackupPathByUid(1));
+    }
+
+    #[Test]
+    public function updateBackupPathStoresPathAndFindBackupPathByUidReturnsIt(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateBackupPath(1, '1/some-hash.jpg');
+
+        self::assertSame('1/some-hash.jpg', $this->subject->findBackupPathByUid(1));
+    }
+
+    #[Test]
+    public function updateBackupPathWithEmptyStringClearsIt(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateBackupPath(1, '1/some-hash.jpg');
+        $this->subject->updateBackupPath(1, '');
+
+        self::assertNull($this->subject->findBackupPathByUid(1));
+    }
+
+    #[Test]
+    public function findAllWithBackupReturnsOnlyFilesWithABackupPath(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateBackupPath(1, '1/some-hash.jpg');
+        $this->subject->updateBackupPath(2, '1/other-hash.jpg');
+
+        $result = $this->subject->findAllWithBackup();
+
+        self::assertCount(2, $result);
+    }
+
+    #[Test]
     public function getCompressionStatisticsReturnsZerosWithoutData(): void
     {
         self::assertSame(

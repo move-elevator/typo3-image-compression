@@ -56,3 +56,11 @@ parameters:
 		-
 			message: '#Method .+CompressImageCommandTest::invokeExecute\(\) is invoked with named argument#'
 			path: ../../Tests/Unit/Command/CompressImageCommandTest.php
+		# TYPO3 v14 restructured ProcessFileListActionsEvent without getActionItems()/setActionItems();
+		# the method_exists() guard is intentionally defensive for that version, PHPStan only sees v12 here
+		-
+			message: '#Call to function method_exists\(\) with TYPO3\\CMS\\Filelist\\Event\\ProcessFileListActionsEvent and ''getActionItems'' will always evaluate to true#'
+			path: ../../Classes/EventListener/AfterFileListRendered.php
+		-
+			message: '#Call to function method_exists\(\) with TYPO3\\CMS\\Filelist\\Event\\ProcessFileListActionsEvent and ''setActionItems'' will always evaluate to true#'
+			path: ../../Classes/EventListener/AfterFileListRendered.php
