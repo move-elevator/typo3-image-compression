@@ -17,13 +17,13 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\Process;
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
-use TYPO3\CMS\Core\Utility\CommandUtility;
 
 use function in_array;
-use function sprintf;
 
 /**
  * LocalBasicCompressor.
@@ -175,13 +175,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
                 return false;
             }
 
-            $command = sprintf(
-                '%s convert -quality %d -strip %s %s',
-                $binary,
-                $quality,
-                escapeshellarg($filePath),
-                escapeshellarg($filePath),
-            );
+            $command = [$binary, 'convert', '-quality', (string) $quality, '-strip', $filePath, $filePath];
         } else {
             $binary = $this->toolDetection->getToolPath('imagemagick');
 
@@ -192,29 +186,34 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             }
 
             // ImageMagick v7+ uses "magick convert", v6 uses "convert" directly
-            $subCommand = str_ends_with($binary, 'magick') ? 'convert ' : '';
-
-            $command = sprintf(
-                '%s %s-quality %d -strip %s %s',
-                $binary,
-                $subCommand,
-                $quality,
-                escapeshellarg($filePath),
-                escapeshellarg($filePath),
-            );
+            $command = str_ends_with($binary, 'magick')
+                ? [$binary, 'convert', '-quality', (string) $quality, '-strip', $filePath, $filePath]
+                : [$binary, '-quality', (string) $quality, '-strip', $filePath, $filePath];
         }
 
-        $output = [];
-        $returnValue = 0;
-        CommandUtility::exec($command, $output, $returnValue);
+        $process = new Process($command);
+        $process->setTimeout($this->extensionConfiguration->getCommandTimeout());
 
-        if (0 !== $returnValue) {
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            $this->logger?->warning('Image compression timed out', [
+                'processor' => $processor,
+                'file' => $filePath,
+                'command' => $process->getCommandLine(),
+                'timeout' => $this->extensionConfiguration->getCommandTimeout(),
+            ]);
+
+            return false;
+        }
+
+        if (!$process->isSuccessful()) {
             $this->logger?->warning('Image compression failed', [
                 'processor' => $processor,
                 'file' => $filePath,
                 'quality' => $quality,
-                'exitCode' => $returnValue,
-                'output' => implode("\n", $output ?? []),
+                'exitCode' => $process->getExitCode(),
+                'output' => $process->getErrorOutput().$process->getOutput(),
             ]);
 
             return false;
@@ -224,7 +223,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             'processor' => $processor,
             'file' => $filePath,
             'quality' => $quality,
-            'output' => implode("\n", $output ?? []),
+            'output' => $process->getOutput(),
         ]);
 
         return true;

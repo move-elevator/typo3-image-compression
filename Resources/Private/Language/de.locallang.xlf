@@ -75,6 +75,10 @@
 				<source/>
 				<target>WebP-Qualität (1-100): Qualitätseinstellung für lokale WebP-Komprimierung</target>
 			</trans-unit>
+			<trans-unit id="commandTimeout">
+				<source/>
+				<target>Befehls-Timeout (Sekunden): Timeout für externe Tool-Aufrufe (local-tools/local-basic Provider)</target>
+			</trans-unit>
 			<trans-unit id="tab.compression">
 				<source/>
 				<target>Komprimierung</target>

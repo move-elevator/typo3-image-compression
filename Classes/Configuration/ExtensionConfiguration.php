@@ -118,4 +118,15 @@ class ExtensionConfiguration
 
         return max(1, min(100, $quality));
     }
+
+    /**
+     * Returns the timeout in seconds for external tool invocations
+     * (local-tools/local-basic providers).
+     */
+    public function getCommandTimeout(): int
+    {
+        $timeout = (int) ($this->extConf['commandTimeout'] ?? 60);
+
+        return max(1, $timeout);
+    }
 }

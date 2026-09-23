@@ -95,6 +95,10 @@ No additional installation needed — uses TYPO3's configured graphics processor
 
 For local providers, configure quality (1–100) for JPEG, PNG, and WebP compression independently.
 
+### Command timeout
+
+For local providers, **Command Timeout** limits how long an external tool invocation (`jpegoptim`, `optipng`, ImageMagick, ...) may run before it is killed, in seconds (default: 60). A timed-out invocation is logged and treated like any other compression failure: the file is left untouched.
+
 ## 💡 Usage
 
 ### Automatic compression
