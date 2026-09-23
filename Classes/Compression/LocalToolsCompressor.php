@@ -47,6 +47,8 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
     private const TOOL_COMMANDS = [
         'optipng' => '-o2 -strip all %s',
         'gifsicle' => '--batch -O2 %s',
+        // svgo overwrites its input in place when no -o is given, same as every other tool here.
+        'svgo' => '--quiet %s',
     ];
 
     /**
@@ -58,6 +60,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         'image/gif' => ['gifsicle'],
         'image/webp' => ['cwebp'],
         'image/avif' => ['avifenc'],
+        'image/svg+xml' => ['svgo'],
     ];
 
     public function __construct(
@@ -87,7 +90,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         $mimeType = strtolower($file->getMimeType());
 
         // Check if MIME type is configured for compression
-        if (!in_array($mimeType, $this->extensionConfiguration->getMimeTypes(), true)) {
+        if (!$this->isMimeTypeSupported($mimeType)) {
             return;
         }
 
@@ -183,6 +186,22 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
                 $this->fileProcessedRepository->updateCompressState($fileId);
             }
         }
+    }
+
+    /**
+     * SVG is deliberately excluded from the extension's mimeTypes default:
+     * unlike the raster formats, it is only compressible once svgo is
+     * actually installed. Treating it as supported the moment svgo is
+     * detected means it works with zero configuration where the tool is
+     * present, and stays inert everywhere else.
+     */
+    protected function isMimeTypeSupported(string $mimeType): bool
+    {
+        if (in_array($mimeType, $this->extensionConfiguration->getMimeTypes(), true)) {
+            return true;
+        }
+
+        return 'image/svg+xml' === $mimeType && $this->toolDetection->isAvailable('svgo');
     }
 
     protected function getBestToolForMimeType(string $mimeType): ?string
