@@ -102,6 +102,15 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
             return;
         }
 
+        if (!$this->isLocalStorage($file->getStorage())) {
+            $this->logger?->info('Skipping compression: unsupported storage driver', [
+                'file' => $file->getIdentifier(),
+                'driver' => $file->getStorage()->getDriverType(),
+            ]);
+
+            return;
+        }
+
         $filePath = $this->getAbsoluteFilePath($file);
 
         if (!file_exists($filePath) || 0 === (int) filesize($filePath)) {
@@ -151,6 +160,13 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
 
             /** @var ResourceStorage $storage */
             $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
+
+            if (!$this->isLocalStorage($storage)) {
+                $this->fileProcessedRepository->updateCompressState($fileId, 0, 'unsupported storage driver: '.$storage->getDriverType());
+
+                continue;
+            }
+
             $filePath = $this->resolveProcessedFilePath($storage, (string) $file['identifier']);
 
             if (null === $filePath || !file_exists($filePath)) {

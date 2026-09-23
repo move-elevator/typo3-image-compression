@@ -18,6 +18,7 @@ use Exception;
 use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
+use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
 use RuntimeException;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException,
@@ -37,10 +38,11 @@ use function in_array;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, SingletonInterface
+class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, LoggerAwareInterface, SingletonInterface
 {
     use CompressorTrait;
     use FlashMessageTrait;
+    use LoggerAwareTrait;
 
     private const PROVIDER_IDENTIFIER = 'tinify';
     private const FREE_TIER_LIMIT = 500;
@@ -169,6 +171,15 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
             return;
         }
 
+        if (!$this->isLocalStorage($file->getStorage())) {
+            $this->logger?->info('Skipping compression: unsupported storage driver', [
+                'file' => $file->getIdentifier(),
+                'driver' => $file->getStorage()->getDriverType(),
+            ]);
+
+            return;
+        }
+
         try {
             $this->initAction();
             $this->assureFileExists($file);
@@ -221,6 +232,12 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
 
             /** @var ResourceStorage $storage */
             $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
+
+            if (!$this->isLocalStorage($storage)) {
+                $this->fileProcessedRepository->updateCompressState($fileId, 0, 'unsupported storage driver: '.$storage->getDriverType());
+                continue;
+            }
+
             $filePath = $this->resolveProcessedFilePath($storage, (string) $file['identifier']);
 
             if (null === $filePath || false === file_exists($filePath)) {
