@@ -495,7 +495,7 @@ final class TinifyCompressorTest extends TestCase
         Tinify::setClient(new class {
             public function request(string $method, string $url, mixed $body = null): never
             {
-                throw new \Tinify\ConnectionException('network unreachable');
+                throw new \Tinify\ConnectionException('network unreachable', 6962142322);
             }
         });
 
