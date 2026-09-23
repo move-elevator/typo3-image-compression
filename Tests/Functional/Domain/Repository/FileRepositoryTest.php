@@ -162,7 +162,15 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         $status = $this->subject->findCompressionStatusByUid(4);
 
         self::assertSame(
-            ['compressed' => false, 'compress_error' => 'Some error', 'compress_info' => ''],
+            [
+                'compressed' => false,
+                'compress_error' => 'Some error',
+                'compress_provider' => '',
+                'compress_tool' => '',
+                'compress_original_size' => 0,
+                'compress_size' => 0,
+                'compress_tstamp' => 0,
+            ],
             $status,
         );
     }
@@ -172,11 +180,11 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
     {
         $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
 
-        $this->subject->updateCompressionStatus(1, true, '', 'saved 50%');
+        $this->subject->updateCompressionStatus(1, true, '', 'tinify', 'jpegoptim', 1000, 500);
 
         $row = $this->getConnectionPool()
             ->getQueryBuilderForTable('sys_file')
-            ->select('compressed', 'compress_error', 'compress_info')
+            ->select('compressed', 'compress_error', 'compress_provider', 'compress_tool', 'compress_original_size', 'compress_size', 'compress_tstamp')
             ->from('sys_file')
             ->where('uid = 1')
             ->executeQuery()
@@ -185,7 +193,11 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         self::assertNotFalse($row);
         self::assertSame(1, (int) $row['compressed']);
         self::assertSame('', $row['compress_error']);
-        self::assertSame('saved 50%', $row['compress_info']);
+        self::assertSame('tinify', $row['compress_provider']);
+        self::assertSame('jpegoptim', $row['compress_tool']);
+        self::assertSame(1000, (int) $row['compress_original_size']);
+        self::assertSame(500, (int) $row['compress_size']);
+        self::assertGreaterThan(0, (int) $row['compress_tstamp']);
     }
 
     #[Test]
@@ -193,11 +205,11 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
     {
         $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
 
-        $this->subject->updateCompressionStatus(1, false, 'boom', '');
+        $this->subject->updateCompressionStatus(1, false, 'boom');
 
         $row = $this->getConnectionPool()
             ->getQueryBuilderForTable('sys_file')
-            ->select('compressed', 'compress_error', 'compress_info')
+            ->select('compressed', 'compress_error', 'compress_provider', 'compress_tstamp')
             ->from('sys_file')
             ->where('uid = 1')
             ->executeQuery()
@@ -206,7 +218,8 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         self::assertNotFalse($row);
         self::assertSame(0, (int) $row['compressed']);
         self::assertSame('boom', $row['compress_error']);
-        self::assertSame('', $row['compress_info']);
+        self::assertSame('', $row['compress_provider']);
+        self::assertSame(0, (int) $row['compress_tstamp']);
     }
 
     #[Test]
@@ -227,6 +240,23 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
             ['compressed' => 1, 'not_compressed' => 3, 'errors' => 2],
             $this->subject->getCompressionStatistics(['image/jpeg']),
         );
+    }
+
+    #[Test]
+    public function getTotalBytesSavedReturnsZeroWithoutData(): void
+    {
+        self::assertSame(0, $this->subject->getTotalBytesSaved());
+    }
+
+    #[Test]
+    public function getTotalBytesSavedSumsSavingsAcrossCompressedFiles(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateCompressionStatus(1, true, '', 'tinify', '', 1000, 700);
+        $this->subject->updateCompressionStatus(2, true, '', 'tinify', '', 2000, 1900);
+
+        self::assertSame(400, $this->subject->getTotalBytesSaved());
     }
 
     private function getStorage(int $uid): FileStorage

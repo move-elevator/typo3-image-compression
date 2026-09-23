@@ -84,16 +84,67 @@ final class FileTest extends TestCase
     }
 
     #[Test]
-    public function getCompressInfoReturnsInitialValueEmptyString(): void
+    public function getCompressProviderReturnsInitialValueEmptyString(): void
     {
-        self::assertSame('', $this->subject->getCompressInfo());
+        self::assertSame('', $this->subject->getCompressProvider());
     }
 
     #[Test]
-    public function setCompressInfoSetsCompressInfo(): void
+    public function setCompressProviderSetsCompressProvider(): void
     {
-        $compressInfo = 'tinify: 1 KB -> 512 B (-50%) - 01.01.2026';
-        $this->subject->setCompressInfo($compressInfo);
-        self::assertSame($compressInfo, $this->subject->getCompressInfo());
+        $this->subject->setCompressProvider('tinify');
+        self::assertSame('tinify', $this->subject->getCompressProvider());
+    }
+
+    #[Test]
+    public function getCompressToolReturnsInitialValueEmptyString(): void
+    {
+        self::assertSame('', $this->subject->getCompressTool());
+    }
+
+    #[Test]
+    public function setCompressToolSetsCompressTool(): void
+    {
+        $this->subject->setCompressTool('jpegoptim');
+        self::assertSame('jpegoptim', $this->subject->getCompressTool());
+    }
+
+    #[Test]
+    public function getCompressOriginalSizeReturnsInitialValueZero(): void
+    {
+        self::assertSame(0, $this->subject->getCompressOriginalSize());
+    }
+
+    #[Test]
+    public function setCompressOriginalSizeSetsCompressOriginalSize(): void
+    {
+        $this->subject->setCompressOriginalSize(1024);
+        self::assertSame(1024, $this->subject->getCompressOriginalSize());
+    }
+
+    #[Test]
+    public function getCompressSizeReturnsInitialValueZero(): void
+    {
+        self::assertSame(0, $this->subject->getCompressSize());
+    }
+
+    #[Test]
+    public function setCompressSizeSetsCompressSize(): void
+    {
+        $this->subject->setCompressSize(512);
+        self::assertSame(512, $this->subject->getCompressSize());
+    }
+
+    #[Test]
+    public function getCompressTstampReturnsInitialValueZero(): void
+    {
+        self::assertSame(0, $this->subject->getCompressTstamp());
+    }
+
+    #[Test]
+    public function setCompressTstampSetsCompressTstamp(): void
+    {
+        $this->subject->setCompressTstamp(1735689600);
+        self::assertSame(1735689600, $this->subject->getCompressTstamp());
     }
 }

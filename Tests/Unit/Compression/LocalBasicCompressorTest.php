@@ -229,7 +229,7 @@ final class LocalBasicCompressorTest extends TestCase
         $indexerMock->expects(self::once())->method('updateIndexEntry')->with($fileMock);
         GeneralUtility::addInstance(Indexer::class, $indexerMock);
 
-        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true);
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true, '', 'local-basic', 'ImageMagick', 15, 15);
 
         $this->subject->compress($fileMock);
     }

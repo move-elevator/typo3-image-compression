@@ -40,7 +40,7 @@ interface CompressorTraitTestSubject
 
     public function getAbsoluteFilePath(File $file): string;
 
-    public function markFileAsCompressed(File $file, string $compressInfo = ''): void;
+    public function markFileAsCompressed(File $file, string $provider, string $tool, int $originalSize, int $newSize): void;
 
     public function buildCompressInfo(string $provider, int $originalSize, int $newSize, ?string $tool = null): string;
 
@@ -181,7 +181,7 @@ final class CompressorTraitTest extends TestCase
     }
 
     #[Test]
-    public function markFileAsCompressedUpdatesCompressionStatusWithCompressInfo(): void
+    public function markFileAsCompressedUpdatesCompressionStatusWithStructuredFields(): void
     {
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getUid')->willReturn(42);
@@ -189,23 +189,9 @@ final class CompressorTraitTest extends TestCase
         $this->fileRepositoryMock
             ->expects(self::once())
             ->method('updateCompressionStatus')
-            ->with(42, true, '', 'tinify: 1 KB -> 512 B (-50%) - 01.01.2026');
+            ->with(42, true, '', 'tinify', 'jpegoptim', 1024, 512);
 
-        $this->subject->markFileAsCompressed($fileMock, 'tinify: 1 KB -> 512 B (-50%) - 01.01.2026');
-    }
-
-    #[Test]
-    public function markFileAsCompressedDefaultsCompressInfoToEmptyString(): void
-    {
-        $fileMock = $this->createMock(File::class);
-        $fileMock->method('getUid')->willReturn(7);
-
-        $this->fileRepositoryMock
-            ->expects(self::once())
-            ->method('updateCompressionStatus')
-            ->with(7, true, '', '');
-
-        $this->subject->markFileAsCompressed($fileMock);
+        $this->subject->markFileAsCompressed($fileMock, 'tinify', 'jpegoptim', 1024, 512);
     }
 
     #[Test]

@@ -399,7 +399,7 @@ final class TinifyCompressorTest extends TestCase
         $this->fileRepositoryMock
             ->expects(self::once())
             ->method('updateCompressionStatus')
-            ->with(99, true, '', self::stringContains('tinify:'));
+            ->with(99, true, '', 'tinify', '', 1400, 5);
 
         $this->subject->compress($fileMock);
 

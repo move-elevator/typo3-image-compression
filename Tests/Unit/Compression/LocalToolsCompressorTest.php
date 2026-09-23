@@ -303,7 +303,7 @@ final class LocalToolsCompressorTest extends TestCase
         // markFileAsCompressed() runs unconditionally on a successful
         // optimization, regardless of whether savedPercent ends up > 0
         // (the tool mock does not actually shrink the file).
-        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true);
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true, '', 'local-tools', 'jpegoptim', 15, 15);
 
         $this->subject->compress($fileMock);
     }
