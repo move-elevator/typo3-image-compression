@@ -95,6 +95,20 @@ No additional installation needed — uses TYPO3's configured graphics processor
 
 For local providers, configure quality (1–100) for JPEG, PNG, and WebP compression independently.
 
+### Metadata
+
+By default, compression strips all image metadata: EXIF, IPTC, XMP and the embedded ICC color profile. GPS location data is always stripped and cannot be preserved, publishing where a photo was taken is a data protection concern.
+
+For press, stock or agency images where the copyright tag matters, or source images authored in a wide-gamut color space (e.g. Adobe RGB) where dropping the ICC profile shifts colors, enable:
+
+| Setting | Effect |
+|---------|--------|
+| `preserveCopyright` | Keeps the EXIF/IPTC copyright tag |
+| `preserveCreationDate` | Keeps the EXIF/IPTC creation date |
+| `preserveColorProfile` | Keeps the embedded ICC color profile |
+
+Support depends on the provider: `tinify` preserves each field independently via the TinyPNG API. `local-tools` (jpegoptim, JPEG only) also preserves each field independently. `local-basic` (ImageMagick/GraphicsMagick) can only preserve the color profile on its own; enabling copyright or creation date preservation keeps all metadata, since plain `convert` has no per-tag strip flag.
+
 ## 💡 Usage
 
 ### Automatic compression
