@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
 use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
+use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent;
 use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, UnknownObjectException};
@@ -37,7 +38,14 @@ final readonly class AfterFileReplaced
      */
     public function __invoke(AfterFileReplacedEvent $event): AfterFileReplacedEvent
     {
-        $this->compressor->compress($event->getFile());
+        try {
+            $this->compressor->compress($event->getFile());
+        } catch (CompressionAbortedException) {
+            // A broken TinyPNG account (invalid key, exhausted quota) must
+            // not fail the file replace itself: the compressor already
+            // logged the failure and flashed a message, this listener only
+            // prevents it from escaping the synchronous request.
+        }
 
         return $event;
     }

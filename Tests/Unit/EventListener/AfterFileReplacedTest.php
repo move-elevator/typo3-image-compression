@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\EventListener;
 
 use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
+use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use MoveElevator\Typo3ImageCompression\EventListener\AfterFileReplaced;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\TestCase;
@@ -39,6 +40,21 @@ final class AfterFileReplacedTest extends TestCase
 
         $compressorMock = $this->createMock(CompressorInterface::class);
         $compressorMock->expects(self::once())->method('compress')->with($fileMock);
+
+        $subject = new AfterFileReplaced($compressorMock);
+        $result = $subject($event);
+
+        self::assertSame($event, $result);
+    }
+
+    #[Test]
+    public function invokeDoesNotLetCompressionAbortedExceptionEscapeTheReplace(): void
+    {
+        $fileMock = $this->createMock(FileInterface::class);
+        $event = new AfterFileReplacedEvent($fileMock, '/tmp/local-file.jpg');
+
+        $compressorMock = $this->createMock(CompressorInterface::class);
+        $compressorMock->method('compress')->willThrowException(new CompressionAbortedException('quota exhausted'));
 
         $subject = new AfterFileReplaced($compressorMock);
         $result = $subject($event);
