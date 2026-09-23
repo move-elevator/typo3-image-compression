@@ -252,6 +252,49 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
     }
 
     /**
+     * Override trait method to add flash message when folder is excluded.
+     */
+    protected function isFileInExcludeFolder(File $file): bool
+    {
+        $excludeFolders = $this->extensionConfiguration->getExcludeFolders();
+        $identifier = $file->getIdentifier();
+
+        foreach ($excludeFolders as $excludeFolder) {
+            if (str_starts_with($identifier, $excludeFolder)) {
+                $this->addFlashMessage(
+                    'folderExcluded',
+                    [$excludeFolder],
+                    ContextualFeedbackSeverity::INFO,
+                );
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @throws Exception
+     */
+    protected function assureFileExists(File $file): void
+    {
+        $absFileName = $this->getAbsoluteFilePath($file);
+        if (false === file_exists($absFileName)) {
+            throw new RuntimeException(Configuration::EXT_NAME.': File does not exist: '.$absFileName, 1575270381);
+        }
+        if (0 === (int) filesize($absFileName)) {
+            throw new RuntimeException(Configuration::EXT_NAME.': Filesize is 0: '.$absFileName, 1575270380);
+        }
+    }
+
+    protected function saveError(File $file, Exception $e): void
+    {
+        $errorMessage = $e->getCode().' : '.$e->getMessage();
+        $this->fileRepository->updateCompressionStatus($file->getUid(), false, $errorMessage, '');
+    }
+
+    /**
      * @param array<string, mixed> $file
      */
     private function compressSingleProcessedFile(array $file): void
@@ -318,49 +361,6 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                 ContextualFeedbackSeverity::WARNING,
             );
         }
-    }
-
-    /**
-     * Override trait method to add flash message when folder is excluded.
-     */
-    protected function isFileInExcludeFolder(File $file): bool
-    {
-        $excludeFolders = $this->extensionConfiguration->getExcludeFolders();
-        $identifier = $file->getIdentifier();
-
-        foreach ($excludeFolders as $excludeFolder) {
-            if (str_starts_with($identifier, $excludeFolder)) {
-                $this->addFlashMessage(
-                    'folderExcluded',
-                    [$excludeFolder],
-                    ContextualFeedbackSeverity::INFO,
-                );
-
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @throws Exception
-     */
-    protected function assureFileExists(File $file): void
-    {
-        $absFileName = $this->getAbsoluteFilePath($file);
-        if (false === file_exists($absFileName)) {
-            throw new RuntimeException(Configuration::EXT_NAME.': File does not exist: '.$absFileName, 1575270381);
-        }
-        if (0 === (int) filesize($absFileName)) {
-            throw new RuntimeException(Configuration::EXT_NAME.': Filesize is 0: '.$absFileName, 1575270380);
-        }
-    }
-
-    protected function saveError(File $file, Exception $e): void
-    {
-        $errorMessage = $e->getCode().' : '.$e->getMessage();
-        $this->fileRepository->updateCompressionStatus($file->getUid(), false, $errorMessage, '');
     }
 
     private function fetchCompressionCount(): ?int
