@@ -95,6 +95,14 @@ No additional installation needed — uses TYPO3's configured graphics processor
 
 For local providers, configure quality (1–100) for JPEG, PNG, and WebP compression independently.
 
+### Backup & restore
+
+Compression overwrites the original file in place. Enable **Backup original files** to keep a copy outside FAL (`var/image_compression/backup/`, not indexed, not shown in the file list) before every compression, so it can be restored later.
+
+- On TYPO3 v12.4/v13.4, a restore button appears in the file list for any file with a backup.
+- `vendor/bin/typo3 imagecompression:restore <uid>` or `--all` restores from the CLI and rebuilds derivatives.
+- **Backup retention (days)** controls how long backups are kept; `vendor/bin/typo3 imagecompression:pruneBackups` deletes backups older than that (`0` keeps them indefinitely, add `--dry-run` to preview).
+
 ## 💡 Usage
 
 ### Automatic compression
