@@ -56,3 +56,9 @@ services:
       - name: console.command
         command: imagecompression:compressImages
         description: Compress uncompressed images
+
+  # Upgrade Wizards
+  MoveElevator\Typo3ImageCompression\Updates\CompressionColumnsUpgradeWizard:
+    tags:
+      - name: install.upgradewizard
+        identifier: typo3ImageCompression_compressionColumns
