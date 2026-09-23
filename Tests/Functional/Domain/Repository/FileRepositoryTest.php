@@ -78,6 +78,23 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
     }
 
     #[Test]
+    public function findAllNonCompressedInStorageWithLimitTreatsLikeMetacharactersInFolderLiterally(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+        $storage = $this->getStorage(1);
+
+        // Without escaping, "_" in the requested folder is interpreted as a
+        // SQL LIKE single-character wildcard and would also match
+        // "/fooXbar/", not just a literal "/foo_bar/".
+        $this->insertFile(9, 1, '/foo_bar/decoy.jpg');
+        $this->insertFile(10, 1, '/fooXbar/should-not-match.jpg');
+
+        $result = $this->subject->findAllNonCompressedInStorageWithLimit($storage, 100, [], '/foo_bar/');
+
+        self::assertCount(1, $result);
+    }
+
+    #[Test]
     public function findAllNonCompressedInStorageWithLimitRespectsLimit(): void
     {
         $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
@@ -227,6 +244,20 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
             ['compressed' => 1, 'not_compressed' => 3, 'errors' => 2],
             $this->subject->getCompressionStatistics(['image/jpeg']),
         );
+    }
+
+    private function insertFile(int $uid, int $storage, string $identifier): void
+    {
+        $this->getConnectionPool()->getConnectionForTable('sys_file')->insert('sys_file', [
+            'uid' => $uid,
+            'pid' => 0,
+            'storage' => $storage,
+            'identifier' => $identifier,
+            'name' => basename($identifier),
+            'mime_type' => 'image/jpeg',
+            'missing' => 0,
+            'compressed' => 0,
+        ]);
     }
 
     private function getStorage(int $uid): FileStorage

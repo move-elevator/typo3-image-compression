@@ -72,7 +72,7 @@ class FileRepository extends Repository
         $excludeFoldersConstraints = [];
         foreach ($excludeFolders as $excludeFolder) {
             $excludeFoldersConstraints[] = $query->logicalNot(
-                $query->like('identifier', $excludeFolder.'%'),
+                $query->like('identifier', $this->escapeLikeValue($excludeFolder).'%'),
             );
         }
 
@@ -151,7 +151,7 @@ class FileRepository extends Repository
         $excludeFoldersConstraints = [];
         foreach ($excludeFolders as $excludeFolder) {
             $excludeFoldersConstraints[] = $query->logicalNot(
-                $query->like('identifier', $excludeFolder.'%'),
+                $query->like('identifier', $this->escapeLikeValue($excludeFolder).'%'),
             );
         }
 
@@ -250,6 +250,17 @@ class FileRepository extends Repository
             return [];
         }
 
-        return [$query->like('identifier', $folder.'%')];
+        return [$query->like('identifier', $this->escapeLikeValue($folder).'%')];
+    }
+
+    /**
+     * Escapes LIKE metacharacters (`%`, `_`) and the escape character itself
+     * in a value that is about to be used as a LIKE prefix, so folder/path
+     * values containing these characters are matched literally instead of
+     * as wildcards.
+     */
+    private function escapeLikeValue(string $value): string
+    {
+        return addcslashes($value, '\\%_');
     }
 }
