@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Compression;
 
+use MoveElevator\Typo3ImageCompression\Backup\BackupService;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
@@ -66,6 +67,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly StorageRepository $storageRepository,
         protected readonly ToolDetection $toolDetection,
+        protected readonly BackupService $backupService,
     ) {}
 
     public function getProviderIdentifier(): string
@@ -109,6 +111,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         }
 
         $originalFileSize = (int) filesize($filePath);
+        $this->maybeBackupOriginal($file, $filePath);
         $success = $this->executeOptimization($tool, $filePath);
 
         if ($success) {

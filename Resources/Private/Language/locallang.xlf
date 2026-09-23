@@ -45,6 +45,21 @@
 			<trans-unit id="showStatusReport">
 				<source>Show compression statistics in the system reports module.</source>
 			</trans-unit>
+			<trans-unit id="enableBackup">
+				<source>Backup original files: Keep a copy of the original file before compression, so it can be restored later.</source>
+			</trans-unit>
+			<trans-unit id="backupRetentionDays">
+				<source>Backup retention (days): Backups older than this are removed by the "imagecompression:pruneBackups" command. 0 keeps backups indefinitely.</source>
+			</trans-unit>
+			<trans-unit id="restoreAction">
+				<source>Restore original file</source>
+			</trans-unit>
+			<trans-unit id="flashMessage.message.restoreSuccess">
+				<source>Original file restored from backup.</source>
+			</trans-unit>
+			<trans-unit id="flashMessage.message.restoreFailed">
+				<source>Restoring the original file failed. No valid backup was found.</source>
+			</trans-unit>
 			<trans-unit id="provider">
 				<source>Compression Provider: Select which compression provider to use (tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick)</source>
 			</trans-unit>

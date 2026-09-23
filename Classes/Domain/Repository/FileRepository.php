@@ -200,6 +200,61 @@ class FileRepository extends Repository
     }
 
     /**
+     * Stores the relative backup path for a file using DBAL.
+     */
+    public function updateBackupPath(int $fileUid, string $backupPath): void
+    {
+        $connection = $this->connectionPool->getConnectionForTable('sys_file');
+
+        $connection->update(
+            'sys_file',
+            ['backup_path' => $backupPath],
+            ['uid' => $fileUid],
+        );
+    }
+
+    /**
+     * Returns the relative backup path for a file, or null if none is set.
+     *
+     * @throws Exception
+     */
+    public function findBackupPathByUid(int $fileUid): ?string
+    {
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable('sys_file');
+
+        $backupPath = $queryBuilder
+            ->select('backup_path')
+            ->from('sys_file')
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($fileUid, ParameterType::INTEGER)))
+            ->executeQuery()
+            ->fetchOne();
+
+        if (false === $backupPath || '' === $backupPath) {
+            return null;
+        }
+
+        return (string) $backupPath;
+    }
+
+    /**
+     * @return QueryResultInterface<int, File>
+     *
+     * @throws InvalidQueryException
+     */
+    public function findAllWithBackup(): QueryResultInterface
+    {
+        $query = $this->createQuery();
+        $query->matching(
+            $query->logicalAnd(
+                $query->logicalNot($query->equals('backupPath', null)),
+                $query->logicalNot($query->equals('backupPath', '')),
+            ),
+        );
+
+        return $query->execute();
+    }
+
+    /**
      * Returns compression statistics for files with given mime types.
      *
      * @param string[] $mimeTypes

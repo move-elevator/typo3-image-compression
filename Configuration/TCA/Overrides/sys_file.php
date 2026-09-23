@@ -42,6 +42,15 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
             'default' => '',
         ],
     ],
+    'backup_path' => [
+        'exclude' => true,
+        'label' => 'Backup Path',
+        'config' => [
+            'type' => 'input',
+            'readOnly' => true,
+            'default' => '',
+        ],
+    ],
 ]);
 
 ExtensionManagementUtility::addToAllTCAtypes('sys_file', 'compress_error,compress_info');

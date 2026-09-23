@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Compression;
 
+use MoveElevator\Typo3ImageCompression\Backup\BackupService;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
 use TYPO3\CMS\Core\Core\Environment;
@@ -28,6 +29,7 @@ use function sprintf;
  *
  * @property ExtensionConfiguration $extensionConfiguration
  * @property FileRepository         $fileRepository
+ * @property BackupService          $backupService
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
@@ -175,6 +177,24 @@ trait CompressorTrait
         $storage = $file->getStorage();
         $fileIndexer = GeneralUtility::makeInstance(Indexer::class, $storage);
         $fileIndexer->updateIndexEntry($file);
+    }
+
+    /**
+     * Backs up the original file before compression overwrites it in place,
+     * when backup is enabled. Failures are non-fatal: compression proceeds
+     * either way, it just isn't restorable afterwards.
+     */
+    protected function maybeBackupOriginal(File $file, string $filePath): void
+    {
+        if (!$this->extensionConfiguration->isBackupEnabled()) {
+            return;
+        }
+
+        $backupPath = $this->backupService->backup($file, $filePath);
+
+        if (null !== $backupPath) {
+            $this->fileRepository->updateBackupPath($file->getUid(), $backupPath);
+        }
     }
 
     /**

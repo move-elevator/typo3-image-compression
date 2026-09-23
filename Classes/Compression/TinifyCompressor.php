@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Compression;
 
 use Exception;
+use MoveElevator\Typo3ImageCompression\Backup\BackupService;
 use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
@@ -58,6 +59,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly StorageRepository $storageRepository,
         protected readonly FrontendInterface $cache,
+        protected readonly BackupService $backupService,
     ) {}
 
     public function getProviderIdentifier(): string
@@ -174,6 +176,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
             $this->assureFileExists($file);
             $originalFileSize = (int) $file->getSize();
             $filePath = $this->getAbsoluteFilePath($file);
+            $this->maybeBackupOriginal($file, $filePath);
             /** @var \Tinify\Source $source */
             $source = \Tinify\fromFile($filePath);
             $source->toFile($filePath);

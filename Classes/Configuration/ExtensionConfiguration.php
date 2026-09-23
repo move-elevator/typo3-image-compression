@@ -118,4 +118,21 @@ class ExtensionConfiguration
 
         return max(1, min(100, $quality));
     }
+
+    /**
+     * Whether the original file is backed up before compression.
+     */
+    public function isBackupEnabled(): bool
+    {
+        return (bool) ($this->extConf['enableBackup'] ?? false);
+    }
+
+    /**
+     * Returns the number of days backups are kept before being pruned.
+     * 0 disables pruning (backups are kept indefinitely).
+     */
+    public function getBackupRetentionDays(): int
+    {
+        return max(0, (int) ($this->extConf['backupRetentionDays'] ?? 30));
+    }
 }

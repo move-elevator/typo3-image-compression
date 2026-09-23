@@ -59,6 +59,26 @@
 				<source/>
 				<target>Zeige Komprimierungsstatistik im Systemberichte-Modul an.</target>
 			</trans-unit>
+			<trans-unit id="enableBackup">
+				<source/>
+				<target>Originaldateien sichern: Behält vor der Komprimierung eine Kopie der Originaldatei, damit sie später wiederhergestellt werden kann.</target>
+			</trans-unit>
+			<trans-unit id="backupRetentionDays">
+				<source/>
+				<target>Backup-Aufbewahrung (Tage): Backups, die älter sind, werden vom Befehl "imagecompression:pruneBackups" entfernt. 0 bewahrt Backups unbegrenzt auf.</target>
+			</trans-unit>
+			<trans-unit id="restoreAction">
+				<source/>
+				<target>Originaldatei wiederherstellen</target>
+			</trans-unit>
+			<trans-unit id="flashMessage.message.restoreSuccess">
+				<source/>
+				<target>Originaldatei aus Backup wiederhergestellt.</target>
+			</trans-unit>
+			<trans-unit id="flashMessage.message.restoreFailed">
+				<source/>
+				<target>Wiederherstellung der Originaldatei fehlgeschlagen. Es wurde kein gültiges Backup gefunden.</target>
+			</trans-unit>
 			<trans-unit id="provider">
 				<source/>
 				<target>Komprimierungsanbieter: Wählen Sie den zu verwendenden Komprimierungsanbieter (tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick)</target>

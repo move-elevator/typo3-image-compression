@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Compression;
 
+use MoveElevator\Typo3ImageCompression\Backup\BackupService;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
@@ -55,6 +56,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly StorageRepository $storageRepository,
         protected readonly ToolDetection $toolDetection,
+        protected readonly BackupService $backupService,
     ) {}
 
     public function getProviderIdentifier(): string
@@ -92,6 +94,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
 
         $originalFileSize = (int) filesize($filePath);
         $processor = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] ?? 'ImageMagick';
+        $this->maybeBackupOriginal($file, $filePath);
 
         if (!$this->compressWithGraphicsProcessor($filePath, $mimeType)) {
             return;
