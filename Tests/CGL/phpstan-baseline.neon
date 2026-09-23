@@ -64,3 +64,8 @@ parameters:
 		-
 			message: '#Call to function method_exists\(\) with TYPO3\\CMS\\Filelist\\Event\\ProcessFileListActionsEvent and ''setActionItems'' will always evaluate to true#'
 			path: ../../Classes/EventListener/AfterFileListRendered.php
+		# IconFactoryTestDouble deliberately skips IconRegistry/cache setup, which is
+		# out of scope for a pure unit test and irrelevant to the overridden getIcon()
+		-
+			message: '#does not call parent constructor from TYPO3\\CMS\\Core\\Imaging\\IconFactory#'
+			path: ../../Tests/Unit/EventListener/AfterFileListRenderedTest.php

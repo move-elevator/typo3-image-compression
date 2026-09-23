@@ -28,6 +28,7 @@ use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Resource\{File, ResourceInterface};
+use TYPO3\CMS\Core\Type\Icon\IconState;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Filelist\Event\ProcessFileListActionsEvent;
 
@@ -47,7 +48,7 @@ final class AfterFileListRenderedTest extends TestCase
 {
     private FileRepository&MockObject $fileRepositoryMock;
     private UriBuilder&MockObject $uriBuilderMock;
-    private IconFactory&MockObject $iconFactoryMock;
+    private IconFactoryTestDouble $iconFactoryMock;
     private PageRenderer&MockObject $pageRendererMock;
     private AfterFileListRendered $subject;
     private mixed $originalLang = null;
@@ -64,7 +65,11 @@ final class AfterFileListRenderedTest extends TestCase
 
         $this->fileRepositoryMock = $this->createMock(FileRepository::class);
         $this->uriBuilderMock = $this->createMock(UriBuilder::class);
-        $this->iconFactoryMock = $this->createMock(IconFactory::class);
+        // IconFactory is declared "readonly" on some TYPO3 13.4 patch levels,
+        // which PHPUnit refuses to double (ClassIsReadonlyException). A hand
+        // rolled subclass sidesteps that without depending on the readonly
+        // status of the installed core version.
+        $this->iconFactoryMock = new IconFactoryTestDouble();
         $this->pageRendererMock = $this->createMock(PageRenderer::class);
 
         $this->originalLang = $GLOBALS['LANG'] ?? null;
@@ -153,7 +158,7 @@ final class AfterFileListRenderedTest extends TestCase
         $fileMock->method('getUid')->willReturn(5);
         $this->fileRepositoryMock->method('findBackupPathByUid')->with(5)->willReturn('1/hash.jpg');
         $this->uriBuilderMock->method('buildUriFromRoute')->with('tx_typo3imagecompression_restore')->willReturn(new Uri('/typo3-image-compression/restore'));
-        $this->iconFactoryMock->method('getIcon')->willReturn($this->createMock(Icon::class));
+        $this->iconFactoryMock->iconToReturn = new Icon();
 
         $event = $this->createEvent($fileMock);
 
@@ -181,5 +186,32 @@ final class AfterFileListRenderedTest extends TestCase
     private function isV14OrHigher(): bool
     {
         return GeneralUtility::makeInstance(Typo3Version::class)->getMajorVersion() >= 14;
+    }
+}
+
+/**
+ * IconFactoryTestDouble.
+ *
+ * IconFactory is declared "readonly" on some TYPO3 13.4 patch levels, which
+ * PHPUnit refuses to double (ClassIsReadonlyException). This hand-rolled
+ * subclass sidesteps that entirely.
+ *
+ * @author Konrad Michalik <km@move-elevator.de>
+ * @author Ronny Hauptvogel <rh@move-elevator.de>
+ * @license GPL-2.0-or-later
+ */
+class IconFactoryTestDouble extends IconFactory
+{
+    public ?Icon $iconToReturn = null;
+
+    // Deliberately skips the parent constructor: IconFactory's real
+    // constructor needs a working IconRegistry (icon set registration,
+    // cache), which is out of scope for a pure unit test. getIcon() below
+    // never touches the inherited (uninitialized) readonly dependencies.
+    public function __construct() {}
+
+    public function getIcon($identifier, $size = Icon::SIZE_MEDIUM, $overlayIdentifier = null, ?IconState $state = null): Icon
+    {
+        return $this->iconToReturn ??= new Icon();
     }
 }
