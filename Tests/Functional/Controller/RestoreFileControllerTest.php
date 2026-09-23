@@ -17,21 +17,29 @@ namespace MoveElevator\Typo3ImageCompression\Tests\Functional\Controller;
 use MoveElevator\Typo3ImageCompression\Backup\RestoreService;
 use MoveElevator\Typo3ImageCompression\Controller\RestoreFileController;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
+use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
+use TYPO3\CMS\Core\Core\{Environment, SystemEnvironmentBuilder};
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
 use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
-use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Resource\{ResourceFactory, StorageRepository};
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
+
+use function dirname;
 
 /**
  * RestoreFileControllerTest.
  *
- * Covers the "file does not exist" branch of currentUserMayRestore(),
- * which needs a real, DB-backed ResourceFactory/FileIndexRepository: see
- * Tests/Unit/Controller/RestoreFileControllerTest.php for why that branch
- * isn't exercised as a unit test.
+ * A real, DB-backed environment is used throughout instead of doubling
+ * ResourceFactory: PHPUnit refuses to double it on TYPO3 13.4+ (it's
+ * declared readonly there), and its internal caching implementation isn't
+ * stable across the supported TYPO3 versions either, so no unit-level
+ * double is durable here. See Tests/Unit/Controller/RestoreFileControllerTest.php
+ * for the one scenario (invalid token) that never touches ResourceFactory
+ * and stays a unit test.
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
@@ -47,19 +55,71 @@ final class RestoreFileControllerTest extends FunctionalTestCase
         parent::setUp();
 
         $GLOBALS['LANG'] = $this->get(LanguageServiceFactory::class)->createFromUserPreferences(null);
+
+        // TYPO3's real backend routing sets this on every request before
+        // dispatching a controller; ResourceStorage's permission-evaluation
+        // aspect (StoragePermissionsAspect) only activates for non-admin
+        // users when it's present, so without it every storage silently
+        // behaves as fully permitted regardless of the current user.
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest('https://typo3-testing.local/typo3/'))->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_BE);
+    }
+
+    #[Test]
+    public function mainActionRestoresWhenTokenIsValidAndFileMayBeReplaced(): void
+    {
+        $this->setUpBackendUser($this->importBackendUser(true));
+
+        $storageUid = $this->createLocalTestStorage();
+        $this->writeRealFile('photo.jpg', 'compressed-bytes');
+        $backupRelativePath = $storageUid.'/backup-hash.jpg';
+        $this->writeBackupFile($backupRelativePath, 'original-bytes');
+        $fileUid = $this->importSysFileRow($storageUid, '/photo.jpg', 'photo.jpg', $backupRelativePath);
+
+        $response = $this->callMainAction($fileUid);
+
+        self::assertSame(302, $response->getStatusCode());
+        self::assertSame('original-bytes', file_get_contents(Environment::getPublicPath().'/fileadmin/test/photo.jpg'));
+    }
+
+    #[Test]
+    public function mainActionDoesNotRestoreWhenCurrentUserMayNotReplaceTheFile(): void
+    {
+        $this->setUpBackendUser($this->importBackendUser(false));
+
+        $storageUid = $this->createLocalTestStorage();
+        $this->writeRealFile('photo.jpg', 'compressed-bytes');
+        $backupRelativePath = $storageUid.'/backup-hash.jpg';
+        $this->writeBackupFile($backupRelativePath, 'original-bytes');
+        $fileUid = $this->importSysFileRow($storageUid, '/photo.jpg', 'photo.jpg', $backupRelativePath);
+
+        $response = $this->callMainAction($fileUid);
+
+        self::assertSame(302, $response->getStatusCode());
+        self::assertSame('compressed-bytes', file_get_contents(Environment::getPublicPath().'/fileadmin/test/photo.jpg'));
     }
 
     #[Test]
     public function mainActionDoesNotRestoreWhenTheFileDoesNotExist(): void
     {
-        $nonExistentFileUid = 999999;
+        // Session-stored flash messages need an authenticated backend user,
+        // which this test doesn't set up; the regression this guards against
+        // is FileDoesNotExistException escaping mainAction() uncaught, so a
+        // clean redirect response (instead of an uncaught-exception failure)
+        // is already the meaningful assertion here.
+        $response = $this->callMainAction(999999);
+
+        self::assertSame(302, $response->getStatusCode());
+    }
+
+    private function callMainAction(int $fileUid): ResponseInterface
+    {
         $formToken = $this->get(FormProtectionFactory::class)->createForType('backend')->generateToken(
             RestoreFileController::FORM_PROTECTION_FORM_NAME,
             RestoreFileController::FORM_PROTECTION_ACTION,
-            (string) $nonExistentFileUid,
+            (string) $fileUid,
         );
         $request = (new ServerRequest())->withParsedBody([
-            'fileUid' => (string) $nonExistentFileUid,
+            'fileUid' => (string) $fileUid,
             'formToken' => $formToken,
         ]);
 
@@ -71,13 +131,61 @@ final class RestoreFileControllerTest extends FunctionalTestCase
             $this->get(FormProtectionFactory::class),
         );
 
-        // Session-stored flash messages need an authenticated backend user,
-        // which this test doesn't set up; the regression this guards against
-        // is FileDoesNotExistException escaping mainAction() uncaught, so a
-        // clean redirect response (instead of an uncaught-exception failure)
-        // is already the meaningful assertion here.
-        $response = $subject->mainAction($request);
+        return $subject->mainAction($request);
+    }
 
-        self::assertSame(302, $response->getStatusCode());
+    private function importBackendUser(bool $isAdmin): int
+    {
+        $connection = $this->getConnectionPool()->getConnectionForTable('be_users');
+        $connection->insert('be_users', [
+            'pid' => 0,
+            'username' => $isAdmin ? 'admin' : 'restricted',
+            'password' => '',
+            'admin' => $isAdmin ? 1 : 0,
+        ]);
+
+        return (int) $connection->lastInsertId('be_users');
+    }
+
+    private function createLocalTestStorage(): int
+    {
+        GeneralUtility::mkdir_deep(Environment::getPublicPath().'/fileadmin/test/');
+
+        return $this->get(StorageRepository::class)->createLocalStorage(
+            'Test storage',
+            'fileadmin/test/',
+            'relative',
+        );
+    }
+
+    private function writeRealFile(string $fileName, string $contents): void
+    {
+        GeneralUtility::writeFile(Environment::getPublicPath().'/fileadmin/test/'.$fileName, $contents);
+    }
+
+    private function writeBackupFile(string $relativePath, string $contents): void
+    {
+        $absolutePath = Environment::getVarPath().'/image_compression/backup/'.$relativePath;
+        GeneralUtility::mkdir_deep(dirname($absolutePath));
+        GeneralUtility::writeFile($absolutePath, $contents);
+    }
+
+    private function importSysFileRow(int $storageUid, string $identifier, string $name, string $backupPath): int
+    {
+        $connection = $this->getConnectionPool()->getConnectionForTable('sys_file');
+        $connection->insert('sys_file', [
+            'pid' => 0,
+            'storage' => $storageUid,
+            'identifier' => $identifier,
+            'identifier_hash' => sha1($identifier),
+            'folder_hash' => sha1(dirname($identifier)),
+            'name' => $name,
+            'mime_type' => 'image/jpeg',
+            'missing' => 0,
+            'compressed' => 1,
+            'backup_path' => $backupPath,
+        ]);
+
+        return (int) $connection->lastInsertId('sys_file');
     }
 }
