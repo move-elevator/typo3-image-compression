@@ -67,6 +67,22 @@ final class RestoreButtonTest extends TestCase
     }
 
     #[Test]
+    public function renderProducesTheFormTokenAsHiddenField(): void
+    {
+        $html = $this->createSubject('/typo3-image-compression/restore', 42, 'Restore original file', 'the-token')->render();
+
+        self::assertStringContainsString('name="formToken" value="the-token"', $html);
+    }
+
+    #[Test]
+    public function renderEscapesTheFormTokenAttributeValue(): void
+    {
+        $html = $this->createSubject('/typo3-image-compression/restore', 42, 'Restore original file', '"><script>')->render();
+
+        self::assertStringNotContainsString('"><script>', $html);
+    }
+
+    #[Test]
     public function toStringMatchesRender(): void
     {
         $subject = $this->createSubject();
@@ -78,10 +94,11 @@ final class RestoreButtonTest extends TestCase
         string $actionUrl = '/typo3-image-compression/restore',
         int $fileUid = 5,
         string $label = 'Restore original file',
+        string $formToken = 'token',
     ): RestoreButton {
         $iconMock = $this->createMock(Icon::class);
         $iconMock->method('render')->willReturn('<span class="icon"></span>');
 
-        return new RestoreButton($actionUrl, $fileUid, $label, $iconMock);
+        return new RestoreButton($actionUrl, $fileUid, $label, $iconMock, $formToken);
     }
 }

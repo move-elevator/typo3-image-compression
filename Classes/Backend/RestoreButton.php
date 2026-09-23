@@ -37,6 +37,7 @@ final readonly class RestoreButton implements ButtonInterface, Stringable
         private int $fileUid,
         private string $label,
         private Icon $icon,
+        private string $formToken,
     ) {}
 
     public function __toString(): string
@@ -70,6 +71,7 @@ final readonly class RestoreButton implements ButtonInterface, Stringable
 
         return '<form '.$formAttributes.'>'
             .'<input type="hidden" name="fileUid" value="'.$this->fileUid.'">'
+            .'<input type="hidden" name="formToken" value="'.htmlspecialchars($this->formToken, \ENT_QUOTES).'">'
             .'<button '.$buttonAttributes.'>'
             .$this->icon->render()
             .'</button>'

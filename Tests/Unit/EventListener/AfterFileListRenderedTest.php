@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\EventListener;
 
+use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
 use MoveElevator\Typo3ImageCompression\EventListener\AfterFileListRendered;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
@@ -22,6 +23,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Template\Components\ComponentGroup;
+use TYPO3\CMS\Core\FormProtection\{BackendFormProtection, FormProtectionFactory};
 use TYPO3\CMS\Core\Http\Uri;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Information\Typo3Version;
@@ -49,6 +51,8 @@ final class AfterFileListRenderedTest extends TestCase
     private UriBuilder&MockObject $uriBuilderMock;
     private IconFactory $iconFactoryMock;
     private PageRenderer&MockObject $pageRendererMock;
+    private ExtensionConfiguration&MockObject $extensionConfigurationMock;
+    private FormProtectionFactory&MockObject $formProtectionFactoryMock;
     private AfterFileListRendered $subject;
     private mixed $originalLang = null;
 
@@ -72,6 +76,12 @@ final class AfterFileListRenderedTest extends TestCase
         // See IconFactoryTestDoubleFactory for why this isn't a plain PHPUnit mock.
         $this->iconFactoryMock = IconFactoryTestDoubleFactory::create('actions-delete-restore');
         $this->pageRendererMock = $this->createMock(PageRenderer::class);
+        $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
+        $this->extensionConfigurationMock->method('isBackupEnabled')->willReturn(true);
+        $this->formProtectionFactoryMock = $this->createMock(FormProtectionFactory::class);
+        $formProtectionMock = $this->createMock(BackendFormProtection::class);
+        $formProtectionMock->method('generateToken')->willReturn('the-token');
+        $this->formProtectionFactoryMock->method('createForType')->with('backend')->willReturn($formProtectionMock);
 
         $this->originalLang = $GLOBALS['LANG'] ?? null;
         $languageServiceMock = $this->createMock(LanguageService::class);
@@ -83,6 +93,8 @@ final class AfterFileListRenderedTest extends TestCase
             $this->fileRepositoryMock,
             $this->uriBuilderMock,
             $this->iconFactoryMock,
+            $this->extensionConfigurationMock,
+            $this->formProtectionFactoryMock,
         );
     }
 
@@ -165,6 +177,38 @@ final class AfterFileListRenderedTest extends TestCase
         ($this->subject)($event);
 
         self::assertArrayHasKey('restore', $event->getActionItems());
+        // The token itself is covered by RestoreButtonTest; asserting on its
+        // rendered HTML here would additionally require a fully working
+        // Icon (IconFactoryTestDoubleFactory's is deliberately minimal).
+    }
+
+    #[Test]
+    public function invokeDoesNotQueryOrAddARestoreActionWhenBackupsAreDisabled(): void
+    {
+        if ($this->isV14OrHigher()) {
+            self::markTestSkipped('setActionItems()/getActionItems() are not part of the v14 event shape.');
+        }
+
+        $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
+        $this->extensionConfigurationMock->method('isBackupEnabled')->willReturn(false);
+        $this->subject = new AfterFileListRendered(
+            $this->pageRendererMock,
+            $this->fileRepositoryMock,
+            $this->uriBuilderMock,
+            $this->iconFactoryMock,
+            $this->extensionConfigurationMock,
+            $this->formProtectionFactoryMock,
+        );
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getUid')->willReturn(5);
+        $this->fileRepositoryMock->expects(self::never())->method('findBackupPathByUid');
+
+        $event = $this->createEvent($fileMock);
+
+        ($this->subject)($event);
+
+        self::assertSame([], $event->getActionItems());
     }
 
     private function createEvent(ResourceInterface $resource): ProcessFileListActionsEvent
