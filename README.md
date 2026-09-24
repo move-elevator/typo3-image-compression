@@ -64,6 +64,8 @@ Configure the extension in **Admin Tools > Settings > Extension Configuration**.
 | `local-tools` | jpegoptim, optipng, pngquant, gifsicle, cwebp | ~50–60% | Free | Self-hosted, no API costs |
 | `local-basic` | ImageMagick / GraphicsMagick | ~30–40% | Free | JPEG only, quick setup |
 
+**Provider** accepts a comma-separated, ordered list for fallback: `tinify,local-tools` uses `tinify` first, falling back to `local-tools` for a MIME type `tinify` cannot handle (GIF, SVG) or once the TinyPNG quota is exhausted. A single value, the default, behaves exactly as before.
+
 ### `tinify` (TinyPNG API)
 
 1. Register at [TinyPNG Developers](https://tinypng.com/developers) to obtain your API key.
