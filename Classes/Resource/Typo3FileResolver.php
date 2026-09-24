@@ -23,9 +23,9 @@ use TYPO3\CMS\Core\Resource\{File, ResourceFactory};
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-final class Typo3FileResolver implements FileResolver
+final readonly class Typo3FileResolver implements FileResolver
 {
-    public function __construct(private readonly ResourceFactory $resourceFactory) {}
+    public function __construct(private ResourceFactory $resourceFactory) {}
 
     public function getFileObject(int $uid): File
     {
