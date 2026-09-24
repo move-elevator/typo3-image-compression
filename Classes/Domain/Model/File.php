@@ -25,7 +25,10 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
 {
     protected int $storage = 0;
     protected bool $compressed = false;
+    protected bool $compressSkipped = false;
     protected string $compressError = '';
+    protected string $compressInfo = '';
+    protected string $backupPath = '';
     protected string $compressProvider = '';
     protected string $compressTool = '';
     protected int $compressOriginalSize = 0;
@@ -52,6 +55,16 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
         $this->compressed = $compressed;
     }
 
+    public function isCompressSkipped(): bool
+    {
+        return $this->compressSkipped;
+    }
+
+    public function setCompressSkipped(bool $compressSkipped): void
+    {
+        $this->compressSkipped = $compressSkipped;
+    }
+
     public function getCompressError(): string
     {
         return $this->compressError;
@@ -65,6 +78,16 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
     public function resetCompressError(): void
     {
         $this->setCompressError('');
+    }
+
+    public function getCompressInfo(): string
+    {
+        return $this->compressInfo;
+    }
+
+    public function setCompressInfo(string $compressInfo): void
+    {
+        $this->compressInfo = $compressInfo;
     }
 
     public function getCompressProvider(): string
@@ -115,5 +138,15 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
     public function setCompressTstamp(int $compressTstamp): void
     {
         $this->compressTstamp = $compressTstamp;
+    }
+
+    public function getBackupPath(): string
+    {
+        return $this->backupPath;
+    }
+
+    public function setBackupPath(string $backupPath): void
+    {
+        $this->backupPath = $backupPath;
     }
 }

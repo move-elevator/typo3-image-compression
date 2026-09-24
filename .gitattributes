@@ -11,6 +11,7 @@
 /composer.lock               export-ignore
 /composer-require-checker.json export-ignore
 /CONTRIBUTING.md             export-ignore
+/docs                        export-ignore
 /docker-compose.yml          export-ignore
 /package.json                export-ignore
 /package-lock.json           export-ignore

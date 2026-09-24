@@ -14,21 +14,25 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Compression;
 
+use MoveElevator\Typo3ImageCompression\Backup\BackupService;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
-use MoveElevator\Typo3ImageCompression\Utility\CompressionInfoFormatter;
+use MoveElevator\Typo3ImageCompression\Utility\{CompressionInfoFormatter, FileSizeFormatter};
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\{File, ResourceStorage};
 use TYPO3\CMS\Core\Resource\Index\Indexer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 use function sprintf;
+use function strlen;
 
 /**
  * CompressorTrait.
  *
- * @property ExtensionConfiguration $extensionConfiguration
- * @property FileRepository         $fileRepository
+ * @property ExtensionConfiguration        $extensionConfiguration
+ * @property FileRepository                $fileRepository
+ * @property BackupService                 $backupService
+ * @property \Psr\Log\LoggerInterface|null $logger
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
@@ -36,6 +40,44 @@ use function sprintf;
  */
 trait CompressorTrait
 {
+    private const LOCAL_DRIVER_TYPE = 'Local';
+
+    /**
+     * Checks whether the storage uses TYPO3's Local driver.
+     *
+     * Compression reads and writes files directly on the filesystem, which
+     * only works for storages backed by the Local driver. A non-local
+     * storage (S3, Azure, ...) resolves its public URL to a remote
+     * location, not a filesystem path, so a path built from that URL would
+     * never exist on disk.
+     */
+    protected function isLocalStorage(ResourceStorage $storage): bool
+    {
+        return self::LOCAL_DRIVER_TYPE === $storage->getDriverType();
+    }
+
+    /**
+     * Records a non-local storage as an unsupported, permanent skip.
+     *
+     * Persisted as an error (rather than left as compressed=false) so the
+     * CLI batch command's non-compressed query excludes the file instead of
+     * reselecting and reattempting it indefinitely.
+     */
+    protected function rejectUnsupportedStorage(File $file): void
+    {
+        $driver = $file->getStorage()->getDriverType();
+        $this->logger?->info('Skipping compression: unsupported storage driver', [
+            'file' => $file->getIdentifier(),
+            'driver' => $driver,
+        ]);
+
+        $this->fileRepository->updateCompressionStatus(
+            $file->getUid(),
+            false,
+            sprintf('skipped: unsupported storage driver (%s)', $driver),
+        );
+    }
+
     /**
      * Checks if the file is located in an excluded folder.
      *
@@ -86,6 +128,88 @@ trait CompressorTrait
     }
 
     /**
+     * Marks the file as already optimal: the compressed result did not meet
+     * the configured minimum saving threshold, so the original was kept.
+     */
+    protected function markFileAsOptimal(File $file, string $compressInfo): void
+    {
+        $this->fileRepository->updateCompressionSkipped($file->getUid(), $compressInfo);
+    }
+
+    /**
+     * Checks whether a compressed result is worth replacing the original with.
+     *
+     * Compares the saved percentage against the configured minimum saving
+     * threshold, so a result that is technically smaller but only by a
+     * negligible amount is not treated as a real improvement.
+     */
+    protected function meetsMinimumSaving(int $originalSize, int $newSize): bool
+    {
+        if ($originalSize <= 0 || $newSize <= 0) {
+            return false;
+        }
+
+        return $this->calculateSavedPercent($originalSize, $newSize) >= $this->extensionConfiguration->getMinimumSavingPercent();
+    }
+
+    /**
+     * Runs $optimize against a temporary copy of $filePath and only replaces
+     * the original once the result respects the configured minimum saving
+     * threshold.
+     *
+     * Needed because command-line tools (jpegoptim, ImageMagick, ...) write
+     * their result to the same path they were given, overwriting the source
+     * before its size could be compared. Operating on a copy first keeps the
+     * original untouched until the result is known to be worth keeping.
+     *
+     * The temporary path keeps the original file's extension (inserting the
+     * random token before it) instead of always appending a literal `.tmp`.
+     * Tools that infer the output format from the filename, e.g. pngquant's
+     * `--ext .png`, would otherwise write their result to a different,
+     * never-checked sibling path and leave the temp file itself untouched.
+     *
+     * @param callable(string $tempPath): bool $optimize Mutates the file at the given temp path in place, returns whether the tool succeeded
+     *
+     * @return array{originalSize: int, newSize: int, replaced: bool}|null Null when the optimize step itself failed or the temp file could not be created
+     */
+    protected function compressToTempAndReplace(string $filePath, callable $optimize): ?array
+    {
+        $originalSize = (int) filesize($filePath);
+        $extension = pathinfo($filePath, \PATHINFO_EXTENSION);
+        $suffix = '.compress-'.bin2hex(random_bytes(4));
+        $tempPath = '' !== $extension
+            ? substr($filePath, 0, -(strlen($extension) + 1)).$suffix.'.'.$extension
+            : $filePath.$suffix.'.tmp';
+
+        if (!copy($filePath, $tempPath)) {
+            return null;
+        }
+
+        try {
+            if (!$optimize($tempPath)) {
+                return null;
+            }
+
+            clearstatcache(true, $tempPath);
+            $newSize = (int) filesize($tempPath);
+
+            if (!$this->meetsMinimumSaving($originalSize, $newSize)) {
+                return ['originalSize' => $originalSize, 'newSize' => $newSize, 'replaced' => false];
+            }
+
+            if (!rename($tempPath, $filePath)) {
+                return null;
+            }
+
+            return ['originalSize' => $originalSize, 'newSize' => $newSize, 'replaced' => true];
+        } finally {
+            if (file_exists($tempPath)) {
+                unlink($tempPath);
+            }
+        }
+    }
+
+    /**
      * Builds the human-readable compression info string.
      *
      * Presentation only: the structured `sys_file` columns are the source of
@@ -102,19 +226,32 @@ trait CompressorTrait
     }
 
     /**
+     * Builds the info string for a file that was compressed but kept
+     * unchanged because the result did not meet the minimum saving
+     * threshold.
+     *
+     * @param string      $provider Provider identifier (e.g. "tinify", "local-tools")
+     * @param int         $size     Original (and kept) file size in bytes
+     * @param string|null $tool     Optional tool name (e.g. "jpegoptim", "ImageMagick")
+     */
+    protected function buildSkippedInfo(string $provider, int $size, ?string $tool = null): string
+    {
+        $date = date('d.m.Y');
+        $formatted = $this->formatFileSize($size);
+
+        if (null !== $tool && '' !== $tool) {
+            return sprintf('%s (%s): %s already optimal, kept original - %s', $provider, $tool, $formatted, $date);
+        }
+
+        return sprintf('%s: %s already optimal, kept original - %s', $provider, $formatted, $date);
+    }
+
+    /**
      * Formats file size in human-readable format.
      */
     protected function formatFileSize(int $bytes): string
     {
-        if ($bytes >= 1048576) {
-            return sprintf('%.1f MB', $bytes / 1048576);
-        }
-
-        if ($bytes >= 1024) {
-            return sprintf('%.0f KB', $bytes / 1024);
-        }
-
-        return sprintf('%d B', $bytes);
+        return FileSizeFormatter::format($bytes);
     }
 
     /**
@@ -158,6 +295,24 @@ trait CompressorTrait
         $storage = $file->getStorage();
         $fileIndexer = GeneralUtility::makeInstance(Indexer::class, $storage);
         $fileIndexer->updateIndexEntry($file);
+    }
+
+    /**
+     * Backs up the original file before compression overwrites it in place,
+     * when backup is enabled. Failures are non-fatal: compression proceeds
+     * either way, it just isn't restorable afterwards.
+     */
+    protected function maybeBackupOriginal(File $file, string $filePath): void
+    {
+        if (!$this->extensionConfiguration->isBackupEnabled()) {
+            return;
+        }
+
+        $backupPath = $this->backupService->backup($file, $filePath);
+
+        if (null !== $backupPath) {
+            $this->fileRepository->updateBackupPath($file->getUid(), $backupPath);
+        }
     }
 
     /**

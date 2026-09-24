@@ -24,6 +24,15 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
             'default' => 0,
         ],
     ],
+    'compress_skipped' => [
+        'exclude' => true,
+        'label' => 'Compression Skipped (already optimal)',
+        'config' => [
+            'type' => 'check',
+            'readOnly' => true,
+            'default' => 0,
+        ],
+    ],
     'compress_error' => [
         'exclude' => true,
         'label' => 'Compression Error',
@@ -36,6 +45,24 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
     'compress_provider' => [
         'exclude' => true,
         'label' => 'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:compress_provider',
+        'config' => [
+            'type' => 'input',
+            'readOnly' => true,
+            'default' => '',
+        ],
+    ],
+    'compress_info' => [
+        'exclude' => true,
+        'label' => 'Compression Info',
+        'config' => [
+            'type' => 'input',
+            'readOnly' => true,
+            'default' => '',
+        ],
+    ],
+    'backup_path' => [
+        'exclude' => true,
+        'label' => 'Backup Path',
         'config' => [
             'type' => 'input',
             'readOnly' => true,
@@ -82,5 +109,5 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
 
 ExtensionManagementUtility::addToAllTCAtypes(
     'sys_file',
-    'compress_error,compress_provider,compress_tool,compress_original_size,compress_size,compress_tstamp',
+    'compress_error,compress_info,compress_provider,compress_tool,compress_original_size,compress_size,compress_tstamp',
 );

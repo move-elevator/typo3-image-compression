@@ -68,7 +68,7 @@ class CompressionInfoElement extends AbstractFormElement
     }
 
     /**
-     * @param array{compressed: bool, compress_error: string, compress_provider: string, compress_tool: string, compress_original_size: int, compress_size: int, compress_tstamp: int} $fileData
+     * @param array{compressed: bool, compress_skipped: bool, compress_error: string, compress_info: string, compress_provider: string, compress_tool: string, compress_original_size: int, compress_size: int, compress_tstamp: int} $fileData
      */
     private function renderCompressionInfo(array $fileData): string
     {
@@ -88,6 +88,10 @@ class CompressionInfoElement extends AbstractFormElement
             );
 
             return $this->renderTemplate('compressed', $message);
+        }
+
+        if ($fileData['compress_skipped']) {
+            return $this->renderTemplate('optimal', $fileData['compress_info']);
         }
 
         return $this->renderTemplate('not_compressed');

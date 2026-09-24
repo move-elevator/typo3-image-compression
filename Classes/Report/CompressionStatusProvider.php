@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Report;
 
-use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, QuotaAwareInterface};
+use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, MimeTypeAwareInterface, QuotaAwareInterface};
 use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
@@ -89,9 +89,11 @@ class CompressionStatusProvider implements StatusProviderInterface
 
     private function getStatisticsStatus(): Status
     {
-        $originalStats = $this->fileRepository->getCompressionStatistics(
-            $this->extensionConfiguration->getMimeTypes(),
-        );
+        $mimeTypes = $this->compressor instanceof MimeTypeAwareInterface
+            ? $this->compressor->getSupportedMimeTypes()
+            : $this->extensionConfiguration->getMimeTypes();
+
+        $originalStats = $this->fileRepository->getCompressionStatistics($mimeTypes);
         $processedStats = $this->fileProcessedRepository->getCompressionStatistics();
 
         $originalTotal = $originalStats['compressed'] + $originalStats['not_compressed'] + $originalStats['errors'];

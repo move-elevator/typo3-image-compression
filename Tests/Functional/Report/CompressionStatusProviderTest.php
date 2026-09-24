@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Functional\Report;
 
-use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, QuotaAwareInterface};
+use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, QuotaAwareInterface};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use MoveElevator\Typo3ImageCompression\Report\CompressionStatusProvider;
@@ -149,7 +149,10 @@ final class CompressionStatusProviderTest extends FunctionalTestCase
                     private readonly ?int $quotaLimit,
                 ) {}
 
-                public function compress(File|FileInterface $file): void {}
+                public function compress(File|FileInterface $file): CompressionOutcome
+                {
+                    return CompressionOutcome::Skipped;
+                }
 
                 public function compressProcessedFiles(array $files): void {}
 
