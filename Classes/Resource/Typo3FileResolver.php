@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Resource;
 
+use TYPO3\CMS\Core\Resource\Exception\ResourceDoesNotExistException;
 use TYPO3\CMS\Core\Resource\{File, ResourceFactory};
 
 /**
@@ -30,5 +31,16 @@ final readonly class Typo3FileResolver implements FileResolver
     public function getFileObject(int $uid): File
     {
         return $this->resourceFactory->getFileObject($uid);
+    }
+
+    public function findFileByCombinedIdentifier(string $identifier): ?File
+    {
+        try {
+            $resource = $this->resourceFactory->retrieveFileOrFolderObject($identifier);
+        } catch (ResourceDoesNotExistException) {
+            return null;
+        }
+
+        return $resource instanceof File ? $resource : null;
     }
 }

@@ -36,4 +36,14 @@ interface FileResolver
      * @throws FileDoesNotExistException
      */
     public function getFileObject(int $uid): File;
+
+    /**
+     * Resolves a FAL combined identifier (e.g. "1:/user_upload/image.jpg"),
+     * the address format TYPO3's native context menu passes for file/folder
+     * targets. Returns null for a folder identifier or one that resolves to
+     * nothing, rather than throwing, since both are routine "this item isn't
+     * a restorable file" outcomes for a context-menu provider, not error
+     * conditions.
+     */
+    public function findFileByCombinedIdentifier(string $identifier): ?File;
 }
