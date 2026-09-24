@@ -28,6 +28,13 @@ services:
     arguments:
       $cache: '@cache.typo3_image_compression'
 
+  # Backend route target, resolved by TYPO3\CMS\Core\Http\Dispatcher via the
+  # PSR-11 container's has()/get(), which only recognizes public services;
+  # a private service here silently falls back to a plain `new` with no
+  # constructor arguments instead of failing loudly.
+  MoveElevator\Typo3ImageCompression\Controller\RestoreFileController:
+    public: true
+
   # Event Listeners
   # Note: When TYPO3 v12 support is dropped, these can be replaced with #[AsEventListener] attributes
   MoveElevator\Typo3ImageCompression\EventListener\AfterFileAdded:

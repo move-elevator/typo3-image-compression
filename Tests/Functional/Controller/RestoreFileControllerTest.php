@@ -86,6 +86,22 @@ final class RestoreFileControllerTest extends FunctionalTestCase
     }
 
     #[Test]
+    public function isResolvableAsTheBackendRouteTargetTypo3ActuallyDispatches(): void
+    {
+        // TYPO3\CMS\Core\Http\Dispatcher::getCallableFromTarget() resolves a
+        // route target via $container->has()/get(), which only recognizes
+        // *public* services and otherwise silently falls back to a bare
+        // `new $class()` with no constructor arguments. callMainAction()
+        // below builds the subject by hand and would never catch a missing
+        // `public: true` in Services.yaml, so this asserts the one thing
+        // that actually would: makeInstance() reaching the real container
+        // the same way the route dispatcher does.
+        $instance = GeneralUtility::makeInstance(RestoreFileController::class);
+
+        self::assertInstanceOf(RestoreFileController::class, $instance);
+    }
+
+    #[Test]
     public function mainActionRestoresWhenTokenIsValidAndFileMayBeReplaced(): void
     {
         $this->setUpBackendUser($this->importBackendUser(true));

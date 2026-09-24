@@ -51,6 +51,7 @@ final readonly class AfterFileListRendered
     public function __invoke(ProcessFileListActionsEvent $event): void
     {
         $this->pageRenderer->loadJavaScriptModule('@move-elevator/typo3-image-compression/ExtendedUpload.js');
+        $this->pageRenderer->loadJavaScriptModule('@move-elevator/typo3-image-compression/RestoreFileAction.js');
         $this->pageRenderer->addCssFile('EXT:typo3_image_compression/Resources/Public/Css/ExtendedUpload.css');
         $this->pageRenderer->addInlineLanguageLabelFile('EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf');
 

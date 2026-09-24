@@ -110,9 +110,12 @@ final class AfterFileListRenderedTest extends TestCase
         $event = $this->createEvent($resourceMock);
 
         $this->pageRendererMock
-            ->expects(self::once())
+            ->expects(self::exactly(2))
             ->method('loadJavaScriptModule')
-            ->with('@move-elevator/typo3-image-compression/ExtendedUpload.js');
+            ->with(self::logicalOr(
+                '@move-elevator/typo3-image-compression/ExtendedUpload.js',
+                '@move-elevator/typo3-image-compression/RestoreFileAction.js',
+            ));
         $this->pageRendererMock
             ->expects(self::once())
             ->method('addCssFile')
