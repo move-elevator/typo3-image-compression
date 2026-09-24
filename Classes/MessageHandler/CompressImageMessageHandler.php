@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\MessageHandler;
 
 use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
+use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use MoveElevator\Typo3ImageCompression\Message\CompressImageMessage;
 use MoveElevator\Typo3ImageCompression\Resource\FileResolver;
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
@@ -72,7 +73,15 @@ final class CompressImageMessageHandler implements LoggerAwareInterface
             return;
         }
 
-        $this->compressor->compress($file);
+        try {
+            $this->compressor->compress($file);
+        } catch (CompressionAbortedException) {
+            // A broken provider account (invalid key, exhausted quota) must
+            // not fail the message dispatch itself: the compressor already
+            // logged the failure and flashed a message, this handler only
+            // prevents it from escaping to the message bus.
+            return;
+        }
 
         GeneralUtility::makeInstance(FileDeletionAspect::class)->cleanupProcessedFilesPostFileReplace(
             new AfterFileReplacedEvent($file, ''),

@@ -16,7 +16,7 @@ namespace MoveElevator\Typo3ImageCompression\Tests\Functional\Controller;
 
 use MoveElevator\Typo3ImageCompression\Backup\RestoreService;
 use MoveElevator\Typo3ImageCompression\Controller\RestoreFileController;
-use PHPUnit\Framework\Attributes\{CoversClass, Test};
+use PHPUnit\Framework\Attributes\{CoversClass, RunClassInSeparateProcess, Test};
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Core\{Environment, SystemEnvironmentBuilder};
@@ -41,11 +41,17 @@ use function dirname;
  * for the one scenario (invalid token) that never touches ResourceFactory
  * and stays a unit test.
  *
+ * setUpBackendUser() leaves $GLOBALS['BE_USER'] behind for whichever test
+ * runs next in the same process; RunClassInSeparateProcess keeps that
+ * contained to this class instead of breaking unrelated tests elsewhere
+ * in the suite that rely on the default (no backend user) FAL context.
+ *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
 #[CoversClass(RestoreFileController::class)]
+#[RunClassInSeparateProcess]
 final class RestoreFileControllerTest extends FunctionalTestCase
 {
     protected array $testExtensionsToLoad = ['typo3/cms-reports', 'move-elevator/typo3-image-compression'];
