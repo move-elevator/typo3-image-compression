@@ -15,13 +15,10 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Tests\Functional\Resource;
 
 use MoveElevator\Typo3ImageCompression\Resource\Typo3FileResolver;
+use MoveElevator\Typo3ImageCompression\Tests\Functional\Support\FileFixtureTrait;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
-use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Core\Resource\{File, StorageRepository};
-use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Resource\File;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
-
-use function dirname;
 
 /**
  * Typo3FileResolverTest.
@@ -39,6 +36,8 @@ use function dirname;
 #[CoversClass(Typo3FileResolver::class)]
 final class Typo3FileResolverTest extends FunctionalTestCase
 {
+    use FileFixtureTrait;
+
     protected array $testExtensionsToLoad = ['typo3/cms-reports', 'move-elevator/typo3-image-compression'];
 
     private Typo3FileResolver $subject;
@@ -54,7 +53,7 @@ final class Typo3FileResolverTest extends FunctionalTestCase
     public function findFileByCombinedIdentifierReturnsTheFileForAFileIdentifier(): void
     {
         $storageUid = $this->createLocalTestStorage();
-        GeneralUtility::writeFile(Environment::getPublicPath().'/fileadmin/test/photo.jpg', 'bytes');
+        $this->writeRealFile('photo.jpg', 'bytes');
         $fileUid = $this->importSysFileRow($storageUid, '/photo.jpg', 'photo.jpg');
 
         $result = $this->subject->findFileByCombinedIdentifier($storageUid.':/photo.jpg');
@@ -81,33 +80,5 @@ final class Typo3FileResolverTest extends FunctionalTestCase
         $result = $this->subject->findFileByCombinedIdentifier($storageUid.':/nowhere.jpg');
 
         self::assertNull($result);
-    }
-
-    private function createLocalTestStorage(): int
-    {
-        GeneralUtility::mkdir_deep(Environment::getPublicPath().'/fileadmin/test/');
-
-        return $this->get(StorageRepository::class)->createLocalStorage(
-            'Test storage',
-            'fileadmin/test/',
-            'relative',
-        );
-    }
-
-    private function importSysFileRow(int $storageUid, string $identifier, string $name): int
-    {
-        $connection = $this->getConnectionPool()->getConnectionForTable('sys_file');
-        $connection->insert('sys_file', [
-            'pid' => 0,
-            'storage' => $storageUid,
-            'identifier' => $identifier,
-            'identifier_hash' => sha1($identifier),
-            'folder_hash' => sha1(dirname($identifier)),
-            'name' => $name,
-            'mime_type' => 'image/jpeg',
-            'missing' => 0,
-        ]);
-
-        return (int) $connection->lastInsertId('sys_file');
     }
 }

@@ -16,6 +16,7 @@ namespace MoveElevator\Typo3ImageCompression\Tests\Functional\Controller;
 
 use MoveElevator\Typo3ImageCompression\Backup\RestoreService;
 use MoveElevator\Typo3ImageCompression\Controller\RestoreFileController;
+use MoveElevator\Typo3ImageCompression\Tests\Functional\Support\FileFixtureTrait;
 use PHPUnit\Framework\Attributes\{CoversClass, RunClassInSeparateProcess, Test};
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
@@ -25,11 +26,9 @@ use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Resource\Index\Indexer;
-use TYPO3\CMS\Core\Resource\{ResourceFactory, StorageRepository};
+use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
-
-use function dirname;
 
 /**
  * RestoreFileControllerTest.
@@ -55,6 +54,8 @@ use function dirname;
 #[RunClassInSeparateProcess]
 final class RestoreFileControllerTest extends FunctionalTestCase
 {
+    use FileFixtureTrait;
+
     protected array $testExtensionsToLoad = ['typo3/cms-reports', 'move-elevator/typo3-image-compression'];
 
     protected function setUp(): void
@@ -176,60 +177,5 @@ final class RestoreFileControllerTest extends FunctionalTestCase
         );
 
         return $subject->mainAction($request);
-    }
-
-    private function importBackendUser(bool $isAdmin): int
-    {
-        $connection = $this->getConnectionPool()->getConnectionForTable('be_users');
-        $connection->insert('be_users', [
-            'pid' => 0,
-            'username' => $isAdmin ? 'admin' : 'restricted',
-            'password' => '',
-            'admin' => $isAdmin ? 1 : 0,
-        ]);
-
-        return (int) $connection->lastInsertId('be_users');
-    }
-
-    private function createLocalTestStorage(): int
-    {
-        GeneralUtility::mkdir_deep(Environment::getPublicPath().'/fileadmin/test/');
-
-        return $this->get(StorageRepository::class)->createLocalStorage(
-            'Test storage',
-            'fileadmin/test/',
-            'relative',
-        );
-    }
-
-    private function writeRealFile(string $fileName, string $contents): void
-    {
-        GeneralUtility::writeFile(Environment::getPublicPath().'/fileadmin/test/'.$fileName, $contents);
-    }
-
-    private function writeBackupFile(string $relativePath, string $contents): void
-    {
-        $absolutePath = Environment::getVarPath().'/image_compression/backup/'.$relativePath;
-        GeneralUtility::mkdir_deep(dirname($absolutePath));
-        GeneralUtility::writeFile($absolutePath, $contents);
-    }
-
-    private function importSysFileRow(int $storageUid, string $identifier, string $name, string $backupPath): int
-    {
-        $connection = $this->getConnectionPool()->getConnectionForTable('sys_file');
-        $connection->insert('sys_file', [
-            'pid' => 0,
-            'storage' => $storageUid,
-            'identifier' => $identifier,
-            'identifier_hash' => sha1($identifier),
-            'folder_hash' => sha1(dirname($identifier)),
-            'name' => $name,
-            'mime_type' => 'image/jpeg',
-            'missing' => 0,
-            'compressed' => 1,
-            'backup_path' => $backupPath,
-        ]);
-
-        return (int) $connection->lastInsertId('sys_file');
     }
 }
