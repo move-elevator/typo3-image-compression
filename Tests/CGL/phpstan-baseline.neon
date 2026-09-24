@@ -1,5 +1,22 @@
 parameters:
 	ignoreErrors:
+		# Tinify's Exception::create() builds AccountException/ClientException/ServerException
+		# dynamically from a class-name string inside Client::request(), so PHPStan cannot trace
+		# that AccountException specifically can propagate out of Tinify\validate(); it genuinely
+		# does at runtime on an invalid key or exhausted quota (see GH-50).
+		-
+			message: '#Dead catch - Tinify\\AccountException is never thrown in the try block#'
+			path: ../../Classes/Compression/TinifyCompressor.php
+		# Same root cause as above: Client::request() also raises ConnectionException/ServerException
+		# for network failures and 5xx responses, but PHPStan cannot see through Tinify::getClient()'s
+		# untyped return value to trace the call into Client::request() at all, so neither exception is
+		# recognised as reachable through Tinify\validate(), even though both genuinely propagate at runtime.
+		-
+			message: '#Dead catch - Tinify\\ServerException is never thrown in the try block#'
+			path: ../../Classes/Compression/TinifyCompressor.php
+		-
+			message: '#Dead catch - Tinify\\ConnectionException is never thrown in the try block#'
+			path: ../../Classes/Compression/TinifyCompressor.php
 		# Tests verify runtime behavior, PHPStan knows types at analysis time
 		-
 			message: '#Call to static method .+::assert.+ will always evaluate to true#'
