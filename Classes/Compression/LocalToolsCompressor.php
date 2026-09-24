@@ -34,7 +34,7 @@ use function sprintf;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface, SingletonInterface
+class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterface, LoggerAwareInterface, SingletonInterface
 {
     use CompressorTrait;
     use FlashMessageTrait;
@@ -49,6 +49,8 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
     private const TOOL_COMMANDS = [
         'optipng' => ['-o2', '-strip', 'all'],
         'gifsicle' => ['--batch', '-O2'],
+        // svgo overwrites its input in place when no -o is given, same as every other tool here.
+        'svgo' => ['--quiet'],
     ];
 
     /**
@@ -60,6 +62,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         'image/gif' => ['gifsicle'],
         'image/webp' => ['cwebp'],
         'image/avif' => ['avifenc'],
+        'image/svg+xml' => ['svgo'],
     ];
 
     public function __construct(
@@ -90,7 +93,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         $mimeType = strtolower($file->getMimeType());
 
         // Check if MIME type is configured for compression
-        if (!in_array($mimeType, $this->extensionConfiguration->getMimeTypes(), true)) {
+        if (!$this->isMimeTypeSupported($mimeType)) {
             return CompressionOutcome::Skipped;
         }
 
@@ -216,6 +219,37 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
                 $this->fileProcessedRepository->updateCompressState($fileId);
             }
         }
+    }
+
+    /**
+     * Returns the configured `mimeTypes` plus `image/svg+xml` when svgo is
+     * detected, so consumers outside `compress()` (the CLI batch command,
+     * the statistics report) apply the same effective allowlist as the
+     * zero-configuration SVG support above.
+     *
+     * @return string[]
+     */
+    public function getSupportedMimeTypes(): array
+    {
+        $mimeTypes = $this->extensionConfiguration->getMimeTypes();
+
+        if (!in_array('image/svg+xml', $mimeTypes, true) && $this->toolDetection->isAvailable('svgo')) {
+            $mimeTypes[] = 'image/svg+xml';
+        }
+
+        return $mimeTypes;
+    }
+
+    /**
+     * SVG is deliberately excluded from the extension's mimeTypes default:
+     * unlike the raster formats, it is only compressible once svgo is
+     * actually installed. Treating it as supported the moment svgo is
+     * detected means it works with zero configuration where the tool is
+     * present, and stays inert everywhere else.
+     */
+    protected function isMimeTypeSupported(string $mimeType): bool
+    {
+        return in_array($mimeType, $this->getSupportedMimeTypes(), true);
     }
 
     protected function getBestToolForMimeType(string $mimeType): ?string

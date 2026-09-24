@@ -15,7 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
 use MoveElevator\Typo3ImageCompression\Backup\BackupService;
-use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, LocalToolsCompressor, ToolDetection};
+use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, LocalToolsCompressor, MimeTypeAwareInterface, ToolDetection};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use PHPUnit\Framework\Attributes\{CoversClass, DataProvider, Test};
@@ -507,6 +507,7 @@ final class LocalToolsCompressorTest extends TestCase
             'gif maps to gifsicle' => ['image/gif', ['gifsicle']],
             'webp maps to cwebp' => ['image/webp', ['cwebp']],
             'avif maps to avifenc' => ['image/avif', ['avifenc']],
+            'svg maps to svgo' => ['image/svg+xml', ['svgo']],
         ];
     }
 
@@ -637,6 +638,130 @@ final class LocalToolsCompressorTest extends TestCase
     }
 
     #[Test]
+    public function buildCommandBuildsSvgoCommandFromToolCommandsMap(): void
+    {
+        self::assertSame(
+            ['/usr/bin/svgo', '--quiet', '/tmp/example.svg'],
+            $this->invokeBuildCommand('svgo', '/usr/bin/svgo', '/tmp/example.svg'),
+        );
+    }
+
+    #[Test]
+    public function isMimeTypeSupportedReturnsTrueWhenMimeTypeIsConfigured(): void
+    {
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+
+        self::assertTrue($this->invokeIsMimeTypeSupported('image/jpeg'));
+    }
+
+    #[Test]
+    public function isMimeTypeSupportedReturnsFalseForUnconfiguredNonSvgMimeType(): void
+    {
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+
+        self::assertFalse($this->invokeIsMimeTypeSupported('image/png'));
+    }
+
+    #[Test]
+    public function isMimeTypeSupportedReturnsTrueForSvgWhenSvgoIsAvailableEvenWithoutConfiguration(): void
+    {
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->toolDetectionMock->method('isAvailable')->with('svgo')->willReturn(true);
+
+        self::assertTrue($this->invokeIsMimeTypeSupported('image/svg+xml'));
+    }
+
+    #[Test]
+    public function isMimeTypeSupportedReturnsFalseForSvgWhenSvgoIsNotAvailable(): void
+    {
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->toolDetectionMock->method('isAvailable')->with('svgo')->willReturn(false);
+
+        self::assertFalse($this->invokeIsMimeTypeSupported('image/svg+xml'));
+    }
+
+    #[Test]
+    public function implementsMimeTypeAwareInterface(): void
+    {
+        self::assertInstanceOf(MimeTypeAwareInterface::class, $this->subject);
+    }
+
+    #[Test]
+    public function getSupportedMimeTypesAppendsSvgWhenSvgoIsAvailableAndNotConfigured(): void
+    {
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->toolDetectionMock->method('isAvailable')->with('svgo')->willReturn(true);
+
+        self::assertSame(['image/jpeg', 'image/svg+xml'], $this->subject->getSupportedMimeTypes());
+    }
+
+    #[Test]
+    public function getSupportedMimeTypesOmitsSvgWhenSvgoIsNotAvailable(): void
+    {
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->toolDetectionMock->method('isAvailable')->with('svgo')->willReturn(false);
+
+        self::assertSame(['image/jpeg'], $this->subject->getSupportedMimeTypes());
+    }
+
+    #[Test]
+    public function getSupportedMimeTypesDoesNotDuplicateSvgWhenAlreadyConfigured(): void
+    {
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg', 'image/svg+xml']);
+        $this->toolDetectionMock->method('isAvailable')->with('svgo')->willReturn(true);
+
+        self::assertSame(['image/jpeg', 'image/svg+xml'], $this->subject->getSupportedMimeTypes());
+    }
+
+    #[Test]
+    public function compressCompressesSvgWhenSvgoIsDetectedEvenWithoutMimeTypeConfiguration(): void
+    {
+        $tmpFile = $this->createTmpFile('<svg></svg>', '.svg');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->toolDetectionMock->method('isAvailable')->with('svgo')->willReturn(true);
+        $this->toolDetectionMock->method('getFirstAvailable')->with(['svgo'])->willReturn('svgo');
+        $this->toolDetectionMock->method('getToolPath')->with('svgo')->willReturn('/usr/bin/true');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.svg');
+        $fileMock->method('getMimeType')->willReturn('image/svg+xml');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(101);
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+        $fileMock->method('getStorage')->willReturn($storageMock);
+
+        $indexerMock = $this->createMock(Indexer::class);
+        GeneralUtility::addInstance(Indexer::class, $indexerMock);
+
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(101, true);
+
+        $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressSkipsSvgWhenSvgoIsNotDetectedAndNotConfigured(): void
+    {
+        $tmpFile = $this->createTmpFile('<svg></svg>', '.svg');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->toolDetectionMock->method('isAvailable')->with('svgo')->willReturn(false);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.svg');
+        $fileMock->method('getMimeType')->willReturn('image/svg+xml');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->expects(self::never())->method('getUid');
+
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+
+        $this->subject->compress($fileMock);
+    }
+
+    #[Test]
     public function executeOptimizationReturnsFalseWhenProcessTimesOut(): void
     {
         // A tool that ignores its arguments and just sleeps past a near-zero
@@ -710,6 +835,16 @@ final class LocalToolsCompressorTest extends TestCase
 
         /** @var string|null $result */
         $result = $method->invoke($this->subject, $publicPath, $basePath, $identifier);
+
+        return $result;
+    }
+
+    private function invokeIsMimeTypeSupported(string $mimeType): bool
+    {
+        $method = new ReflectionMethod($this->subject, 'isMimeTypeSupported');
+
+        /** @var bool $result */
+        $result = $method->invoke($this->subject, $mimeType);
 
         return $result;
     }

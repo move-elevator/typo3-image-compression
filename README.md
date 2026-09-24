@@ -22,7 +22,7 @@ This TYPO3 extension automatically compresses images uploaded to the TYPO3 backe
 ## ✨ Features
 
 - **[Multiple compression providers](docs/configuration.md)**: TinyPNG API, local optimized tools, or ImageMagick/GraphicsMagick
-- Automatic compression of JPG, PNG, WebP and AVIF images on upload — GIF support exists but is [off by default](docs/configuration.md#mimetypes)
+- Automatic compression of JPG, PNG, WebP and AVIF images on upload, plus SVG when [svgo](docs/configuration.md#local-tools-optimized-tools) is installed — GIF support exists but is [off by default](docs/configuration.md#mimetypes)
 - **[CLI command](docs/usage.md)** for batch processing existing images
 - **[Quality settings](docs/configuration.md#quality-settings)** for local compression
 - **[Backup & restore](docs/usage.md#backup--restore)**: keep a copy of the original before compressing and restore it later, from the file list or the CLI
@@ -66,7 +66,7 @@ Configure the extension in **Admin Tools > Settings > Extension Configuration**.
 | Provider | Tools | Compression | Cost | Best for |
 |----------|-------|-------------|------|----------|
 | [`tinify`](docs/configuration.md#tinify-tinypng-api) | TinyPNG API | ~70–80% | API quota | Production, best quality |
-| [`local-tools`](docs/configuration.md#local-tools-optimized-tools) | jpegoptim, optipng, pngquant, gifsicle, cwebp, avifenc | ~50–60% | Free | Self-hosted, no API costs |
+| [`local-tools`](docs/configuration.md#local-tools-optimized-tools) | jpegoptim, optipng, pngquant, gifsicle, cwebp, avifenc, svgo (optional) | ~50–60% | Free | Self-hosted, no API costs |
 | [`local-basic`](docs/configuration.md#local-basic-imagemagick--graphicsmagick) | ImageMagick / GraphicsMagick | ~30–40% | Free | JPEG only, quick setup |
 
 > [!WARNING]

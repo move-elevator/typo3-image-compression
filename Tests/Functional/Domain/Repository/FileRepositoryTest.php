@@ -89,7 +89,7 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         $this->insertFile(9, 1, '/foo_bar/decoy.jpg');
         $this->insertFile(10, 1, '/fooXbar/should-not-match.jpg');
 
-        $result = $this->subject->findAllNonCompressedInStorageWithLimit($storage, 100, [], '/foo_bar/');
+        $result = $this->subject->findAllNonCompressedInStorageWithLimit($storage, 100, [], null, '/foo_bar/');
 
         self::assertCount(1, $result);
     }
@@ -129,6 +129,22 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         $result = $this->subject->findAllNonCompressedInStorageWithLimit($storage);
 
         self::assertCount(1, $result);
+    }
+
+    #[Test]
+    public function findAllNonCompressedInStorageWithLimitUsesProvidedMimeTypesOverConfiguredOnes(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $storage = $this->getStorage(1);
+
+        // Configured mimeTypes is ['image/jpeg'], matching 2 files; the
+        // explicit override additionally allows the application/pdf fixture
+        // row, so a caller (e.g. a MimeTypeAwareInterface provider) can
+        // widen the effective allowlist beyond the extension setting.
+        $result = $this->subject->findAllNonCompressedInStorageWithLimit($storage, 100, [], ['image/jpeg', 'application/pdf']);
+
+        self::assertCount(3, $result);
     }
 
     #[Test]
@@ -176,6 +192,22 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         $result = $this->subject->findAllWithErrorsInStorageWithLimit($storage, 100, ['/image4']);
 
         self::assertCount(1, $result);
+    }
+
+    #[Test]
+    public function findAllWithErrorsInStorageWithLimitUsesProvidedMimeTypesOverConfiguredOnes(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $storage = $this->getStorage(1);
+
+        // Both error fixture rows are image/jpeg; overriding the allowlist
+        // to exclude it must drop them from the result, proving the
+        // explicit $mimeTypes argument is applied instead of the
+        // configured mimeTypes setting.
+        $result = $this->subject->findAllWithErrorsInStorageWithLimit($storage, 100, [], ['application/pdf']);
+
+        self::assertCount(0, $result);
     }
 
     #[Test]

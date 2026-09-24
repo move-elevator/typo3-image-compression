@@ -15,8 +15,9 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Command;
 
 use MoveElevator\Typo3ImageCompression\Command\CompressImageCommand;
-use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
+use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, MimeTypeAwareInterface};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
+use MoveElevator\Typo3ImageCompression\Domain\Model\FileStorage;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
 use PHPUnit\Framework\Attributes\{CoversClass, DataProvider, Test};
 use PHPUnit\Framework\MockObject\MockObject;
@@ -26,7 +27,7 @@ use ReflectionMethod;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceFactory};
 use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
 
 /**
@@ -90,6 +91,66 @@ final class CompressImageCommandTest extends TestCase
         $exitCode = $this->invokeExecute(includeProcessed: false, retryErrors: false, limit: 0);
 
         self::assertSame(Command::SUCCESS, $exitCode);
+    }
+
+    #[Test]
+    public function passesProviderEffectiveMimeTypesToFileRepositoryWhenCompressorIsMimeTypeAware(): void
+    {
+        $storage = new FileStorage();
+
+        $storagesMock = $this->createMock(QueryResultInterface::class);
+        $storagesMock->method('valid')->willReturn(true, false);
+        $storagesMock->method('current')->willReturn($storage);
+        $this->fileStorageRepositoryMock->method('findAll')->willReturn($storagesMock);
+
+        $emptyFiles = $this->createMock(QueryResultInterface::class);
+        $emptyFiles->method('count')->willReturn(0);
+
+        $mimeTypeAwareCompressor = new class implements CompressorInterface, MimeTypeAwareInterface {
+            public function compress(File|FileInterface $file): CompressionOutcome
+            {
+                return CompressionOutcome::Skipped;
+            }
+
+            public function compressProcessedFiles(array $files): void {}
+
+            public function getProviderIdentifier(): string
+            {
+                return 'test';
+            }
+
+            public function getSupportedMimeTypes(): array
+            {
+                return ['image/jpeg', 'image/svg+xml'];
+            }
+        };
+
+        $subject = new CompressImageCommand(
+            $this->fileStorageRepositoryMock,
+            $this->fileRepositoryMock,
+            $this->fileProcessedRepositoryMock,
+            $this->resourceFactory,
+            $mimeTypeAwareCompressor,
+            $this->extensionConfigurationMock,
+        );
+
+        $this->extensionConfigurationMock->expects(self::never())->method('getMimeTypes');
+        $this->fileRepositoryMock
+            ->expects(self::once())
+            ->method('findAllNonCompressedInStorageWithLimit')
+            ->with($storage, 100, [], ['image/jpeg', 'image/svg+xml'], null)
+            ->willReturn($emptyFiles);
+
+        $input = $this->createMock(InputInterface::class);
+        $input->method('getArgument')->with('limit')->willReturn(100);
+        $input->method('getOption')->willReturnMap([
+            ['include-processed', false],
+            ['retry-errors', false],
+        ]);
+        $output = $this->createMock(OutputInterface::class);
+
+        $method = new ReflectionMethod($subject, 'execute');
+        $method->invoke($subject, $input, $output);
     }
 
     #[Test]

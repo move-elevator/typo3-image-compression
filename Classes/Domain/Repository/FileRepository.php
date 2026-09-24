@@ -55,7 +55,10 @@ class FileRepository extends Repository
     }
 
     /**
-     * @param string[] $excludeFolders
+     * @param string[]      $excludeFolders
+     * @param string[]|null $mimeTypes      Overrides the configured `mimeTypes` setting, e.g.
+     *                                      with a provider's effective (zero-configuration
+     *                                      extended) allowlist. Defaults to the configured setting.
      *
      * @return QueryResultInterface<int, File>
      *
@@ -65,6 +68,7 @@ class FileRepository extends Repository
         FileStorage $storage,
         int $limit = 100,
         array $excludeFolders = [],
+        ?array $mimeTypes = null,
         ?string $folder = null,
     ): QueryResultInterface {
         $query = $this->createQuery();
@@ -90,7 +94,7 @@ class FileRepository extends Repository
                         ),
                         $query->in(
                             'mime_type',
-                            $this->extensionConfiguration->getMimeTypes(),
+                            $mimeTypes ?? $this->extensionConfiguration->getMimeTypes(),
                         ),
                     ],
                     $excludeFoldersConstraints,
@@ -136,7 +140,10 @@ class FileRepository extends Repository
     /**
      * Finds all files with compression errors in a storage.
      *
-     * @param string[] $excludeFolders
+     * @param string[]      $excludeFolders
+     * @param string[]|null $mimeTypes      Overrides the configured `mimeTypes` setting, e.g.
+     *                                      with a provider's effective (zero-configuration
+     *                                      extended) allowlist. Defaults to the configured setting.
      *
      * @return QueryResultInterface<int, File>
      *
@@ -146,6 +153,7 @@ class FileRepository extends Repository
         FileStorage $storage,
         int $limit = 100,
         array $excludeFolders = [],
+        ?array $mimeTypes = null,
         ?string $folder = null,
     ): QueryResultInterface {
         $query = $this->createQuery();
@@ -171,7 +179,7 @@ class FileRepository extends Repository
                         ),
                         $query->in(
                             'mime_type',
-                            $this->extensionConfiguration->getMimeTypes(),
+                            $mimeTypes ?? $this->extensionConfiguration->getMimeTypes(),
                         ),
                     ],
                     $excludeFoldersConstraints,
