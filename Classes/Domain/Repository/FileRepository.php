@@ -19,6 +19,7 @@ use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Extbase\Persistence\Exception\InvalidQueryException;
+use TYPO3\CMS\Extbase\Persistence\Generic\Qom\ConstraintInterface;
 use TYPO3\CMS\Extbase\Persistence\{QueryInterface, QueryResultInterface, Repository};
 
 /**
@@ -64,13 +65,14 @@ class FileRepository extends Repository
         FileStorage $storage,
         int $limit = 100,
         array $excludeFolders = [],
+        ?string $folder = null,
     ): QueryResultInterface {
         $query = $this->createQuery();
 
         $excludeFoldersConstraints = [];
         foreach ($excludeFolders as $excludeFolder) {
             $excludeFoldersConstraints[] = $query->logicalNot(
-                $query->like('identifier', $excludeFolder.'%'),
+                $query->like('identifier', $this->escapeLikeValue($excludeFolder).'%'),
             );
         }
 
@@ -92,6 +94,7 @@ class FileRepository extends Repository
                         ),
                     ],
                     $excludeFoldersConstraints,
+                    $this->buildFolderConstraint($query, $folder),
                 ),
             ),
         );
@@ -143,13 +146,14 @@ class FileRepository extends Repository
         FileStorage $storage,
         int $limit = 100,
         array $excludeFolders = [],
+        ?string $folder = null,
     ): QueryResultInterface {
         $query = $this->createQuery();
 
         $excludeFoldersConstraints = [];
         foreach ($excludeFolders as $excludeFolder) {
             $excludeFoldersConstraints[] = $query->logicalNot(
-                $query->like('identifier', $excludeFolder.'%'),
+                $query->like('identifier', $this->escapeLikeValue($excludeFolder).'%'),
             );
         }
 
@@ -171,6 +175,7 @@ class FileRepository extends Repository
                         ),
                     ],
                     $excludeFoldersConstraints,
+                    $this->buildFolderConstraint($query, $folder),
                 ),
             ),
         );
@@ -259,5 +264,30 @@ class FileRepository extends Repository
             'not_compressed' => (int) ($result['not_compressed'] ?? 0),
             'errors' => (int) ($result['errors'] ?? 0),
         ];
+    }
+
+    /**
+     * @param QueryInterface<File> $query
+     *
+     * @return list<ConstraintInterface>
+     */
+    private function buildFolderConstraint(QueryInterface $query, ?string $folder): array
+    {
+        if (null === $folder || '' === $folder) {
+            return [];
+        }
+
+        return [$query->like('identifier', $this->escapeLikeValue($folder).'%')];
+    }
+
+    /**
+     * Escapes LIKE metacharacters (`%`, `_`) and the escape character itself
+     * in a value that is about to be used as a LIKE prefix, so folder/path
+     * values containing these characters are matched literally instead of
+     * as wildcards.
+     */
+    private function escapeLikeValue(string $value): string
+    {
+        return addcslashes($value, '\\%_');
     }
 }

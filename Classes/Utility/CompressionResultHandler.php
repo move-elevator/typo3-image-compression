@@ -33,7 +33,7 @@ use function sprintf;
 final class CompressionResultHandler
 {
     /**
-     * @param array{original: array{total: int, success: int, errors: int}, processed: array{total: int, success: int, errors: int}} $stats
+     * @param array{original: array{total: int, success: int, skipped: int, errors: int}, processed: array{total: int, success: int, skipped: int, errors: int}} $stats
      */
     public static function outputToConsole(OutputInterface $output, array $stats): void
     {
@@ -51,33 +51,36 @@ final class CompressionResultHandler
 
         if ($stats['original']['total'] > 0) {
             $output->writeln(sprintf(
-                'Original files: %d/%d compressed, %d errors',
+                'Original files: %d/%d compressed, %d skipped, %d errors',
                 $stats['original']['success'],
                 $stats['original']['total'],
+                $stats['original']['skipped'],
                 $stats['original']['errors'],
             ));
         }
 
         if ($stats['processed']['total'] > 0) {
             $output->writeln(sprintf(
-                'Processed files: %d/%d compressed, %d errors',
+                'Processed files: %d/%d compressed, %d skipped, %d errors',
                 $stats['processed']['success'],
                 $stats['processed']['total'],
+                $stats['processed']['skipped'],
                 $stats['processed']['errors'],
             ));
         }
 
         $output->writeln('-------------------');
         $output->writeln(sprintf(
-            '<info>Total: %d/%d compressed, %d errors</info>',
+            '<info>Total: %d/%d compressed, %d skipped, %d errors</info>',
             $totals['success'],
             $totals['files'],
+            $totals['skipped'],
             $totals['errors'],
         ));
     }
 
     /**
-     * @param array{original: array{total: int, success: int, errors: int}, processed: array{total: int, success: int, errors: int}} $stats
+     * @param array{original: array{total: int, success: int, skipped: int, errors: int}, processed: array{total: int, success: int, skipped: int, errors: int}} $stats
      */
     public static function addFlashMessage(array $stats): void
     {
@@ -108,22 +111,23 @@ final class CompressionResultHandler
     }
 
     /**
-     * @param array{original: array{total: int, success: int, errors: int}, processed: array{total: int, success: int, errors: int}} $stats
+     * @param array{original: array{total: int, success: int, skipped: int, errors: int}, processed: array{total: int, success: int, skipped: int, errors: int}} $stats
      *
-     * @return array{files: int, success: int, errors: int}
+     * @return array{files: int, success: int, skipped: int, errors: int}
      */
     private static function calculateTotals(array $stats): array
     {
         return [
             'files' => $stats['original']['total'] + $stats['processed']['total'],
             'success' => $stats['original']['success'] + $stats['processed']['success'],
+            'skipped' => $stats['original']['skipped'] + $stats['processed']['skipped'],
             'errors' => $stats['original']['errors'] + $stats['processed']['errors'],
         ];
     }
 
     /**
-     * @param array{original: array{total: int, success: int, errors: int}, processed: array{total: int, success: int, errors: int}} $stats
-     * @param array{files: int, success: int, errors: int}                                                                           $totals
+     * @param array{original: array{total: int, success: int, skipped: int, errors: int}, processed: array{total: int, success: int, skipped: int, errors: int}} $stats
+     * @param array{files: int, success: int, skipped: int, errors: int}                                                                                         $totals
      */
     private static function buildFlashMessageContent(array $stats, array $totals): string
     {

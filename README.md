@@ -152,6 +152,13 @@ vendor/bin/typo3 imagecompression:compressImages --include-processed
 # Retry failed compressions
 vendor/bin/typo3 imagecompression:compressImages --retry-errors
 
+# Preview what a run would do, without writing anything
+vendor/bin/typo3 imagecompression:compressImages 200 --dry-run
+
+# Limit to a single storage or folder
+vendor/bin/typo3 imagecompression:compressImages --storage=2
+vendor/bin/typo3 imagecompression:compressImages --folder=/campaign2024/
+
 # Combine options
 vendor/bin/typo3 imagecompression:compressImages 200 --include-processed --retry-errors
 ```
@@ -161,9 +168,17 @@ vendor/bin/typo3 imagecompression:compressImages 200 --include-processed --retry
 | `limit` | Number of images to process (default: 100) |
 | `--include-processed`, `-p` | Also compress processed files (thumbnails, crops). Omit to save API quota — processed files are regenerated from already-compressed originals. |
 | `--retry-errors`, `-r` | Retry compression for files that previously failed. Clears error status on success. |
+| `--dry-run`, `-d` | List the files that would be processed, with total size and a per-MIME-type breakdown. Writes nothing. |
+| `--storage`, `-s` | Limit to a single file storage by UID. |
+| `--folder` | Limit to files whose identifier starts with this path (e.g. `/campaign2024/`). Applies to original files only. |
 
 > [!TIP]
 > When using the `tinify` provider, omit `--include-processed` to conserve your monthly API quota. Processed files are regenerated from the already-compressed originals anyway.
+
+The command reports compressed, skipped (excluded folder, unsupported MIME type, no local tool available) and failed files separately, so a run's summary distinguishes "nothing to do" from "something went wrong".
+
+> [!TIP]
+> The command is schedulable out of the box (`console.command` defaults to `schedulable: true`), so it can be run on a recurring schedule via **Admin Tools > Scheduler** using the "Execute console commands" task, without any extra configuration.
 
 ### Backend integration
 

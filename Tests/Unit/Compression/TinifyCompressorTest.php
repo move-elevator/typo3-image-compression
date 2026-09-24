@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
-use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, QuotaAwareInterface, TinifyCompressor};
+use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, QuotaAwareInterface, TinifyCompressor};
 use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
@@ -158,7 +158,7 @@ final class TinifyCompressorTest extends TestCase
         $this->extensionConfigurationMock->expects(self::never())->method('getApiKey');
         $this->extensionConfigurationMock->expects(self::never())->method('getExcludeFolders');
 
-        $this->subject->compress($fileInterfaceMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileInterfaceMock));
     }
 
     #[Test]
@@ -268,7 +268,7 @@ final class TinifyCompressorTest extends TestCase
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -283,7 +283,7 @@ final class TinifyCompressorTest extends TestCase
 
         $this->extensionConfigurationMock->expects(self::never())->method('isDebug');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -300,7 +300,7 @@ final class TinifyCompressorTest extends TestCase
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -322,7 +322,7 @@ final class TinifyCompressorTest extends TestCase
             ->method('updateCompressionStatus')
             ->with(11, false, self::stringContains('File does not exist'), '');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Failed, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -346,7 +346,7 @@ final class TinifyCompressorTest extends TestCase
             ->method('updateCompressionStatus')
             ->with(12, false, self::stringContains('Filesize is 0'), '');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Failed, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -404,8 +404,7 @@ final class TinifyCompressorTest extends TestCase
             ->method('updateCompressionStatus')
             ->with(99, true, '', self::stringContains('tinify:'));
 
-        $this->subject->compress($fileMock);
-
+        self::assertSame(CompressionOutcome::Compressed, $this->subject->compress($fileMock));
         self::assertSame('short', file_get_contents($tmpFile));
     }
 
