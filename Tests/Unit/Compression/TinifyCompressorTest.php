@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
+use MoveElevator\Typo3ImageCompression\Backup\BackupService;
 use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, QuotaAwareInterface, TinifyCompressor};
 use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
@@ -47,6 +48,7 @@ final class TinifyCompressorTest extends TestCase
     private ExtensionConfiguration&MockObject $extensionConfigurationMock;
     private StorageRepository&MockObject $storageRepositoryMock;
     private FrontendInterface&MockObject $cacheMock;
+    private BackupService&MockObject $backupServiceMock;
 
     /**
      * @var string[]
@@ -75,6 +77,7 @@ final class TinifyCompressorTest extends TestCase
         $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
         $this->storageRepositoryMock = $this->createMock(StorageRepository::class);
         $this->cacheMock = $this->createMock(FrontendInterface::class);
+        $this->backupServiceMock = $this->createMock(BackupService::class);
 
         $this->subject = new TinifyCompressor(
             $this->fileRepositoryMock,
@@ -82,6 +85,7 @@ final class TinifyCompressorTest extends TestCase
             $this->extensionConfigurationMock,
             $this->storageRepositoryMock,
             $this->cacheMock,
+            $this->backupServiceMock,
         );
     }
 
@@ -626,6 +630,7 @@ final class TinifyCompressorTest extends TestCase
                 $this->extensionConfigurationMock,
                 $this->storageRepositoryMock,
                 $this->cacheMock,
+                $this->backupServiceMock,
             ])
             ->getMock();
         $subject->method('initAction')->willThrowException(

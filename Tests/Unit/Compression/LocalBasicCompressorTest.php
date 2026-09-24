@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
+use MoveElevator\Typo3ImageCompression\Backup\BackupService;
 use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, LocalBasicCompressor, ToolDetection};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
@@ -43,6 +44,7 @@ final class LocalBasicCompressorTest extends TestCase
     private ExtensionConfiguration&MockObject $extensionConfigurationMock;
     private StorageRepository&MockObject $storageRepositoryMock;
     private ToolDetection&MockObject $toolDetectionMock;
+    private BackupService&MockObject $backupServiceMock;
 
     /**
      * @var string[]
@@ -72,6 +74,7 @@ final class LocalBasicCompressorTest extends TestCase
         $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
         $this->storageRepositoryMock = $this->createMock(StorageRepository::class);
         $this->toolDetectionMock = $this->createMock(ToolDetection::class);
+        $this->backupServiceMock = $this->createMock(BackupService::class);
 
         $this->subject = new LocalBasicCompressor(
             $this->fileRepositoryMock,
@@ -79,6 +82,7 @@ final class LocalBasicCompressorTest extends TestCase
             $this->extensionConfigurationMock,
             $this->storageRepositoryMock,
             $this->toolDetectionMock,
+            $this->backupServiceMock,
         );
     }
 

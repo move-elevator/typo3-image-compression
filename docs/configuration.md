@@ -84,6 +84,12 @@ Support depends on the provider:
 - `local-tools` (jpegoptim, JPEG only) preserves the color profile independently (`--strip-icc`). Copyright and creation date are not independent: jpegoptim can only strip the whole EXIF or IPTC block, not individual tags, so enabling either setting keeps both fields, and any other EXIF/IPTC data including GPS.
 - `local-basic` (ImageMagick/GraphicsMagick) can only preserve the color profile on its own; enabling copyright or creation date preservation keeps the whole EXIF/IPTC block too, since plain `convert` has no per-tag strip flag, except GPS position tags, which are always explicitly cleared regardless of the other settings.
 
+## Backup & restore
+
+Name: `enableBackup`, `backupRetentionDays` · Type: bool, int (days) · Default: `false`, `30`
+
+When `enableBackup` is on, the original file is copied outside FAL (`var/image_compression/backup/`) before every compression, so it can be [restored](usage.md#backup--restore) later. `backupRetentionDays` controls how long backups are kept before `imagecompression:pruneBackups` deletes them; `0` keeps them indefinitely.
+
 ## `commandTimeout`
 
 Name: `commandTimeout` · Type: int (seconds) · Default: `60`
@@ -133,6 +139,8 @@ $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['typo3_image_compression'] = [
     'preserveCreationDate' => false,
     'preserveColorProfile' => false,
     'commandTimeout' => 60,
+    'enableBackup' => false,
+    'backupRetentionDays' => 30,
     'systemInformationToolbar' => true,
     'showCompressionStatus' => true,
     'showStatusReport' => true,

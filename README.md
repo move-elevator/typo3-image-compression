@@ -25,6 +25,7 @@ This TYPO3 extension automatically compresses images uploaded to the TYPO3 backe
 - Automatic compression of JPG, PNG, WebP and AVIF images on upload — GIF support exists but is [off by default](docs/configuration.md#mimetypes)
 - **[CLI command](docs/usage.md)** for batch processing existing images
 - **[Quality settings](docs/configuration.md#quality-settings)** for local compression
+- **[Backup & restore](docs/usage.md#backup--restore)**: keep a copy of the original before compressing and restore it later, from the file list or the CLI
 - **[Backend integration](docs/usage.md#backend-integration)**: compression statistics in the system information toolbar, per-file status in the file metadata edit view, and a System Report with per-provider statistics
 
 ## 🔥 Installation
@@ -78,7 +79,7 @@ See the [configuration reference](docs/configuration.md) for provider setup, eve
 | Topic | What's inside |
 |-------|----------------|
 | [Configuration](docs/configuration.md) | Provider setup (`tinify`, `local-tools`, `local-basic`), every extension configuration option, and quality tuning |
-| [Usage](docs/usage.md) | The `imagecompression:compressImages` CLI command and its options, plus backend integration (toolbar, reports, file metadata) |
+| [Usage](docs/usage.md) | The `imagecompression:compressImages` CLI command and its options, backup & restore, plus backend integration (toolbar, reports, file metadata) |
 
 ## 🧑‍💻 Contributing
 

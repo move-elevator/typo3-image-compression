@@ -208,6 +208,20 @@ class FileRepository extends Repository
     }
 
     /**
+     * Stores the relative backup path for a file using DBAL.
+     */
+    public function updateBackupPath(int $fileUid, string $backupPath): void
+    {
+        $connection = $this->connectionPool->getConnectionForTable('sys_file');
+
+        $connection->update(
+            'sys_file',
+            ['backup_path' => $backupPath],
+            ['uid' => $fileUid],
+        );
+    }
+
+    /**
      * Marks a file as already optimal: the compressed result did not meet
      * the configured minimum saving threshold, so the original was kept.
      *
@@ -229,6 +243,63 @@ class FileRepository extends Repository
             ],
             ['uid' => $fileUid],
         );
+    }
+
+    /**
+     * Clears backup_path on every sys_file row still pointing at a given
+     * relative backup path, so pruning a backup file doesn't leave the file
+     * list offering to restore from a path that no longer exists.
+     */
+    public function clearBackupPathByRelativePath(string $backupPath): void
+    {
+        $connection = $this->connectionPool->getConnectionForTable('sys_file');
+
+        $connection->update(
+            'sys_file',
+            ['backup_path' => ''],
+            ['backup_path' => $backupPath],
+        );
+    }
+
+    /**
+     * Returns the relative backup path for a file, or null if none is set.
+     *
+     * @throws Exception
+     */
+    public function findBackupPathByUid(int $fileUid): ?string
+    {
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable('sys_file');
+
+        $backupPath = $queryBuilder
+            ->select('backup_path')
+            ->from('sys_file')
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($fileUid, ParameterType::INTEGER)))
+            ->executeQuery()
+            ->fetchOne();
+
+        if (false === $backupPath || '' === $backupPath) {
+            return null;
+        }
+
+        return (string) $backupPath;
+    }
+
+    /**
+     * @return QueryResultInterface<int, File>
+     *
+     * @throws InvalidQueryException
+     */
+    public function findAllWithBackup(): QueryResultInterface
+    {
+        $query = $this->createQuery();
+        $query->matching(
+            $query->logicalAnd(
+                $query->logicalNot($query->equals('backupPath', null)),
+                $query->logicalNot($query->equals('backupPath', '')),
+            ),
+        );
+
+        return $query->execute();
     }
 
     /**

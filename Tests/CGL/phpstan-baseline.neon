@@ -76,6 +76,24 @@ parameters:
 		-
 			message: '#Method .+CompressImageCommandTest::invokeExecute\(\) is invoked with named argument#'
 			path: ../../Tests/Unit/Command/CompressImageCommandTest.php
+		# TYPO3 v14 restructured ProcessFileListActionsEvent without getActionItems()/setActionItems();
+		# the method_exists() guard is intentionally defensive for that version, PHPStan only sees v12 here
+		-
+			message: '#Call to function method_exists\(\) with TYPO3\\CMS\\Filelist\\Event\\ProcessFileListActionsEvent and ''getActionItems'' will always evaluate to true#'
+			path: ../../Classes/EventListener/AfterFileListRendered.php
+		-
+			message: '#Call to function method_exists\(\) with TYPO3\\CMS\\Filelist\\Event\\ProcessFileListActionsEvent and ''setActionItems'' will always evaluate to true#'
+			path: ../../Classes/EventListener/AfterFileListRendered.php
+		# Not a hashing decision of ours: must reproduce IconFactory::getIcon()'s
+		# own v12.4 cache-key algorithm exactly, or the pre-seeded entry is never found
+		-
+			message: '#Calling md5\(\) is forbidden#'
+			path: ../../Tests/Unit/EventListener/IconFactoryTestDoubleFactory.php
+		# FrontendInterface::set()'s own $tags parameter has no generic value type in
+		# its declaring interface either; adding one here would violate contravariance
+		-
+			message: '#Method .+set\(\) has parameter \$tags with no value type specified in iterable type array#'
+			path: ../../Tests/Unit/EventListener/IconFactoryTestDoubleFactory.php
 		# Three independent, small review-driven fixes (--storage validation, a
 		# Compressed-only cleanup guard, and accurate processed-file outcome
 		# counting) each add a small amount of unavoidable branching to an
