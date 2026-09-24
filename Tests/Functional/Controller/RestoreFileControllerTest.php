@@ -71,6 +71,20 @@ final class RestoreFileControllerTest extends FunctionalTestCase
         $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest('https://typo3-testing.local/typo3/'))->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_BE);
     }
 
+    protected function tearDown(): void
+    {
+        // setUpBackendUser() (testing-framework) and setUp() above both set
+        // globals directly with no built-in cleanup; left behind, they leak
+        // into whichever test runs next in the same PHPUnit process and
+        // change its FAL permission/request context. #[RunClassInSeparateProcess]
+        // is not sufficient by itself: it depends on isolation actually
+        // being effective for the running PHP/PHPUnit combination, so this
+        // cleanup stays as the reliable half of the fix.
+        unset($GLOBALS['BE_USER'], $GLOBALS['TYPO3_REQUEST'], $GLOBALS['LANG']);
+
+        parent::tearDown();
+    }
+
     #[Test]
     public function mainActionRestoresWhenTokenIsValidAndFileMayBeReplaced(): void
     {
