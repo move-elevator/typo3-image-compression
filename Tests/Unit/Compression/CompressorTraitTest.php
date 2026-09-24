@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
+use MoveElevator\Typo3ImageCompression\Backup\BackupService;
 use MoveElevator\Typo3ImageCompression\Compression\CompressorTrait;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
@@ -59,6 +60,8 @@ interface CompressorTraitTestSubject
 
     public function calculateSavedPercent(int $originalSize, int $newSize): int;
 
+    public function maybeBackupOriginal(File $file, string $filePath): void;
+
     /**
      * @param callable(string $tempPath): bool $optimize
      *
@@ -79,6 +82,7 @@ final class CompressorTraitTest extends TestCase
 {
     private ExtensionConfiguration&MockObject $extensionConfigurationMock;
     private FileRepository&MockObject $fileRepositoryMock;
+    private BackupService&MockObject $backupServiceMock;
     private CompressorTraitTestSubject $subject;
 
     /**
@@ -102,6 +106,7 @@ final class CompressorTraitTest extends TestCase
 
         $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
         $this->fileRepositoryMock = $this->createMock(FileRepository::class);
+        $this->backupServiceMock = $this->createMock(BackupService::class);
 
         $this->subject = new class implements CompressorTraitTestSubject {
             use CompressorTrait {
@@ -116,16 +121,19 @@ final class CompressorTraitTest extends TestCase
                 buildStoragePath as public;
                 updateFileInformation as public;
                 calculateSavedPercent as public;
+                maybeBackupOriginal as public;
                 compressToTempAndReplace as public;
             }
             use LoggerAwareTrait;
 
             public ExtensionConfiguration $extensionConfiguration;
             public FileRepository $fileRepository;
+            public BackupService $backupService;
         };
 
         $this->subject->extensionConfiguration = $this->extensionConfigurationMock;
         $this->subject->fileRepository = $this->fileRepositoryMock;
+        $this->subject->backupService = $this->backupServiceMock;
     }
 
     protected function tearDown(): void
@@ -470,6 +478,40 @@ final class CompressorTraitTest extends TestCase
         GeneralUtility::addInstance(Indexer::class, $indexerMock);
 
         $this->subject->updateFileInformation($fileMock);
+    }
+
+    #[Test]
+    public function maybeBackupOriginalDoesNothingWhenBackupIsDisabled(): void
+    {
+        $this->extensionConfigurationMock->method('isBackupEnabled')->willReturn(false);
+        $this->backupServiceMock->expects(self::never())->method('backup');
+
+        $this->subject->maybeBackupOriginal($this->createMock(File::class), '/tmp/image.jpg');
+    }
+
+    #[Test]
+    public function maybeBackupOriginalStoresBackupPathOnSuccess(): void
+    {
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getUid')->willReturn(9);
+
+        $this->extensionConfigurationMock->method('isBackupEnabled')->willReturn(true);
+        $this->backupServiceMock->method('backup')->with($fileMock, '/tmp/image.jpg')->willReturn('1/hash.jpg');
+        $this->fileRepositoryMock->expects(self::once())->method('updateBackupPath')->with(9, '1/hash.jpg');
+
+        $this->subject->maybeBackupOriginal($fileMock, '/tmp/image.jpg');
+    }
+
+    #[Test]
+    public function maybeBackupOriginalDoesNotUpdateRepositoryWhenBackupFails(): void
+    {
+        $fileMock = $this->createMock(File::class);
+
+        $this->extensionConfigurationMock->method('isBackupEnabled')->willReturn(true);
+        $this->backupServiceMock->method('backup')->willReturn(null);
+        $this->fileRepositoryMock->expects(self::never())->method('updateBackupPath');
+
+        $this->subject->maybeBackupOriginal($fileMock, '/tmp/image.jpg');
     }
 
     #[Test]

@@ -28,6 +28,7 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
     protected bool $compressSkipped = false;
     protected string $compressError = '';
     protected string $compressInfo = '';
+    protected string $backupPath = '';
 
     public function getStorage(): int
     {
@@ -82,5 +83,15 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
     public function setCompressInfo(string $compressInfo): void
     {
         $this->compressInfo = $compressInfo;
+    }
+
+    public function getBackupPath(): string
+    {
+        return $this->backupPath;
+    }
+
+    public function setBackupPath(string $backupPath): void
+    {
+        $this->backupPath = $backupPath;
     }
 }

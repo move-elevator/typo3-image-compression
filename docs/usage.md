@@ -65,6 +65,25 @@ vendor/bin/typo3 imagecompression:compressImages 200 --include-processed --retry
 > [!TIP]
 > When using the `tinify` provider, omit `--include-processed` to conserve your monthly API quota.
 
+## Backup & restore
+
+Compression overwrites the original file in place. Enable [`enableBackup`](configuration.md#backup--restore) to keep a copy outside FAL (`var/image_compression/backup/`, not indexed, not shown in the file list) before every compression, so it can be restored later.
+
+On TYPO3 v12.4/v13.4, a restore button appears in the file list for any file with a backup. From the CLI:
+
+```bash
+vendor/bin/typo3 imagecompression:restore <uid>
+vendor/bin/typo3 imagecompression:restore --all
+```
+
+Restores the given file (or every file with a backup) and rebuilds its derivatives.
+
+```bash
+vendor/bin/typo3 imagecompression:pruneBackups [--dry-run]
+```
+
+Deletes backups older than [`backupRetentionDays`](configuration.md#backup--restore). `--dry-run` reports how many backups would be deleted without deleting them. A retention of `0` disables pruning, backups are then kept indefinitely.
+
 ## Backend integration
 
 - **Upload progress** — the file list's drag-uploader shows a "Compressing…" label while a JPEG or PNG upload is being processed.

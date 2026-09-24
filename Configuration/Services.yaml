@@ -65,3 +65,15 @@ services:
       - name: console.command
         command: imagecompression:compressImages
         description: Compress uncompressed images
+
+  MoveElevator\Typo3ImageCompression\Command\RestoreImageCommand:
+    tags:
+      - name: console.command
+        command: imagecompression:restore
+        description: Restore original files from their backup
+
+  MoveElevator\Typo3ImageCompression\Command\PruneBackupsCommand:
+    tags:
+      - name: console.command
+        command: imagecompression:pruneBackups
+        description: Delete backups older than the configured retention

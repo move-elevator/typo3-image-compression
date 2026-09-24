@@ -37,6 +37,12 @@ showCompressionStatus = 1
 # cat=features/enable/30; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:showStatusReport
 showStatusReport = 1
 
+# cat=backup/enable/10; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:enableBackup
+enableBackup = 0
+
+# cat=backup/enable/20; type=int+; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:backupRetentionDays
+backupRetentionDays = 30
+
 # cat=metadata/preserve/10; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:preserveCopyright
 preserveCopyright = 0
 
