@@ -119,6 +119,30 @@ final class LocalBasicCompressorTest extends TestCase
     }
 
     #[Test]
+    public function supportsReturnsTrueForJpegWhenABasicToolIsAvailable(): void
+    {
+        $this->toolDetectionMock->method('hasBasicTools')->willReturn(true);
+
+        self::assertTrue($this->subject->supports('image/jpeg'));
+    }
+
+    #[Test]
+    public function supportsReturnsFalseForJpegWhenNoBasicToolIsAvailable(): void
+    {
+        $this->toolDetectionMock->method('hasBasicTools')->willReturn(false);
+
+        self::assertFalse($this->subject->supports('image/jpeg'));
+    }
+
+    #[Test]
+    public function supportsReturnsFalseForPngRegardlessOfToolAvailability(): void
+    {
+        $this->toolDetectionMock->method('hasBasicTools')->willReturn(true);
+
+        self::assertFalse($this->subject->supports('image/png'));
+    }
+
+    #[Test]
     public function canSetLogger(): void
     {
         $loggerMock = $this->createMock(LoggerInterface::class);

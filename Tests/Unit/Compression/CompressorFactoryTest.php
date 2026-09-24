@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
-use MoveElevator\Typo3ImageCompression\Compression\{CompressorFactory, CompressorInterface, LocalBasicCompressor, LocalToolsCompressor, TinifyCompressor};
+use MoveElevator\Typo3ImageCompression\Compression\{CompressorChain, CompressorFactory, CompressorInterface, LocalBasicCompressor, LocalToolsCompressor, TinifyCompressor};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\MockObject\MockObject;
@@ -53,8 +53,8 @@ final class CompressorFactoryTest extends TestCase
 
         $this->extensionConfigurationMock
             ->expects(self::once())
-            ->method('getProvider')
-            ->willReturn('tinify');
+            ->method('getProviders')
+            ->willReturn(['tinify']);
 
         $this->containerMock
             ->expects(self::once())
@@ -75,8 +75,8 @@ final class CompressorFactoryTest extends TestCase
 
         $this->extensionConfigurationMock
             ->expects(self::once())
-            ->method('getProvider')
-            ->willReturn('local-tools');
+            ->method('getProviders')
+            ->willReturn(['local-tools']);
 
         $this->containerMock
             ->expects(self::once())
@@ -97,8 +97,8 @@ final class CompressorFactoryTest extends TestCase
 
         $this->extensionConfigurationMock
             ->expects(self::once())
-            ->method('getProvider')
-            ->willReturn('local-basic');
+            ->method('getProviders')
+            ->willReturn(['local-basic']);
 
         $this->containerMock
             ->expects(self::once())
@@ -119,8 +119,8 @@ final class CompressorFactoryTest extends TestCase
 
         $this->extensionConfigurationMock
             ->expects(self::once())
-            ->method('getProvider')
-            ->willReturn('unknown-provider');
+            ->method('getProviders')
+            ->willReturn(['unknown-provider']);
 
         $this->containerMock
             ->expects(self::once())
@@ -131,5 +131,28 @@ final class CompressorFactoryTest extends TestCase
         $result = $this->subject->create();
 
         self::assertSame($tinifyCompressorMock, $result);
+    }
+
+    #[Test]
+    public function createReturnsACompressorChainForMultipleProviders(): void
+    {
+        $tinifyCompressorMock = $this->createMock(TinifyCompressor::class);
+        $localToolsCompressorMock = $this->createMock(LocalToolsCompressor::class);
+
+        $this->extensionConfigurationMock
+            ->expects(self::once())
+            ->method('getProviders')
+            ->willReturn(['tinify', 'local-tools']);
+
+        $this->containerMock
+            ->method('get')
+            ->willReturnMap([
+                [TinifyCompressor::class, $tinifyCompressorMock],
+                [LocalToolsCompressor::class, $localToolsCompressorMock],
+            ]);
+
+        $result = $this->subject->create();
+
+        self::assertInstanceOf(CompressorChain::class, $result);
     }
 }

@@ -17,6 +17,8 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use Psr\Container\ContainerInterface;
 
+use function count;
+
 /**
  * CompressorFactory.
  *
@@ -33,8 +35,20 @@ class CompressorFactory
 
     public function create(): CompressorInterface
     {
-        $provider = $this->extensionConfiguration->getProvider();
+        $compressors = array_map(
+            $this->resolve(...),
+            $this->extensionConfiguration->getProviders(),
+        );
 
+        if (1 === count($compressors)) {
+            return $compressors[0];
+        }
+
+        return new CompressorChain($compressors);
+    }
+
+    private function resolve(string $provider): CompressorInterface
+    {
         return match ($provider) {
             ExtensionConfiguration::PROVIDER_LOCAL_TOOLS => $this->container->get(LocalToolsCompressor::class),
             ExtensionConfiguration::PROVIDER_LOCAL_BASIC => $this->container->get(LocalBasicCompressor::class),

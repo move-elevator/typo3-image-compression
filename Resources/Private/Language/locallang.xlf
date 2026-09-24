@@ -46,7 +46,7 @@
 				<source>Show compression statistics in the system reports module.</source>
 			</trans-unit>
 			<trans-unit id="provider">
-				<source>Compression Provider: Select which compression provider to use (tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick)</source>
+				<source>Compression Provider(s): tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick. Comma-separated for a fallback order, e.g. "tinify,local-tools" falls back to local-tools once tinify's quota is exhausted or for a MIME type tinify does not support.</source>
 			</trans-unit>
 			<trans-unit id="jpegQuality">
 				<source>JPEG Quality (1-100): Quality setting for local JPEG compression</source>

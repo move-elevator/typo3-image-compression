@@ -26,6 +26,13 @@ use TYPO3\CMS\Core\Resource\{File, FileInterface};
 interface CompressorInterface
 {
     /**
+     * Whether this provider is technically capable of compressing the given
+     * MIME type at all, independent of the extension's `mimeTypes` allowlist
+     * or its current availability (quota, missing binary, etc.).
+     */
+    public function supports(string $mimeType): bool;
+
+    /**
      * Compresses a single file.
      */
     public function compress(File|FileInterface $file): void;

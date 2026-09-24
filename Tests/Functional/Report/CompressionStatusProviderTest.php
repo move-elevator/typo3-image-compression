@@ -147,6 +147,11 @@ final class CompressionStatusProviderTest extends FunctionalTestCase
                     private readonly ?int $quotaLimit,
                 ) {}
 
+                public function supports(string $mimeType): bool
+                {
+                    return true;
+                }
+
                 public function compress(File|FileInterface $file): void {}
 
                 public function compressProcessedFiles(array $files): void {}

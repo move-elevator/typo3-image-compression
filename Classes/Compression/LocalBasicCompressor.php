@@ -65,6 +65,11 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
         return self::PROVIDER_IDENTIFIER;
     }
 
+    public function supports(string $mimeType): bool
+    {
+        return in_array($mimeType, self::SUPPORTED_MIME_TYPES, true) && $this->toolDetection->hasBasicTools();
+    }
+
     public function compress(File|FileInterface $file): void
     {
         if (!$file instanceof File) {
