@@ -320,6 +320,34 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
     }
 
     /**
+     * Applies configured metadata preservation. GPS location is never
+     * preserved, it is a data protection concern rather than a compression setting.
+     *
+     * The TinyPNG API's `preserve()` option only supports "copyright" and
+     * "creation"; there is no ICC-profile-preservation option, TinyPNG
+     * always converts images to sRGB. `preserveColorProfile` therefore has
+     * no effect for this provider (see README.md's provider support table).
+     */
+    protected function applyPreserveOptions(\Tinify\Source $source): \Tinify\Source
+    {
+        $options = [];
+
+        if ($this->extensionConfiguration->isPreserveCopyright()) {
+            $options[] = 'copyright';
+        }
+
+        if ($this->extensionConfiguration->isPreserveCreationDate()) {
+            $options[] = 'creation';
+        }
+
+        if ([] === $options) {
+            return $source;
+        }
+
+        return $source->preserve(...$options);
+    }
+
+    /**
      * @param array<string, mixed> $file
      */
     private function compressSingleProcessedFile(array $file): void
@@ -387,34 +415,6 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                 ContextualFeedbackSeverity::WARNING,
             );
         }
-    }
-
-    /**
-     * Applies configured metadata preservation. GPS location is never
-     * preserved, it is a data protection concern rather than a compression setting.
-     *
-     * The TinyPNG API's `preserve()` option only supports "copyright" and
-     * "creation"; there is no ICC-profile-preservation option, TinyPNG
-     * always converts images to sRGB. `preserveColorProfile` therefore has
-     * no effect for this provider (see README.md's provider support table).
-     */
-    protected function applyPreserveOptions(\Tinify\Source $source): \Tinify\Source
-    {
-        $options = [];
-
-        if ($this->extensionConfiguration->isPreserveCopyright()) {
-            $options[] = 'copyright';
-        }
-
-        if ($this->extensionConfiguration->isPreserveCreationDate()) {
-            $options[] = 'creation';
-        }
-
-        if ([] === $options) {
-            return $source;
-        }
-
-        return $source->preserve(...$options);
     }
 
     private function fetchCompressionCount(): ?int
