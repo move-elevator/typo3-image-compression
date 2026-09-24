@@ -301,10 +301,39 @@ final class TinifyCompressorTest extends TestCase
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
         self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileMock));
+    }
+
+    #[Test]
+    public function compressPersistsErrorAndReturnsEarlyWhenStorageIsNotLocal(): void
+    {
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('isDebug')->willReturn(false);
+        $this->extensionConfigurationMock->expects(self::never())->method('getApiKey');
+
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Aws3');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getStorage')->willReturn($storageMock);
+        $fileMock->method('getUid')->willReturn(7);
+
+        // The error must be persisted (not left as compressed=false), so the
+        // CLI batch command's non-compressed query stops reselecting this
+        // file on every run.
+        $this->fileRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressionStatus')
+            ->with(7, false, self::stringContains('Aws3'));
+
+        $this->subject->compress($fileMock);
     }
 
     #[Test]
@@ -320,6 +349,7 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn('does-not-exist-'.bin2hex(random_bytes(8)).'.jpg');
         $fileMock->method('getUid')->willReturn(11);
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         $this->fileRepositoryMock
             ->expects(self::once())
@@ -344,6 +374,7 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
         $fileMock->method('getUid')->willReturn(12);
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         $this->fileRepositoryMock
             ->expects(self::once())
@@ -371,6 +402,7 @@ final class TinifyCompressorTest extends TestCase
         $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
 
         $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getIdentifier')->willReturn('/user_upload/photo.jpg');
@@ -431,6 +463,9 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
         $fileMock->method('getUid')->willReturn(101);
         $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+        $fileMock->method('getStorage')->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
         Tinify::setClient(new class {
@@ -463,6 +498,9 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
         $fileMock->method('getUid')->willReturn(102);
         $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+        $fileMock->method('getStorage')->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
         Tinify::setClient(new class {
@@ -495,6 +533,9 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
         $fileMock->method('getUid')->willReturn(103);
         $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+        $fileMock->method('getStorage')->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
         Tinify::setClient(new class {
@@ -527,6 +568,9 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
         $fileMock->method('getUid')->willReturn(104);
         $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+        $fileMock->method('getStorage')->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
         Tinify::setClient(new class {
@@ -548,6 +592,11 @@ final class TinifyCompressorTest extends TestCase
     public function compressProcessedFilesThrowsCompressionAbortedExceptionOnAccountExceptionDuringInit(): void
     {
         $this->extensionConfigurationMock->method('getApiKey')->willReturn('fake-key-for-test');
+
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+        $this->fileProcessedRepositoryMock->method('findStorageId')->with(5)->willReturn(1);
+        $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
         Tinify::setClient(new class {
@@ -588,6 +637,11 @@ final class TinifyCompressorTest extends TestCase
             new \Tinify\ServerException('upstream error', 'ServerError', 503),
         );
 
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+        $this->fileProcessedRepositoryMock->method('findStorageId')->with(8)->willReturn(1);
+        $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
+
         $this->fileProcessedRepositoryMock->expects(self::never())->method('updateCompressState');
 
         $subject->compressProcessedFiles([['uid' => 8, 'identifier' => '/_processed_/foo.jpg']]);
@@ -606,6 +660,7 @@ final class TinifyCompressorTest extends TestCase
         $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(true);
 
         $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getIdentifier')->willReturn('/user_upload/photo.jpg');
@@ -658,7 +713,9 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
         $fileMock->method('getUid')->willReturn(99);
         $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
-        $fileMock->expects(self::never())->method('getStorage');
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+        $fileMock->method('getStorage')->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
         Tinify::setClient(new class {
@@ -704,12 +761,52 @@ final class TinifyCompressorTest extends TestCase
     }
 
     #[Test]
+    public function compressProcessedFilesReportsUnsupportedStorageDriver(): void
+    {
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Aws3');
+
+        $this->fileProcessedRepositoryMock->method('findStorageId')->with(6)->willReturn(1);
+        $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
+        $this->fileProcessedRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressState')
+            ->with(6, 0, 'unsupported storage driver: Aws3');
+
+        $this->subject->compressProcessedFiles([['uid' => 6, 'identifier' => '/_processed_/foo.jpg']]);
+    }
+
+    #[Test]
+    public function compressProcessedFilesDoesNotInitializeTinifyWhenBatchHasOnlyRemoteStorageFiles(): void
+    {
+        // initAction() validates the TinyPNG API key with a real HTTP
+        // request; a batch made up only of remote-storage files must never
+        // trigger it.
+        $this->extensionConfigurationMock->expects(self::never())->method('getApiKey');
+
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Aws3');
+
+        $this->fileProcessedRepositoryMock->method('findStorageId')->with(6)->willReturn(1);
+        $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
+        $this->fileProcessedRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressState')
+            ->with(6, 0, 'unsupported storage driver: Aws3');
+
+        $this->subject->compressProcessedFiles([['uid' => 6, 'identifier' => '/_processed_/foo.jpg']]);
+    }
+
+    #[Test]
     public function compressProcessedFilesReportsFileNotFound(): void
     {
         $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
 
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getConfiguration')->willReturn(['basePath' => 'fileadmin/']);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $this->fileProcessedRepositoryMock->method('findStorageId')->with(2)->willReturn(1);
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
@@ -729,6 +826,7 @@ final class TinifyCompressorTest extends TestCase
         $tmpFile = $this->createTmpFile('');
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getConfiguration')->willReturn(['basePath' => '']);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $this->fileProcessedRepositoryMock->method('findStorageId')->with(3)->willReturn(1);
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
@@ -749,6 +847,7 @@ final class TinifyCompressorTest extends TestCase
         $tmpFile = $this->createTmpFile('plain text content, not an image');
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getConfiguration')->willReturn(['basePath' => '']);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $this->fileProcessedRepositoryMock->method('findStorageId')->with(4)->willReturn(1);
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
@@ -786,6 +885,14 @@ final class TinifyCompressorTest extends TestCase
         $this->tmpFiles[] = $tmpFile;
 
         return $tmpFile;
+    }
+
+    private function createLocalStorageMock(): ResourceStorage&MockObject
+    {
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+
+        return $storageMock;
     }
 
     private function invokeIsFileInExcludeFolder(File $file): bool
