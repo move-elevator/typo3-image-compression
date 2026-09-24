@@ -25,6 +25,7 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
 {
     protected int $storage = 0;
     protected bool $compressed = false;
+    protected bool $compressSkipped = false;
     protected string $compressError = '';
     protected string $compressInfo = '';
 
@@ -46,6 +47,16 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
     public function setCompressed(bool $compressed): void
     {
         $this->compressed = $compressed;
+    }
+
+    public function isCompressSkipped(): bool
+    {
+        return $this->compressSkipped;
+    }
+
+    public function setCompressSkipped(bool $compressSkipped): void
+    {
+        $this->compressSkipped = $compressSkipped;
     }
 
     public function getCompressError(): string
