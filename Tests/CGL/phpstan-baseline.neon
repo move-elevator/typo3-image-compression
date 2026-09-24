@@ -4,6 +4,9 @@ parameters:
 		-
 			message: '#Call to static method .+::assert.+ will always evaluate to true#'
 			path: ../../Tests/Unit/Compression/ToolDetectionTest.php
+		-
+			message: '#Call to static method .+::assert.+ will always evaluate to true#'
+			path: ../../Tests/Unit/Compression/TinifyCompressorTest.php
 		# Extbase Repository does not require parent constructor call in TYPO3 v12+
 		-
 			message: '#does not call parent constructor from TYPO3\\CMS\\Extbase\\Persistence\\Repository#'

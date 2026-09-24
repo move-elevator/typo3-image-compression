@@ -28,6 +28,8 @@ use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageReposi
 use TYPO3\CMS\Core\Resource\Index\Indexer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
+use function count;
+
 /**
  * TinifyCompressorTest.
  *
@@ -403,6 +405,102 @@ final class TinifyCompressorTest extends TestCase
 
         self::assertSame(CompressionOutcome::Compressed, $this->subject->compress($fileMock));
         self::assertSame('short', file_get_contents($tmpFile));
+    }
+
+    #[Test]
+    public function compressSendsPreserveOptionsToTinifyWhenConfigured(): void
+    {
+        $tmpFile = $this->createTmpFile(str_repeat('original-bytes', 100));
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('isDebug')->willReturn(false);
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(true);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(true);
+
+        $storageMock = $this->createMock(ResourceStorage::class);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/photo.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(100);
+        $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+        $fileMock->method('getStorage')->willReturn($storageMock);
+
+        $indexerMock = $this->createMock(Indexer::class);
+        GeneralUtility::addInstance(Indexer::class, $indexerMock);
+
+        Tinify::setKey('fake-key-for-test');
+        $client = new class {
+            /** @var array<int, mixed> */
+            public array $requestBodies = [];
+
+            public function request(string $method, string $url, mixed $body = null): object
+            {
+                $this->requestBodies[] = $body;
+
+                if (1 === count($this->requestBodies)) {
+                    return (object) ['headers' => ['location' => 'https://fake.tinify.test/output/abc'], 'body' => ''];
+                }
+
+                return (object) ['headers' => [], 'body' => 'short'];
+            }
+        };
+        Tinify::setClient($client);
+
+        $this->subject->compress($fileMock);
+
+        self::assertSame(['copyright', 'creation'], $client->requestBodies[1]['preserve'] ?? null);
+    }
+
+    #[Test]
+    public function compressMarksFileAsOptimalWhenResultDoesNotMeetMinimumSaving(): void
+    {
+        $tmpFile = $this->createTmpFile(str_repeat('original-bytes', 100));
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('isDebug')->willReturn(false);
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+        $this->extensionConfigurationMock->method('getMinimumSavingPercent')->willReturn(5);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/photo.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+        $fileMock->expects(self::never())->method('getStorage');
+
+        Tinify::setKey('fake-key-for-test');
+        Tinify::setClient(new class {
+            private int $calls = 0;
+
+            public function request(string $method, string $url, mixed $body = null): object
+            {
+                ++$this->calls;
+
+                if (1 === $this->calls) {
+                    return (object) ['headers' => ['location' => 'https://fake.tinify.test/output/abc'], 'body' => ''];
+                }
+
+                // Nearly the same size as the original: below the 5%
+                // minimum saving threshold.
+                return (object) ['headers' => [], 'body' => str_repeat('original-bytes', 99).'original-byte'];
+            }
+        });
+
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+        $this->fileRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressionSkipped')
+            ->with(99, self::stringContains('already optimal'));
+
+        $this->subject->compress($fileMock);
+
+        self::assertSame(str_repeat('original-bytes', 100), file_get_contents($tmpFile));
     }
 
     #[Test]

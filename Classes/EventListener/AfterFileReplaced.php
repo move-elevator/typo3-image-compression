@@ -14,10 +14,10 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
-use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
-use TYPO3\CMS\Core\Exception;
+use MoveElevator\Typo3ImageCompression\Message\CompressImageMessage;
+use Symfony\Component\Messenger\MessageBusInterface;
 use TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent;
-use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, UnknownObjectException};
+use TYPO3\CMS\Core\Resource\File;
 
 /**
  * AfterFileReplaced.
@@ -28,16 +28,15 @@ use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, Unknown
  */
 final readonly class AfterFileReplaced
 {
-    public function __construct(private CompressorInterface $compressor) {}
+    public function __construct(private MessageBusInterface $messageBus) {}
 
-    /**
-     * @throws Exception
-     * @throws UnknownObjectException
-     * @throws IllegalObjectTypeException
-     */
     public function __invoke(AfterFileReplacedEvent $event): AfterFileReplacedEvent
     {
-        $this->compressor->compress($event->getFile());
+        $file = $event->getFile();
+
+        if ($file instanceof File) {
+            $this->messageBus->dispatch(new CompressImageMessage($file->getUid(), $file->getStorage()->getUid()));
+        }
 
         return $event;
     }

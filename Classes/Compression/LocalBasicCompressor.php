@@ -17,10 +17,11 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\Process;
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
-use TYPO3\CMS\Core\Utility\CommandUtility;
 
 use function in_array;
 use function sprintf;
@@ -47,6 +48,24 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
      */
     private const SUPPORTED_MIME_TYPES = [
         'image/jpeg',
+    ];
+
+    /**
+     * Standard EXIF GPS position tags. Blanked explicitly whenever the
+     * EXIF/IPTC block as a whole is kept, since plain "convert" has no
+     * per-tag strip flag and GPS location must never be preserved.
+     */
+    private const GPS_EXIF_TAGS = [
+        'GPSVersionID',
+        'GPSLatitudeRef',
+        'GPSLatitude',
+        'GPSLongitudeRef',
+        'GPSLongitude',
+        'GPSAltitudeRef',
+        'GPSAltitude',
+        'GPSTimeStamp',
+        'GPSDateStamp',
+        'GPSMapDatum',
     ];
 
     public function __construct(
@@ -92,17 +111,48 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
 
         $originalFileSize = (int) filesize($filePath);
         $processor = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] ?? 'ImageMagick';
+        $quality = $this->getQualityForMimeType($mimeType);
+        $sourceQuality = $this->detectSourceJpegQuality($filePath);
 
-        if (!$this->compressWithGraphicsProcessor($filePath, $mimeType)) {
+        if (null !== $sourceQuality && $quality >= $sourceQuality) {
+            $compressInfo = $this->buildSkippedInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $processor);
+            $this->markFileAsOptimal($file, $compressInfo);
+            $this->logger?->info('Image already at or above target quality, kept original', [
+                'file' => $file->getIdentifier(),
+                'processor' => $processor,
+                'targetQuality' => $quality,
+                'sourceQuality' => $sourceQuality,
+            ]);
+            $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
+
+            return CompressionOutcome::Skipped;
+        }
+
+        $outcome = $this->compressToTempAndReplace(
+            $filePath,
+            fn (string $tempPath): bool => $this->compressWithGraphicsProcessor($tempPath, $mimeType),
+        );
+
+        if (null === $outcome) {
             return CompressionOutcome::Failed;
         }
 
-        // Log compression result and show flash message
-        clearstatcache(true, $filePath);
-        $newFileSize = (int) filesize($filePath);
-        $savedPercent = $this->calculateSavedPercent($originalFileSize, $newFileSize);
+        if (!$outcome['replaced']) {
+            $compressInfo = $this->buildSkippedInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $processor);
+            $this->markFileAsOptimal($file, $compressInfo);
+            $this->logger?->info('Image already optimal, kept original', [
+                'file' => $file->getIdentifier(),
+                'processor' => $processor,
+                'originalSize' => $outcome['originalSize'],
+                'attemptedSize' => $outcome['newSize'],
+            ]);
+            $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
 
-        $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize, $processor);
+            return CompressionOutcome::Skipped;
+        }
+
+        $savedPercent = $this->calculateSavedPercent($outcome['originalSize'], $outcome['newSize']);
+        $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $outcome['newSize'], $processor);
         $this->markFileAsCompressed($file, $compressInfo);
         $this->updateFileInformation($file);
 
@@ -110,8 +160,8 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             $this->logger?->info('Image compressed', [
                 'file' => $file->getIdentifier(),
                 'processor' => $processor,
-                'originalSize' => $originalFileSize,
-                'newSize' => $newFileSize,
+                'originalSize' => $outcome['originalSize'],
+                'newSize' => $outcome['newSize'],
                 'savedPercent' => $savedPercent,
             ]);
             $this->addFlashMessage('success', [$savedPercent.'%'], ContextualFeedbackSeverity::INFO);
@@ -163,10 +213,50 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
         }
     }
 
+    /**
+     * Detects the JPEG source's own encoding quality via `identify -format "%Q"`.
+     *
+     * Returns null when the `identify` binary is unavailable or its output
+     * cannot be parsed. Callers must treat null as "unknown" and fall back
+     * to the general compress-and-compare safety net, not as "quality 0".
+     */
+    protected function detectSourceJpegQuality(string $filePath): ?int
+    {
+        $identifyPath = $this->toolDetection->getToolPath('identify');
+
+        if (null === $identifyPath) {
+            return null;
+        }
+
+        $process = new Process([$identifyPath, '-format', '%Q', $filePath]);
+        $process->setTimeout($this->extensionConfiguration->getCommandTimeout());
+
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            $this->logger?->warning('JPEG source quality detection timed out', [
+                'file' => $filePath,
+                'command' => $process->getCommandLine(),
+                'timeout' => $this->extensionConfiguration->getCommandTimeout(),
+            ]);
+
+            return null;
+        }
+
+        if (!$process->isSuccessful()) {
+            return null;
+        }
+
+        $quality = (int) trim($process->getOutput());
+
+        return $quality > 0 ? $quality : null;
+    }
+
     protected function compressWithGraphicsProcessor(string $filePath, string $mimeType): bool
     {
         $processor = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] ?? 'ImageMagick';
         $quality = $this->getQualityForMimeType($mimeType);
+        $metadataArgument = $this->getMetadataArgument();
 
         if ('GraphicsMagick' === $processor) {
             $binary = $this->toolDetection->getToolPath('graphicsmagick');
@@ -177,13 +267,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
                 return false;
             }
 
-            $command = sprintf(
-                '%s convert -quality %d -strip %s %s',
-                $binary,
-                $quality,
-                escapeshellarg($filePath),
-                escapeshellarg($filePath),
-            );
+            $command = [$binary, 'convert', '-quality', (string) $quality, ...$metadataArgument, $filePath, $filePath];
         } else {
             $binary = $this->toolDetection->getToolPath('imagemagick');
 
@@ -194,29 +278,34 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             }
 
             // ImageMagick v7+ uses "magick convert", v6 uses "convert" directly
-            $subCommand = str_ends_with($binary, 'magick') ? 'convert ' : '';
-
-            $command = sprintf(
-                '%s %s-quality %d -strip %s %s',
-                $binary,
-                $subCommand,
-                $quality,
-                escapeshellarg($filePath),
-                escapeshellarg($filePath),
-            );
+            $command = str_ends_with($binary, 'magick')
+                ? [$binary, 'convert', '-quality', (string) $quality, ...$metadataArgument, $filePath, $filePath]
+                : [$binary, '-quality', (string) $quality, ...$metadataArgument, $filePath, $filePath];
         }
 
-        $output = [];
-        $returnValue = 0;
-        CommandUtility::exec($command, $output, $returnValue);
+        $process = new Process($command);
+        $process->setTimeout($this->extensionConfiguration->getCommandTimeout());
 
-        if (0 !== $returnValue) {
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            $this->logger?->warning('Image compression timed out', [
+                'processor' => $processor,
+                'file' => $filePath,
+                'command' => $process->getCommandLine(),
+                'timeout' => $this->extensionConfiguration->getCommandTimeout(),
+            ]);
+
+            return false;
+        }
+
+        if (!$process->isSuccessful()) {
             $this->logger?->warning('Image compression failed', [
                 'processor' => $processor,
                 'file' => $filePath,
                 'quality' => $quality,
-                'exitCode' => $returnValue,
-                'output' => implode("\n", $output ?? []),
+                'exitCode' => $process->getExitCode(),
+                'output' => $process->getErrorOutput().$process->getOutput(),
             ]);
 
             return false;
@@ -226,7 +315,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             'processor' => $processor,
             'file' => $filePath,
             'quality' => $quality,
-            'output' => implode("\n", $output ?? []),
+            'output' => $process->getOutput(),
         ]);
 
         return true;
@@ -238,5 +327,38 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             'image/jpeg' => $this->extensionConfiguration->getJpegQuality(),
             default => 85,
         };
+    }
+
+    /**
+     * Builds the ImageMagick/GraphicsMagick metadata argument from configuration.
+     *
+     * Plain "convert" has no per-tag strip flag, only "strip everything" or
+     * "strip all profiles except one". Preserving copyright or the creation
+     * date therefore keeps the whole EXIF/IPTC block rather than stripping
+     * selectively, so the GPS position tags are explicitly blanked in that
+     * case instead: GPS location must never be preserved regardless of the
+     * other settings.
+     *
+     * @return array<int, string>
+     */
+    protected function getMetadataArgument(): array
+    {
+        if ($this->extensionConfiguration->isPreserveCopyright() || $this->extensionConfiguration->isPreserveCreationDate()) {
+            $arguments = [];
+
+            foreach (self::GPS_EXIF_TAGS as $tag) {
+                $arguments[] = '-set';
+                $arguments[] = sprintf('exif:%s', $tag);
+                $arguments[] = '';
+            }
+
+            return $arguments;
+        }
+
+        if ($this->extensionConfiguration->isPreserveColorProfile()) {
+            return ['+profile', '!icc,*'];
+        }
+
+        return ['-strip'];
     }
 }

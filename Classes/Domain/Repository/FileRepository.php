@@ -82,6 +82,7 @@ class FileRepository extends Repository
                     [
                         $query->equals('storage', $storage),
                         $query->equals('compressed', false),
+                        $query->equals('compressSkipped', false),
                         $query->equals('missing', false),
                         $query->logicalOr(
                             $query->equals('compress_error', null),
@@ -105,7 +106,7 @@ class FileRepository extends Repository
     /**
      * Finds compression status data for a file by its UID.
      *
-     * @return array{compressed: bool, compress_error: string, compress_info: string}|null
+     * @return array{compressed: bool, compress_skipped: bool, compress_error: string, compress_info: string}|null
      *
      * @throws Exception
      */
@@ -114,7 +115,7 @@ class FileRepository extends Repository
         $queryBuilder = $this->connectionPool->getQueryBuilderForTable('sys_file');
 
         $row = $queryBuilder
-            ->select('compressed', 'compress_error', 'compress_info')
+            ->select('compressed', 'compress_skipped', 'compress_error', 'compress_info')
             ->from('sys_file')
             ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($fileUid, ParameterType::INTEGER)))
             ->executeQuery()
@@ -126,6 +127,7 @@ class FileRepository extends Repository
 
         return [
             'compressed' => (bool) $row['compressed'],
+            'compress_skipped' => (bool) $row['compress_skipped'],
             'compress_error' => (string) $row['compress_error'],
             'compress_info' => (string) $row['compress_info'],
         ];
@@ -197,7 +199,32 @@ class FileRepository extends Repository
             'sys_file',
             [
                 'compressed' => $compressed ? 1 : 0,
+                'compress_skipped' => 0,
                 'compress_error' => $compressError,
+                'compress_info' => $compressInfo,
+            ],
+            ['uid' => $fileUid],
+        );
+    }
+
+    /**
+     * Marks a file as already optimal: the compressed result did not meet
+     * the configured minimum saving threshold, so the original was kept.
+     *
+     * Distinct from `updateCompressionStatus(..., compressed: false, ...)`,
+     * which means "not yet processed" and would otherwise cause the file to
+     * be retried on every batch run.
+     */
+    public function updateCompressionSkipped(int $fileUid, string $compressInfo): void
+    {
+        $connection = $this->connectionPool->getConnectionForTable('sys_file');
+
+        $connection->update(
+            'sys_file',
+            [
+                'compressed' => 0,
+                'compress_skipped' => 1,
+                'compress_error' => '',
                 'compress_info' => $compressInfo,
             ],
             ['uid' => $fileUid],
@@ -217,8 +244,8 @@ class FileRepository extends Repository
 
         $result = $queryBuilder
             ->selectLiteral(
-                'SUM(CASE WHEN compressed = 1 THEN 1 ELSE 0 END) AS compressed',
-                'SUM(CASE WHEN compressed = 0 AND (compress_error IS NULL OR compress_error = \'\') THEN 1 ELSE 0 END) AS not_compressed',
+                'SUM(CASE WHEN compressed = 1 OR compress_skipped = 1 THEN 1 ELSE 0 END) AS compressed',
+                'SUM(CASE WHEN compressed = 0 AND compress_skipped = 0 AND (compress_error IS NULL OR compress_error = \'\') THEN 1 ELSE 0 END) AS not_compressed',
                 'SUM(CASE WHEN compress_error IS NOT NULL AND compress_error != \'\' THEN 1 ELSE 0 END) AS errors',
             )
             ->from('sys_file')

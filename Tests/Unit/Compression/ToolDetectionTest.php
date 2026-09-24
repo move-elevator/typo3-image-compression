@@ -54,6 +54,7 @@ final class ToolDetectionTest extends TestCase
         self::assertContains('avifenc', $tools);
         self::assertContains('imagemagick', $tools);
         self::assertContains('graphicsmagick', $tools);
+        self::assertContains('identify', $tools);
     }
 
     #[Test]
