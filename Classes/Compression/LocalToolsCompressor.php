@@ -109,29 +109,43 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
             return;
         }
 
-        $originalFileSize = (int) filesize($filePath);
-        $success = $this->executeOptimization($tool, $filePath);
+        $outcome = $this->compressToTempAndReplace(
+            $filePath,
+            fn (string $tempPath): bool => $this->executeOptimization($tool, $tempPath),
+        );
 
-        if ($success) {
-            // Log compression result and show flash message
-            clearstatcache(true, $filePath);
-            $newFileSize = (int) filesize($filePath);
-            $savedPercent = $this->calculateSavedPercent($originalFileSize, $newFileSize);
+        if (null === $outcome) {
+            return;
+        }
 
-            $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize, $tool);
-            $this->markFileAsCompressed($file, $compressInfo);
-            $this->updateFileInformation($file);
+        if (!$outcome['replaced']) {
+            $compressInfo = $this->buildSkippedInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $tool);
+            $this->markFileAsOptimal($file, $compressInfo);
+            $this->logger?->info('Image already optimal, kept original', [
+                'file' => $file->getIdentifier(),
+                'tool' => $tool,
+                'originalSize' => $outcome['originalSize'],
+                'attemptedSize' => $outcome['newSize'],
+            ]);
+            $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
 
-            if ($savedPercent > 0) {
-                $this->logger?->info('Image compressed', [
-                    'file' => $file->getIdentifier(),
-                    'tool' => $tool,
-                    'originalSize' => $originalFileSize,
-                    'newSize' => $newFileSize,
-                    'savedPercent' => $savedPercent,
-                ]);
-                $this->addFlashMessage('success', [$savedPercent.'%'], ContextualFeedbackSeverity::INFO);
-            }
+            return;
+        }
+
+        $savedPercent = $this->calculateSavedPercent($outcome['originalSize'], $outcome['newSize']);
+        $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $outcome['newSize'], $tool);
+        $this->markFileAsCompressed($file, $compressInfo);
+        $this->updateFileInformation($file);
+
+        if ($savedPercent > 0) {
+            $this->logger?->info('Image compressed', [
+                'file' => $file->getIdentifier(),
+                'tool' => $tool,
+                'originalSize' => $outcome['originalSize'],
+                'newSize' => $outcome['newSize'],
+                'savedPercent' => $savedPercent,
+            ]);
+            $this->addFlashMessage('success', [$savedPercent.'%'], ContextualFeedbackSeverity::INFO);
         }
     }
 

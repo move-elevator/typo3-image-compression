@@ -286,6 +286,7 @@ final class LocalToolsCompressorTest extends TestCase
         $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
         $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
         $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('getMinimumSavingPercent')->willReturn(0);
         $this->toolDetectionMock->method('getFirstAvailable')->with(['jpegoptim'])->willReturn('jpegoptim');
         $this->toolDetectionMock->method('getToolPath')->with('jpegoptim')->willReturn('/usr/bin/true');
 
@@ -300,12 +301,43 @@ final class LocalToolsCompressorTest extends TestCase
         $indexerMock->expects(self::once())->method('updateIndexEntry')->with($fileMock);
         GeneralUtility::addInstance(Indexer::class, $indexerMock);
 
-        // markFileAsCompressed() runs unconditionally on a successful
-        // optimization, regardless of whether savedPercent ends up > 0
-        // (the tool mock does not actually shrink the file).
+        // The tool mock does not actually shrink the file (byte-identical
+        // result), but a minimum saving threshold of 0% still counts that as
+        // "meets the threshold", so the result replaces the original.
         $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true);
 
         $this->subject->compress($fileMock);
+    }
+
+    #[Test]
+    public function compressMarksFileAsOptimalWhenResultDoesNotMeetMinimumSaving(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('getMinimumSavingPercent')->willReturn(5);
+        $this->toolDetectionMock->method('getFirstAvailable')->with(['jpegoptim'])->willReturn('jpegoptim');
+        $this->toolDetectionMock->method('getToolPath')->with('jpegoptim')->willReturn('/usr/bin/true');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->expects(self::never())->method('getStorage');
+
+        // /usr/bin/true leaves the temp copy byte-identical to the original,
+        // which is below any positive saving threshold: the original must be
+        // kept and the outcome recorded as "optimal", not "compressed".
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionSkipped')
+            ->with(99, self::stringContains('already optimal'));
+
+        $this->subject->compress($fileMock);
+
+        self::assertSame('fake-jpeg-bytes', file_get_contents($tmpFile));
     }
 
     #[Test]
@@ -324,8 +356,11 @@ final class LocalToolsCompressorTest extends TestCase
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionSkipped');
 
         $this->subject->compress($fileMock);
+
+        self::assertSame('fake-jpeg-bytes', file_get_contents($tmpFile));
     }
 
     #[Test]

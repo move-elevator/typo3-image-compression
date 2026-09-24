@@ -92,17 +92,48 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
 
         $originalFileSize = (int) filesize($filePath);
         $processor = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] ?? 'ImageMagick';
+        $quality = $this->getQualityForMimeType($mimeType);
+        $sourceQuality = $this->detectSourceJpegQuality($filePath);
 
-        if (!$this->compressWithGraphicsProcessor($filePath, $mimeType)) {
+        if (null !== $sourceQuality && $quality >= $sourceQuality) {
+            $compressInfo = $this->buildSkippedInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $processor);
+            $this->markFileAsOptimal($file, $compressInfo);
+            $this->logger?->info('Image already at or above target quality, kept original', [
+                'file' => $file->getIdentifier(),
+                'processor' => $processor,
+                'targetQuality' => $quality,
+                'sourceQuality' => $sourceQuality,
+            ]);
+            $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
+
             return;
         }
 
-        // Log compression result and show flash message
-        clearstatcache(true, $filePath);
-        $newFileSize = (int) filesize($filePath);
-        $savedPercent = $this->calculateSavedPercent($originalFileSize, $newFileSize);
+        $outcome = $this->compressToTempAndReplace(
+            $filePath,
+            fn (string $tempPath): bool => $this->compressWithGraphicsProcessor($tempPath, $mimeType),
+        );
 
-        $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize, $processor);
+        if (null === $outcome) {
+            return;
+        }
+
+        if (!$outcome['replaced']) {
+            $compressInfo = $this->buildSkippedInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $processor);
+            $this->markFileAsOptimal($file, $compressInfo);
+            $this->logger?->info('Image already optimal, kept original', [
+                'file' => $file->getIdentifier(),
+                'processor' => $processor,
+                'originalSize' => $outcome['originalSize'],
+                'attemptedSize' => $outcome['newSize'],
+            ]);
+            $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
+
+            return;
+        }
+
+        $savedPercent = $this->calculateSavedPercent($outcome['originalSize'], $outcome['newSize']);
+        $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $outcome['newSize'], $processor);
         $this->markFileAsCompressed($file, $compressInfo);
         $this->updateFileInformation($file);
 
@@ -110,8 +141,8 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             $this->logger?->info('Image compressed', [
                 'file' => $file->getIdentifier(),
                 'processor' => $processor,
-                'originalSize' => $originalFileSize,
-                'newSize' => $newFileSize,
+                'originalSize' => $outcome['originalSize'],
+                'newSize' => $outcome['newSize'],
                 'savedPercent' => $savedPercent,
             ]);
             $this->addFlashMessage('success', [$savedPercent.'%'], ContextualFeedbackSeverity::INFO);
@@ -159,6 +190,35 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
                 $this->fileProcessedRepository->updateCompressState($fileId);
             }
         }
+    }
+
+    /**
+     * Detects the JPEG source's own encoding quality via `identify -format "%Q"`.
+     *
+     * Returns null when the `identify` binary is unavailable or its output
+     * cannot be parsed. Callers must treat null as "unknown" and fall back
+     * to the general compress-and-compare safety net, not as "quality 0".
+     */
+    protected function detectSourceJpegQuality(string $filePath): ?int
+    {
+        $identifyPath = $this->toolDetection->getToolPath('identify');
+
+        if (null === $identifyPath) {
+            return null;
+        }
+
+        $command = sprintf('%s -format %s %s', $identifyPath, escapeshellarg('%Q'), escapeshellarg($filePath));
+        $output = [];
+        $returnValue = 0;
+        CommandUtility::exec($command, $output, $returnValue);
+
+        if (0 !== $returnValue || null === $output || [] === $output) {
+            return null;
+        }
+
+        $quality = (int) trim($output[0]);
+
+        return $quality > 0 ? $quality : null;
     }
 
     protected function compressWithGraphicsProcessor(string $filePath, string $mimeType): bool

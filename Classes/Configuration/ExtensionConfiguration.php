@@ -129,4 +129,18 @@ class ExtensionConfiguration
 
         return max(1, $timeout);
     }
+
+    /**
+     * Returns the minimum saving percentage required to replace the
+     * original file with a compressed result (0-100).
+     *
+     * Below this threshold, the original is kept and the file is marked
+     * as already optimal instead of compressed.
+     */
+    public function getMinimumSavingPercent(): int
+    {
+        $percent = (int) ($this->extConf['minimumSavingPercent'] ?? 5);
+
+        return max(0, min(100, $percent));
+    }
 }
