@@ -207,16 +207,26 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             return null;
         }
 
-        $command = sprintf('%s -format %s %s', $identifyPath, escapeshellarg('%Q'), escapeshellarg($filePath));
-        $output = [];
-        $returnValue = 0;
-        CommandUtility::exec($command, $output, $returnValue);
+        $process = new Process([$identifyPath, '-format', '%Q', $filePath]);
+        $process->setTimeout($this->extensionConfiguration->getCommandTimeout());
 
-        if (0 !== $returnValue || null === $output || [] === $output) {
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            $this->logger?->warning('JPEG source quality detection timed out', [
+                'file' => $filePath,
+                'command' => $process->getCommandLine(),
+                'timeout' => $this->extensionConfiguration->getCommandTimeout(),
+            ]);
+
             return null;
         }
 
-        $quality = (int) trim($output[0]);
+        if (!$process->isSuccessful()) {
+            return null;
+        }
+
+        $quality = (int) trim($process->getOutput());
 
         return $quality > 0 ? $quality : null;
     }
