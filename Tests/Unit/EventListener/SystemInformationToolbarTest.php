@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\EventListener;
 
-use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, QuotaAwareInterface};
+use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, QuotaAwareInterface};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\EventListener\SystemInformationToolbar;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
@@ -203,7 +203,10 @@ final class SystemInformationToolbarTest extends TestCase
  */
 abstract class QuotaAwareCompressorTestDouble implements CompressorInterface, QuotaAwareInterface
 {
-    final public function compress(File|FileInterface $file): void {}
+    final public function compress(File|FileInterface $file): CompressionOutcome
+    {
+        return CompressionOutcome::Skipped;
+    }
 
     final public function compressProcessedFiles(array $files): void {}
 

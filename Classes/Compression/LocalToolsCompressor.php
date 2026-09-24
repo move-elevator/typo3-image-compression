@@ -17,10 +17,11 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\Process;
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
-use TYPO3\CMS\Core\Utility\CommandUtility;
 
 use function in_array;
 use function sprintf;
@@ -41,12 +42,12 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
     private const PROVIDER_IDENTIFIER = 'local-tools';
 
     /**
-     * Tool commands with %s placeholder for file path.
+     * Tool argument lists (file path is appended by buildCommand()).
      * Tools with configurable quality use getToolCommand() method instead.
      */
     private const TOOL_COMMANDS = [
-        'optipng' => '-o2 -strip all %s',
-        'gifsicle' => '--batch -O2 %s',
+        'optipng' => ['-o2', '-strip', 'all'],
+        'gifsicle' => ['--batch', '-O2'],
     ];
 
     /**
@@ -73,22 +74,22 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         return self::PROVIDER_IDENTIFIER;
     }
 
-    public function compress(File|FileInterface $file): void
+    public function compress(File|FileInterface $file): CompressionOutcome
     {
         if (!$file instanceof File) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         // Check if file is in excluded folder
         if ($this->isFileInExcludeFolder($file)) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         $mimeType = strtolower($file->getMimeType());
 
         // Check if MIME type is configured for compression
         if (!in_array($mimeType, $this->extensionConfiguration->getMimeTypes(), true)) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         $tool = $this->getBestToolForMimeType($mimeType);
@@ -99,39 +100,55 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
                 'file' => $file->getIdentifier(),
             ]);
 
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         $filePath = $this->getAbsoluteFilePath($file);
 
         if (!file_exists($filePath) || 0 === (int) filesize($filePath)) {
-            return;
+            return CompressionOutcome::Failed;
         }
 
-        $originalFileSize = (int) filesize($filePath);
-        $success = $this->executeOptimization($tool, $filePath);
+        $outcome = $this->compressToTempAndReplace(
+            $filePath,
+            fn (string $tempPath): bool => $this->executeOptimization($tool, $tempPath),
+        );
 
-        if ($success) {
-            // Log compression result and show flash message
-            clearstatcache(true, $filePath);
-            $newFileSize = (int) filesize($filePath);
-            $savedPercent = $this->calculateSavedPercent($originalFileSize, $newFileSize);
-
-            $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize, $tool);
-            $this->markFileAsCompressed($file, $compressInfo);
-            $this->updateFileInformation($file);
-
-            if ($savedPercent > 0) {
-                $this->logger?->info('Image compressed', [
-                    'file' => $file->getIdentifier(),
-                    'tool' => $tool,
-                    'originalSize' => $originalFileSize,
-                    'newSize' => $newFileSize,
-                    'savedPercent' => $savedPercent,
-                ]);
-                $this->addFlashMessage('success', [$savedPercent.'%'], ContextualFeedbackSeverity::INFO);
-            }
+        if (null === $outcome) {
+            return CompressionOutcome::Failed;
         }
+
+        if (!$outcome['replaced']) {
+            $compressInfo = $this->buildSkippedInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $tool);
+            $this->markFileAsOptimal($file, $compressInfo);
+            $this->logger?->info('Image already optimal, kept original', [
+                'file' => $file->getIdentifier(),
+                'tool' => $tool,
+                'originalSize' => $outcome['originalSize'],
+                'attemptedSize' => $outcome['newSize'],
+            ]);
+            $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
+
+            return CompressionOutcome::Skipped;
+        }
+
+        $savedPercent = $this->calculateSavedPercent($outcome['originalSize'], $outcome['newSize']);
+        $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $outcome['newSize'], $tool);
+        $this->markFileAsCompressed($file, $compressInfo);
+        $this->updateFileInformation($file);
+
+        if ($savedPercent > 0) {
+            $this->logger?->info('Image compressed', [
+                'file' => $file->getIdentifier(),
+                'tool' => $tool,
+                'originalSize' => $outcome['originalSize'],
+                'newSize' => $outcome['newSize'],
+                'savedPercent' => $savedPercent,
+            ]);
+            $this->addFlashMessage('success', [$savedPercent.'%'], ContextualFeedbackSeverity::INFO);
+        }
+
+        return CompressionOutcome::Compressed;
     }
 
     /**
@@ -203,18 +220,29 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         }
 
         $command = $this->buildCommand($tool, $toolPath, $filePath);
+        $process = new Process($command);
+        $process->setTimeout($this->extensionConfiguration->getCommandTimeout());
 
-        $output = [];
-        $returnValue = 0;
-        CommandUtility::exec($command, $output, $returnValue);
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            $this->logger?->warning('Image optimization timed out', [
+                'tool' => $tool,
+                'file' => $filePath,
+                'command' => $process->getCommandLine(),
+                'timeout' => $this->extensionConfiguration->getCommandTimeout(),
+            ]);
 
-        if (0 !== $returnValue) {
+            return false;
+        }
+
+        if (!$process->isSuccessful()) {
             $this->logger?->warning('Image optimization failed', [
                 'tool' => $tool,
                 'file' => $filePath,
-                'command' => $command,
-                'exitCode' => $returnValue,
-                'output' => implode("\n", $output ?? []),
+                'command' => $process->getCommandLine(),
+                'exitCode' => $process->getExitCode(),
+                'output' => $process->getErrorOutput().$process->getOutput(),
             ]);
 
             return false;
@@ -223,50 +251,87 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         $this->logger?->debug('Image optimized with local tool', [
             'tool' => $tool,
             'file' => $filePath,
-            'command' => $command,
-            'output' => implode("\n", $output ?? []),
+            'command' => $process->getCommandLine(),
+            'output' => $process->getOutput(),
         ]);
 
         return true;
     }
 
-    protected function buildCommand(string $tool, string $toolPath, string $filePath): string
+    /**
+     * @return array<int, string>
+     */
+    protected function buildCommand(string $tool, string $toolPath, string $filePath): array
     {
-        $escapedPath = escapeshellarg($filePath);
-
         return match ($tool) {
-            'jpegoptim' => sprintf(
-                '%s --strip-all --all-progressive --max=%d %s',
+            'jpegoptim' => [
                 $toolPath,
-                $this->extensionConfiguration->getJpegQuality(),
-                $escapedPath,
-            ),
-            'pngquant' => sprintf(
-                '%s --force --ext .png --quality %d-%d %s',
+                ...$this->getJpegoptimStripArgument(),
+                '--all-progressive',
+                sprintf('--max=%d', $this->extensionConfiguration->getJpegQuality()),
+                $filePath,
+            ],
+            'pngquant' => [
                 $toolPath,
-                max(0, $this->extensionConfiguration->getPngQuality() - 15),
-                $this->extensionConfiguration->getPngQuality(),
-                $escapedPath,
-            ),
-            'cwebp' => sprintf(
-                '%s -q %d %s -o %s',
+                '--force',
+                '--ext', '.png',
+                '--quality', sprintf(
+                    '%d-%d',
+                    max(0, $this->extensionConfiguration->getPngQuality() - 15),
+                    $this->extensionConfiguration->getPngQuality(),
+                ),
+                $filePath,
+            ],
+            'cwebp' => [
                 $toolPath,
-                $this->extensionConfiguration->getWebpQuality(),
-                $escapedPath,
-                $escapedPath,
-            ),
-            'avifenc' => sprintf(
-                '%s -q %d %s %s',
+                '-q', (string) $this->extensionConfiguration->getWebpQuality(),
+                $filePath,
+                '-o', $filePath,
+            ],
+            'avifenc' => [
                 $toolPath,
-                $this->extensionConfiguration->getWebpQuality(),
-                $escapedPath,
-                $escapedPath,
-            ),
-            default => sprintf(
-                '%s %s',
+                '-q', (string) $this->extensionConfiguration->getWebpQuality(),
+                $filePath,
+                $filePath,
+            ],
+            default => [
                 $toolPath,
-                sprintf(self::TOOL_COMMANDS[$tool] ?? '%s', $escapedPath),
-            ),
+                ...(self::TOOL_COMMANDS[$tool] ?? []),
+                $filePath,
+            ],
         };
+    }
+
+    /**
+     * Builds the jpegoptim strip flags from configuration.
+     *
+     * The color profile has its own block (`--strip-icc`) and is preserved
+     * independently. Copyright and creation date, however, both live inside
+     * the same EXIF/IPTC blocks (alongside GPS): jpegoptim can only strip
+     * `--strip-exif`/`--strip-iptc` as whole blocks, not individual tags, so
+     * enabling either `preserveCopyright` or `preserveCreationDate` keeps
+     * the whole EXIF/IPTC data, including the other field and GPS, rather
+     * than that one field alone (see README.md's provider support table).
+     * Comments carry none of that data and are always stripped.
+     *
+     * @return array<int, string>
+     */
+    protected function getJpegoptimStripArgument(): array
+    {
+        $preserveCopyrightOrDate = $this->extensionConfiguration->isPreserveCopyright()
+            || $this->extensionConfiguration->isPreserveCreationDate();
+
+        $flags = ['--strip-com', '--strip-xmp'];
+
+        if (!$preserveCopyrightOrDate) {
+            $flags[] = '--strip-exif';
+            $flags[] = '--strip-iptc';
+        }
+
+        if (!$this->extensionConfiguration->isPreserveColorProfile()) {
+            $flags[] = '--strip-icc';
+        }
+
+        return $flags;
     }
 }

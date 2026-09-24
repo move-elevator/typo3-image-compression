@@ -1,6 +1,17 @@
 # Usage
 
-Once configured, all images with a supported MIME type uploaded via the TYPO3 backend are compressed automatically. The sections below cover batch processing existing images and the backend UI surfaces the extension adds.
+Once configured, all images with a supported MIME type uploaded via the TYPO3 backend are compressed automatically. The sections below cover automatic compression, batch processing existing images, and the backend UI surfaces the extension adds.
+
+## Automatic compression
+
+By default, compression runs synchronously within the upload request. To run it on a queue worker instead (recommended with the `tinify` provider, so an editor's upload does not wait on a round trip to the TinyPNG API), route `MoveElevator\Typo3ImageCompression\Message\CompressImageMessage` to an async [Messenger transport](https://docs.typo3.org/m/typo3/reference-coreapi/main/en-us/ApiOverview/MessageBus/Index.html), for example:
+
+```php
+// config/system/additional.php
+$GLOBALS['TYPO3_CONF_VARS']['SYS']['messenger']['routing'][\MoveElevator\Typo3ImageCompression\Message\CompressImageMessage::class] = 'doctrine';
+```
+
+With that in place, run `vendor/bin/typo3 messenger:consume doctrine` (typically as a scheduler task) to process compressions in the background.
 
 ## `imagecompression:compressImages`
 
@@ -8,10 +19,10 @@ Once configured, all images with a supported MIME type uploaded via the TYPO3 ba
 > Before running the CLI command, ensure your TYPO3 file index is up to date. Run the scheduler task **"File Abstraction Layer: Update storage index"** first.
 
 ```bash
-vendor/bin/typo3 imagecompression:compressImages [<limit>] [-p|--include-processed] [-r|--retry-errors]
+vendor/bin/typo3 imagecompression:compressImages [<limit>] [-p|--include-processed] [-r|--retry-errors] [-d|--dry-run] [-s|--storage=<uid>] [--folder=<path>]
 ```
 
-Compresses images that were uploaded before the extension was installed, or that were skipped by an earlier run. The page cache is flushed once per run, only if at least one file was compressed.
+Compresses images that were uploaded before the extension was installed, or that were skipped by an earlier run. The page cache is flushed once per run, only if at least one file was compressed. The run's summary reports compressed, skipped (excluded folder, unsupported MIME type, no local tool available, below the minimum saving threshold) and failed files separately, so it distinguishes "nothing to do" from "something went wrong".
 
 ```bash
 # Compress up to 100 original images (default)

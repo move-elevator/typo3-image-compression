@@ -42,13 +42,11 @@ class FileProcessedRepository
     public function findAllWithErrors(int $limit = 0): array
     {
         $queryBuilder = $this->getQueryBuilder();
-        $queryBuilder
-            ->select('*')
-            ->from($this->getTableName())
+        $this->selectWithOriginalFileMetadata($queryBuilder)
             ->where(
-                $queryBuilder->expr()->isNotNull('compress_error'),
-                $queryBuilder->expr()->neq('compress_error', $queryBuilder->createNamedParameter('')),
-                $queryBuilder->expr()->isNotNull('name'),
+                $queryBuilder->expr()->isNotNull('pf.compress_error'),
+                $queryBuilder->expr()->neq('pf.compress_error', $queryBuilder->createNamedParameter('')),
+                $queryBuilder->expr()->isNotNull('pf.name'),
             );
 
         if ($limit > 0) {
@@ -64,13 +62,11 @@ class FileProcessedRepository
     public function findAllNonCompressed(int $limit = 0): array
     {
         $queryBuilder = $this->getQueryBuilder();
-        $queryBuilder
-            ->select('*')
-            ->from($this->getTableName())
+        $this->selectWithOriginalFileMetadata($queryBuilder)
             ->where(
-                $queryBuilder->expr()->eq('compressed', $queryBuilder->createNamedParameter(0, ParameterType::INTEGER)),
-                $queryBuilder->expr()->isNull('compress_error'),
-                $queryBuilder->expr()->isNotNull('name'),
+                $queryBuilder->expr()->eq('pf.compressed', $queryBuilder->createNamedParameter(0, ParameterType::INTEGER)),
+                $queryBuilder->expr()->isNull('pf.compress_error'),
+                $queryBuilder->expr()->isNotNull('pf.name'),
             );
 
         if ($limit > 0) {
@@ -92,6 +88,39 @@ class FileProcessedRepository
             ->set('compress_error', $errorMessage);
 
         $queryBuilder->executeStatement();
+    }
+
+    /**
+     * Classifies the outcome of a compressProcessedFiles() call for one file,
+     * by reading back its row: that method reports failures/skips (missing
+     * file, unavailable tool, invalid size, ...) via this same state instead
+     * of throwing or returning a per-file result.
+     *
+     * @return 'success'|'skipped'|'errors'
+     */
+    public function classifyOutcome(int $processedFileId): string
+    {
+        $queryBuilder = $this->getQueryBuilder();
+        $row = $queryBuilder
+            ->select('compressed', 'compress_error')
+            ->from($this->getTableName())
+            ->where(
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($processedFileId, ParameterType::INTEGER)),
+            )
+            ->executeQuery()
+            ->fetchAssociative();
+
+        if (false === $row) {
+            return 'errors';
+        }
+
+        if ((bool) $row['compressed']) {
+            return 'success';
+        }
+
+        $hasError = null !== $row['compress_error'] && '' !== $row['compress_error'];
+
+        return $hasError ? 'errors' : 'skipped';
     }
 
     public function findStorageId(int $processedFileId): int
@@ -148,5 +177,24 @@ class FileProcessedRepository
     protected function getTableName(): string
     {
         return 'sys_file_processedfile';
+    }
+
+    /**
+     * sys_file_processedfile has no size/mime_type columns of its own; join
+     * the original sys_file record to resolve them for preview purposes
+     * (the processed derivative's actual size is typically close enough,
+     * and exact only matters once compression actually runs).
+     */
+    private function selectWithOriginalFileMetadata(QueryBuilder $queryBuilder): QueryBuilder
+    {
+        return $queryBuilder
+            ->select('pf.*', 'f.size AS size', 'f.mime_type AS mime_type')
+            ->from($this->getTableName(), 'pf')
+            ->join(
+                'pf',
+                'sys_file',
+                'f',
+                $queryBuilder->expr()->eq('pf.original', 'f.uid'),
+            );
     }
 }
