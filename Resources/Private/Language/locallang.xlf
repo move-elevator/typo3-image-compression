@@ -48,6 +48,15 @@
 			<trans-unit id="showStatusReport">
 				<source>Show compression statistics in the system reports module.</source>
 			</trans-unit>
+			<trans-unit id="preserveCopyright">
+				<source>Preserve copyright metadata: Keep the EXIF/IPTC copyright tag instead of stripping it during compression.</source>
+			</trans-unit>
+			<trans-unit id="preserveCreationDate">
+				<source>Preserve creation date metadata: Keep the EXIF/IPTC creation date instead of stripping it during compression.</source>
+			</trans-unit>
+			<trans-unit id="preserveColorProfile">
+				<source>Preserve color profile: Keep the embedded ICC color profile instead of stripping it during compression.</source>
+			</trans-unit>
 			<trans-unit id="provider">
 				<source>Compression Provider: Select which compression provider to use (tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick)</source>
 			</trans-unit>

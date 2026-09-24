@@ -24,6 +24,7 @@ use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 
 use function in_array;
+use function sprintf;
 
 /**
  * LocalBasicCompressor.
@@ -47,6 +48,24 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
      */
     private const SUPPORTED_MIME_TYPES = [
         'image/jpeg',
+    ];
+
+    /**
+     * Standard EXIF GPS position tags. Blanked explicitly whenever the
+     * EXIF/IPTC block as a whole is kept, since plain "convert" has no
+     * per-tag strip flag and GPS location must never be preserved.
+     */
+    private const GPS_EXIF_TAGS = [
+        'GPSVersionID',
+        'GPSLatitudeRef',
+        'GPSLatitude',
+        'GPSLongitudeRef',
+        'GPSLongitude',
+        'GPSAltitudeRef',
+        'GPSAltitude',
+        'GPSTimeStamp',
+        'GPSDateStamp',
+        'GPSMapDatum',
     ];
 
     public function __construct(
@@ -235,6 +254,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
     {
         $processor = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor'] ?? 'ImageMagick';
         $quality = $this->getQualityForMimeType($mimeType);
+        $metadataArgument = $this->getMetadataArgument();
 
         if ('GraphicsMagick' === $processor) {
             $binary = $this->toolDetection->getToolPath('graphicsmagick');
@@ -245,7 +265,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
                 return false;
             }
 
-            $command = [$binary, 'convert', '-quality', (string) $quality, '-strip', $filePath, $filePath];
+            $command = [$binary, 'convert', '-quality', (string) $quality, ...$metadataArgument, $filePath, $filePath];
         } else {
             $binary = $this->toolDetection->getToolPath('imagemagick');
 
@@ -257,8 +277,8 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
 
             // ImageMagick v7+ uses "magick convert", v6 uses "convert" directly
             $command = str_ends_with($binary, 'magick')
-                ? [$binary, 'convert', '-quality', (string) $quality, '-strip', $filePath, $filePath]
-                : [$binary, '-quality', (string) $quality, '-strip', $filePath, $filePath];
+                ? [$binary, 'convert', '-quality', (string) $quality, ...$metadataArgument, $filePath, $filePath]
+                : [$binary, '-quality', (string) $quality, ...$metadataArgument, $filePath, $filePath];
         }
 
         $process = new Process($command);
@@ -305,5 +325,38 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
             'image/jpeg' => $this->extensionConfiguration->getJpegQuality(),
             default => 85,
         };
+    }
+
+    /**
+     * Builds the ImageMagick/GraphicsMagick metadata argument from configuration.
+     *
+     * Plain "convert" has no per-tag strip flag, only "strip everything" or
+     * "strip all profiles except one". Preserving copyright or the creation
+     * date therefore keeps the whole EXIF/IPTC block rather than stripping
+     * selectively, so the GPS position tags are explicitly blanked in that
+     * case instead: GPS location must never be preserved regardless of the
+     * other settings.
+     *
+     * @return array<int, string>
+     */
+    protected function getMetadataArgument(): array
+    {
+        if ($this->extensionConfiguration->isPreserveCopyright() || $this->extensionConfiguration->isPreserveCreationDate()) {
+            $arguments = [];
+
+            foreach (self::GPS_EXIF_TAGS as $tag) {
+                $arguments[] = '-set';
+                $arguments[] = sprintf('exif:%s', $tag);
+                $arguments[] = '';
+            }
+
+            return $arguments;
+        }
+
+        if ($this->extensionConfiguration->isPreserveColorProfile()) {
+            return ['+profile', '!icc,*'];
+        }
+
+        return ['-strip'];
     }
 }

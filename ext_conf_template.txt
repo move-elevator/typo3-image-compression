@@ -36,3 +36,12 @@ showCompressionStatus = 1
 
 # cat=features/enable/30; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:showStatusReport
 showStatusReport = 1
+
+# cat=metadata/preserve/10; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:preserveCopyright
+preserveCopyright = 0
+
+# cat=metadata/preserve/20; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:preserveCreationDate
+preserveCreationDate = 0
+
+# cat=metadata/preserve/30; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:preserveColorProfile
+preserveColorProfile = 0

@@ -259,6 +259,54 @@ final class ExtensionConfigurationTest extends TestCase
     }
 
     #[Test]
+    public function isPreserveCopyrightReturnsConfiguredValue(): void
+    {
+        $subject = $this->createSubject(['preserveCopyright' => true]);
+
+        self::assertTrue($subject->isPreserveCopyright());
+    }
+
+    #[Test]
+    public function isPreserveCopyrightDefaultsToFalse(): void
+    {
+        $subject = $this->createSubject([]);
+
+        self::assertFalse($subject->isPreserveCopyright());
+    }
+
+    #[Test]
+    public function isPreserveCreationDateReturnsConfiguredValue(): void
+    {
+        $subject = $this->createSubject(['preserveCreationDate' => true]);
+
+        self::assertTrue($subject->isPreserveCreationDate());
+    }
+
+    #[Test]
+    public function isPreserveCreationDateDefaultsToFalse(): void
+    {
+        $subject = $this->createSubject([]);
+
+        self::assertFalse($subject->isPreserveCreationDate());
+    }
+
+    #[Test]
+    public function isPreserveColorProfileReturnsConfiguredValue(): void
+    {
+        $subject = $this->createSubject(['preserveColorProfile' => true]);
+
+        self::assertTrue($subject->isPreserveColorProfile());
+    }
+
+    #[Test]
+    public function isPreserveColorProfileDefaultsToFalse(): void
+    {
+        $subject = $this->createSubject([]);
+
+        self::assertFalse($subject->isPreserveColorProfile());
+    }
+
+    #[Test]
     public function getCommandTimeoutReturnsConfiguredValue(): void
     {
         $subject = $this->createSubject(['commandTimeout' => 30]);

@@ -95,6 +95,24 @@ No additional installation needed — uses TYPO3's configured graphics processor
 
 For local providers, configure quality (1–100) for JPEG, PNG, and WebP compression independently.
 
+### Metadata
+
+By default, compression strips all image metadata: EXIF, IPTC, XMP and the embedded ICC color profile. GPS location data is always stripped and cannot be preserved for `tinify` and `local-basic`, publishing where a photo was taken is a data protection concern.
+
+For press, stock or agency images where the copyright tag matters, or source images authored in a wide-gamut color space (e.g. Adobe RGB) where dropping the ICC profile shifts colors, enable:
+
+| Setting | Effect |
+|---------|--------|
+| `preserveCopyright` | Keeps the EXIF/IPTC copyright tag |
+| `preserveCreationDate` | Keeps the EXIF/IPTC creation date |
+| `preserveColorProfile` | Keeps the embedded ICC color profile |
+
+Support depends on the provider:
+
+- `tinify` preserves copyright and creation date independently via the TinyPNG API. `preserveColorProfile` has no effect: TinyPNG always converts images to sRGB and offers no ICC-preservation option.
+- `local-tools` (jpegoptim, JPEG only) preserves the color profile independently (`--strip-icc`). Copyright and creation date are not independent: jpegoptim can only strip the whole EXIF or IPTC block, not individual tags, so enabling either setting keeps both fields, and any other EXIF/IPTC data including GPS.
+- `local-basic` (ImageMagick/GraphicsMagick) can only preserve the color profile on its own; enabling copyright or creation date preservation keeps the whole EXIF/IPTC block too, since plain `convert` has no per-tag strip flag, except GPS position tags, which are always explicitly cleared regardless of the other settings.
+
 ### Command timeout
 
 For local providers, **Command Timeout** limits how long an external tool invocation (`jpegoptim`, `optipng`, ImageMagick, ...) may run before it is killed, in seconds (default: 60). A timed-out invocation is logged and no compression status is recorded. Local tools compress in place, so a process killed mid-write can leave a partially written file, the same risk that already exists for any other abrupt interruption of these tools (crash, OOM kill), not something specific to the timeout feature.

@@ -481,6 +481,67 @@ final class LocalBasicCompressorTest extends TestCase
     }
 
     #[Test]
+    public function getMetadataArgumentReturnsStripByDefault(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+
+        self::assertSame(['-strip'], $this->invokeGetMetadataArgument());
+    }
+
+    #[Test]
+    public function getMetadataArgumentReturnsProfileFlagWhenOnlyColorProfilePreserved(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(true);
+
+        self::assertSame(['+profile', '!icc,*'], $this->invokeGetMetadataArgument());
+    }
+
+    #[Test]
+    public function getMetadataArgumentBlanksGpsTagsWhenCopyrightPreserved(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(true);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+
+        $result = $this->invokeGetMetadataArgument();
+
+        self::assertContains('exif:GPSLatitude', $result);
+        self::assertContains('exif:GPSLongitude', $result);
+        self::assertNotContains('-strip', $result);
+    }
+
+    #[Test]
+    public function getMetadataArgumentBlanksGpsTagsWhenCreationDatePreserved(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(true);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+
+        $result = $this->invokeGetMetadataArgument();
+
+        self::assertContains('exif:GPSLatitude', $result);
+        self::assertContains('exif:GPSLongitude', $result);
+        self::assertNotContains('-strip', $result);
+    }
+
+    #[Test]
+    public function compressWithGraphicsProcessorSucceedsWhenCopyrightPreservationBlanksGpsTags(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(true);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn('/usr/bin/true');
+
+        self::assertTrue($this->invokeCompressWithGraphicsProcessor($tmpFile, 'image/jpeg'));
+    }
+
+    #[Test]
     public function compressWithGraphicsProcessorReturnsFalseWhenProcessTimesOut(): void
     {
         // A binary that ignores its arguments and just sleeps past a
@@ -548,6 +609,19 @@ final class LocalBasicCompressorTest extends TestCase
 
         /** @var int $result */
         $result = $method->invoke($this->subject, $mimeType);
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function invokeGetMetadataArgument(): array
+    {
+        $method = new ReflectionMethod($this->subject, 'getMetadataArgument');
+
+        /** @var array<int, string> $result */
+        $result = $method->invoke($this->subject);
 
         return $result;
     }

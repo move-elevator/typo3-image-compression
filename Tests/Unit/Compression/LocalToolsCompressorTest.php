@@ -482,12 +482,37 @@ final class LocalToolsCompressorTest extends TestCase
     }
 
     #[Test]
-    public function buildCommandBuildsJpegoptimCommand(): void
+    public function buildCommandBuildsJpegoptimCommandStrippingAllMetadataByDefault(): void
     {
         $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
 
         self::assertSame(
-            ['/usr/bin/jpegoptim', '--strip-all', '--all-progressive', '--max=80', '/tmp/example.jpg'],
+            ['/usr/bin/jpegoptim', '--strip-com', '--strip-xmp', '--strip-exif', '--strip-iptc', '--strip-icc', '--all-progressive', '--max=80', '/tmp/example.jpg'],
+            $this->invokeBuildCommand('jpegoptim', '/usr/bin/jpegoptim', '/tmp/example.jpg'),
+        );
+    }
+
+    #[Test]
+    public function buildCommandBuildsJpegoptimCommandPreservingCopyrightAndDate(): void
+    {
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(true);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(true);
+
+        self::assertSame(
+            ['/usr/bin/jpegoptim', '--strip-com', '--strip-xmp', '--strip-icc', '--all-progressive', '--max=80', '/tmp/example.jpg'],
+            $this->invokeBuildCommand('jpegoptim', '/usr/bin/jpegoptim', '/tmp/example.jpg'),
+        );
+    }
+
+    #[Test]
+    public function buildCommandBuildsJpegoptimCommandPreservingColorProfile(): void
+    {
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(true);
+
+        self::assertSame(
+            ['/usr/bin/jpegoptim', '--strip-com', '--strip-xmp', '--strip-exif', '--strip-iptc', '--all-progressive', '--max=80', '/tmp/example.jpg'],
             $this->invokeBuildCommand('jpegoptim', '/usr/bin/jpegoptim', '/tmp/example.jpg'),
         );
     }

@@ -264,7 +264,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         return match ($tool) {
             'jpegoptim' => [
                 $toolPath,
-                '--strip-all',
+                ...$this->getJpegoptimStripArgument(),
                 '--all-progressive',
                 sprintf('--max=%d', $this->extensionConfiguration->getJpegQuality()),
                 $filePath,
@@ -298,5 +298,38 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
                 $filePath,
             ],
         };
+    }
+
+    /**
+     * Builds the jpegoptim strip flags from configuration.
+     *
+     * The color profile has its own block (`--strip-icc`) and is preserved
+     * independently. Copyright and creation date, however, both live inside
+     * the same EXIF/IPTC blocks (alongside GPS): jpegoptim can only strip
+     * `--strip-exif`/`--strip-iptc` as whole blocks, not individual tags, so
+     * enabling either `preserveCopyright` or `preserveCreationDate` keeps
+     * the whole EXIF/IPTC data, including the other field and GPS, rather
+     * than that one field alone (see README.md's provider support table).
+     * Comments carry none of that data and are always stripped.
+     *
+     * @return array<int, string>
+     */
+    protected function getJpegoptimStripArgument(): array
+    {
+        $preserveCopyrightOrDate = $this->extensionConfiguration->isPreserveCopyright()
+            || $this->extensionConfiguration->isPreserveCreationDate();
+
+        $flags = ['--strip-com', '--strip-xmp'];
+
+        if (!$preserveCopyrightOrDate) {
+            $flags[] = '--strip-exif';
+            $flags[] = '--strip-iptc';
+        }
+
+        if (!$this->extensionConfiguration->isPreserveColorProfile()) {
+            $flags[] = '--strip-icc';
+        }
+
+        return $flags;
     }
 }
