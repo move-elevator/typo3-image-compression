@@ -12,6 +12,8 @@ Each option below lists its internal key, type, and default.
 | [`local-tools`](#local-tools-optimized-tools) | jpegoptim, optipng, pngquant, gifsicle, cwebp, avifenc | ~50–60% | Free | Self-hosted, no API costs |
 | [`local-basic`](#local-basic-imagemagick--graphicsmagick) | ImageMagick / GraphicsMagick | ~30–40% | Free | JPEG only, quick setup |
 
+**Provider** also accepts a comma-separated, ordered list for fallback: `tinify,local-tools` uses `tinify` first, falling back to `local-tools` for a MIME type `tinify` cannot handle or once the TinyPNG quota is exhausted. A single value, the default, behaves exactly as before.
+
 ### `tinify` (TinyPNG API)
 
 1. Register at [TinyPNG Developers](https://tinypng.com/developers) to obtain your API key.

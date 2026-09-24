@@ -51,6 +51,30 @@ final class ExtensionConfigurationTest extends TestCase
     }
 
     #[Test]
+    public function getProvidersReturnsASingleElementListForABareProvider(): void
+    {
+        $subject = $this->createSubject(['provider' => 'local-tools']);
+
+        self::assertSame(['local-tools'], $subject->getProviders());
+    }
+
+    #[Test]
+    public function getProvidersSplitsACommaSeparatedListInOrder(): void
+    {
+        $subject = $this->createSubject(['provider' => 'tinify, local-tools ,local-basic']);
+
+        self::assertSame(['tinify', 'local-tools', 'local-basic'], $subject->getProviders());
+    }
+
+    #[Test]
+    public function getProvidersDefaultsToTinify(): void
+    {
+        $subject = $this->createSubject([]);
+
+        self::assertSame([ExtensionConfiguration::PROVIDER_TINIFY], $subject->getProviders());
+    }
+
+    #[Test]
     public function getApiKeyReturnsConfiguredValue(): void
     {
         $subject = $this->createSubject(['apiKey' => 'secret-key']);

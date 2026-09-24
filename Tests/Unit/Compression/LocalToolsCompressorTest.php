@@ -113,6 +113,22 @@ final class LocalToolsCompressorTest extends TestCase
     }
 
     #[Test]
+    public function supportsReturnsTrueWhenAMatchingToolIsInstalled(): void
+    {
+        $this->toolDetectionMock->method('getFirstAvailable')->with(['jpegoptim'])->willReturn('jpegoptim');
+
+        self::assertTrue($this->subject->supports('image/jpeg'));
+    }
+
+    #[Test]
+    public function supportsReturnsFalseWhenNoMatchingToolIsInstalled(): void
+    {
+        $this->toolDetectionMock->method('getFirstAvailable')->with(['avifenc'])->willReturn(null);
+
+        self::assertFalse($this->subject->supports('image/avif'));
+    }
+
+    #[Test]
     public function canSetLogger(): void
     {
         $loggerMock = $this->createMock(LoggerInterface::class);

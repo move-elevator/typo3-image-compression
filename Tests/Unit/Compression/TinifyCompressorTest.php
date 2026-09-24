@@ -15,7 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
 use MoveElevator\Typo3ImageCompression\Backup\BackupService;
-use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, QuotaAwareInterface, TinifyCompressor};
+use MoveElevator\Typo3ImageCompression\Compression\{AvailabilityAwareInterface, CompressionOutcome, CompressorInterface, QuotaAwareInterface, TinifyCompressor};
 use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
@@ -130,9 +130,75 @@ final class TinifyCompressorTest extends TestCase
     }
 
     #[Test]
+    public function implementsAvailabilityAwareInterface(): void
+    {
+        self::assertInstanceOf(AvailabilityAwareInterface::class, $this->subject);
+    }
+
+    #[Test]
     public function getProviderIdentifierReturnsTinify(): void
     {
         self::assertSame('tinify', $this->subject->getProviderIdentifier());
+    }
+
+    #[Test]
+    public function supportsReturnsTrueForFormatsTinyPngHandles(): void
+    {
+        self::assertTrue($this->subject->supports('image/jpeg'));
+        self::assertTrue($this->subject->supports('image/png'));
+        self::assertTrue($this->subject->supports('image/webp'));
+        self::assertTrue($this->subject->supports('image/avif'));
+    }
+
+    #[Test]
+    public function supportsReturnsFalseForFormatsTinyPngDoesNotHandle(): void
+    {
+        self::assertFalse($this->subject->supports('image/gif'));
+        self::assertFalse($this->subject->supports('image/svg+xml'));
+    }
+
+    #[Test]
+    public function isAvailableIsFalseWithoutAnApiKey(): void
+    {
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+
+        self::assertFalse($this->subject->isAvailable());
+    }
+
+    #[Test]
+    public function isAvailableIsTrueWhenCompressionCountIsUnknown(): void
+    {
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('secret-key');
+        $this->cacheMock->method('get')->with('compression-count')->willReturn(null);
+
+        self::assertTrue($this->subject->isAvailable());
+    }
+
+    #[Test]
+    public function isAvailableIsTrueBelowTheFreeTierLimit(): void
+    {
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('secret-key');
+        $this->cacheMock->method('get')->with('compression-count')->willReturn(100);
+
+        self::assertTrue($this->subject->isAvailable());
+    }
+
+    #[Test]
+    public function isAvailableIsFalseAtTheFreeTierLimit(): void
+    {
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('secret-key');
+        $this->cacheMock->method('get')->with('compression-count')->willReturn(500);
+
+        self::assertFalse($this->subject->isAvailable());
+    }
+
+    #[Test]
+    public function isAvailableIsTrueAboveTheFreeTierLimitAssumingAPaidPlan(): void
+    {
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('secret-key');
+        $this->cacheMock->method('get')->with('compression-count')->willReturn(600);
+
+        self::assertTrue($this->subject->isAvailable());
     }
 
     #[Test]

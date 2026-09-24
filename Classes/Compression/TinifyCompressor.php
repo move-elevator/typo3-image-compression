@@ -44,7 +44,7 @@ use function strlen;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, LoggerAwareInterface, SingletonInterface
+class TinifyCompressor implements AvailabilityAwareInterface, CompressorInterface, QuotaAwareInterface, LoggerAwareInterface, SingletonInterface
 {
     use CompressorTrait;
     use FlashMessageTrait;
@@ -52,6 +52,16 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
 
     private const PROVIDER_IDENTIFIER = 'tinify';
     private const FREE_TIER_LIMIT = 500;
+
+    /**
+     * @see https://tinypng.com/developers/reference
+     */
+    private const SUPPORTED_MIME_TYPES = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/avif',
+    ];
     private const CACHE_ENTRY_COMPRESSION_COUNT = 'compression-count';
     private const CACHE_LIFETIME = 900;
 
@@ -73,6 +83,31 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
     public function getProviderIdentifier(): string
     {
         return self::PROVIDER_IDENTIFIER;
+    }
+
+    public function supports(string $mimeType): bool
+    {
+        return in_array($mimeType, self::SUPPORTED_MIME_TYPES, true);
+    }
+
+    /**
+     * Unavailable without an API key, or once the free-tier quota is used up.
+     * A paid plan (unknown, unlimited quota) is always reported as available.
+     */
+    public function isAvailable(): bool
+    {
+        if ('' === $this->extensionConfiguration->getApiKey()) {
+            return false;
+        }
+
+        $compressionCount = $this->getCompressionCount();
+        $quotaLimit = $this->getQuotaLimit();
+
+        if (null === $compressionCount || null === $quotaLimit) {
+            return true;
+        }
+
+        return $compressionCount < $quotaLimit;
     }
 
     /**

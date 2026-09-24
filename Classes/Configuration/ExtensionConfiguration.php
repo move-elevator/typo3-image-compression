@@ -41,11 +41,27 @@ class ExtensionConfiguration
     }
 
     /**
-     * Returns the configured compression provider.
+     * Returns the configured compression provider(s) as a raw, comma-separated string.
      */
     public function getProvider(): string
     {
         return (string) ($this->extConf['provider'] ?? self::PROVIDER_TINIFY);
+    }
+
+    /**
+     * Returns the configured compression providers, in fallback order.
+     *
+     * A single provider (the common case) is a list of one. Configuring
+     * `tinify,local-tools` falls back to `local-tools` for a MIME type or
+     * quota `tinify` cannot currently handle.
+     *
+     * @return non-empty-list<string>
+     */
+    public function getProviders(): array
+    {
+        $providers = GeneralUtility::trimExplode(',', $this->getProvider(), true);
+
+        return [] !== $providers ? $providers : [self::PROVIDER_TINIFY];
     }
 
     public function getApiKey(): string

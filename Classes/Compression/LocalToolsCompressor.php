@@ -82,6 +82,15 @@ class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterfac
         return self::PROVIDER_IDENTIFIER;
     }
 
+    /**
+     * True only when a matching tool for the MIME type is actually installed,
+     * not merely when one is theoretically mapped in {@see self::MIME_TYPE_TOOLS}.
+     */
+    public function supports(string $mimeType): bool
+    {
+        return null !== $this->getBestToolForMimeType($mimeType);
+    }
+
     public function compress(File|FileInterface $file): CompressionOutcome
     {
         if (!$file instanceof File) {

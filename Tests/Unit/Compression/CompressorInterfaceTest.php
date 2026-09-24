@@ -31,6 +31,20 @@ use ReflectionNamedType;
 final class CompressorInterfaceTest extends TestCase
 {
     #[Test]
+    public function interfaceDefinesSupportsMethod(): void
+    {
+        $reflection = new ReflectionClass(CompressorInterface::class);
+        self::assertTrue($reflection->hasMethod('supports'));
+
+        $method = $reflection->getMethod('supports');
+        self::assertCount(1, $method->getParameters());
+        self::assertSame('mimeType', $method->getParameters()[0]->getName());
+        $returnType = $method->getReturnType();
+        self::assertInstanceOf(ReflectionNamedType::class, $returnType);
+        self::assertSame('bool', $returnType->getName());
+    }
+
+    #[Test]
     public function interfaceDefinesCompressMethod(): void
     {
         $reflection = new ReflectionClass(CompressorInterface::class);

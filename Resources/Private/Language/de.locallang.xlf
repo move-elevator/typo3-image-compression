@@ -97,7 +97,7 @@
 			</trans-unit>
 			<trans-unit id="provider">
 				<source/>
-				<target>Komprimierungsanbieter: Wählen Sie den zu verwendenden Komprimierungsanbieter (tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick)</target>
+				<target>Komprimierungsanbieter: tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick. Kommagetrennt für eine Fallback-Reihenfolge, z. B. weicht "tinify,local-tools" auf local-tools aus, sobald das Kontingent von tinify aufgebraucht ist oder für einen von tinify nicht unterstützten MIME-Typ.</target>
 			</trans-unit>
 			<trans-unit id="jpegQuality">
 				<source/>

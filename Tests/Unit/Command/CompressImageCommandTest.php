@@ -107,6 +107,11 @@ final class CompressImageCommandTest extends TestCase
         $emptyFiles->method('count')->willReturn(0);
 
         $mimeTypeAwareCompressor = new class implements CompressorInterface, MimeTypeAwareInterface {
+            public function supports(string $mimeType): bool
+            {
+                return true;
+            }
+
             public function compress(File|FileInterface $file): CompressionOutcome
             {
                 return CompressionOutcome::Skipped;

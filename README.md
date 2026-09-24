@@ -69,6 +69,8 @@ Configure the extension in **Admin Tools > Settings > Extension Configuration**.
 | [`local-tools`](docs/configuration.md#local-tools-optimized-tools) | jpegoptim, optipng, pngquant, gifsicle, cwebp, avifenc, svgo (optional) | ~50–60% | Free | Self-hosted, no API costs |
 | [`local-basic`](docs/configuration.md#local-basic-imagemagick--graphicsmagick) | ImageMagick / GraphicsMagick | ~30–40% | Free | JPEG only, quick setup |
 
+**Provider** also accepts a comma-separated, ordered list for [fallback](docs/configuration.md#choosing-a-provider): `tinify,local-tools` uses `tinify` first, falling back to `local-tools` for a MIME type `tinify` cannot handle or once the TinyPNG quota is exhausted. A single value, the default, behaves exactly as before.
+
 > [!WARNING]
 > The `tinify` free tier is limited to **500 compressions/month**. Use the CLI `--include-processed` flag with caution on large sites with many existing images.
 
