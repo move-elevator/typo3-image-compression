@@ -53,17 +53,17 @@ final class CompressionResultHandlerTest extends TestCase
     {
         $output = new BufferedOutput();
         $stats = [
-            'original' => ['total' => 5, 'success' => 4, 'errors' => 1],
-            'processed' => ['total' => 0, 'success' => 0, 'errors' => 0],
+            'original' => ['total' => 5, 'success' => 4, 'skipped' => 0, 'errors' => 1],
+            'processed' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
         ];
 
         CompressionResultHandler::outputToConsole($output, $stats);
         $content = $output->fetch();
 
         self::assertStringContainsString('Compression Summary', $content);
-        self::assertStringContainsString('Original files: 4/5 compressed, 1 errors', $content);
+        self::assertStringContainsString('Original files: 4/5 compressed, 0 skipped, 1 errors', $content);
         self::assertStringNotContainsString('Processed files:', $content);
-        self::assertStringContainsString('Total: 4/5 compressed, 1 errors', $content);
+        self::assertStringContainsString('Total: 4/5 compressed, 0 skipped, 1 errors', $content);
     }
 
     #[Test]
@@ -71,16 +71,16 @@ final class CompressionResultHandlerTest extends TestCase
     {
         $output = new BufferedOutput();
         $stats = [
-            'original' => ['total' => 0, 'success' => 0, 'errors' => 0],
-            'processed' => ['total' => 3, 'success' => 3, 'errors' => 0],
+            'original' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
+            'processed' => ['total' => 3, 'success' => 3, 'skipped' => 0, 'errors' => 0],
         ];
 
         CompressionResultHandler::outputToConsole($output, $stats);
         $content = $output->fetch();
 
         self::assertStringNotContainsString('Original files:', $content);
-        self::assertStringContainsString('Processed files: 3/3 compressed, 0 errors', $content);
-        self::assertStringContainsString('Total: 3/3 compressed, 0 errors', $content);
+        self::assertStringContainsString('Processed files: 3/3 compressed, 0 skipped, 0 errors', $content);
+        self::assertStringContainsString('Total: 3/3 compressed, 0 skipped, 0 errors', $content);
     }
 
     #[Test]
@@ -88,16 +88,32 @@ final class CompressionResultHandlerTest extends TestCase
     {
         $output = new BufferedOutput();
         $stats = [
-            'original' => ['total' => 5, 'success' => 4, 'errors' => 1],
-            'processed' => ['total' => 3, 'success' => 3, 'errors' => 0],
+            'original' => ['total' => 5, 'success' => 4, 'skipped' => 0, 'errors' => 1],
+            'processed' => ['total' => 3, 'success' => 3, 'skipped' => 0, 'errors' => 0],
         ];
 
         CompressionResultHandler::outputToConsole($output, $stats);
         $content = $output->fetch();
 
-        self::assertStringContainsString('Original files: 4/5 compressed, 1 errors', $content);
-        self::assertStringContainsString('Processed files: 3/3 compressed, 0 errors', $content);
-        self::assertStringContainsString('Total: 7/8 compressed, 1 errors', $content);
+        self::assertStringContainsString('Original files: 4/5 compressed, 0 skipped, 1 errors', $content);
+        self::assertStringContainsString('Processed files: 3/3 compressed, 0 skipped, 0 errors', $content);
+        self::assertStringContainsString('Total: 7/8 compressed, 0 skipped, 1 errors', $content);
+    }
+
+    #[Test]
+    public function outputToConsoleWritesSkippedCount(): void
+    {
+        $output = new BufferedOutput();
+        $stats = [
+            'original' => ['total' => 5, 'success' => 2, 'skipped' => 3, 'errors' => 0],
+            'processed' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
+        ];
+
+        CompressionResultHandler::outputToConsole($output, $stats);
+        $content = $output->fetch();
+
+        self::assertStringContainsString('Original files: 2/5 compressed, 3 skipped, 0 errors', $content);
+        self::assertStringContainsString('Total: 2/5 compressed, 3 skipped, 0 errors', $content);
     }
 
     #[Test]
@@ -114,8 +130,8 @@ final class CompressionResultHandlerTest extends TestCase
         // If it proceeded further, makeInstance(FlashMessage::class) would be
         // attempted, which would require a queued instance we did not provide.
         CompressionResultHandler::addFlashMessage([
-            'original' => ['total' => 5, 'success' => 5, 'errors' => 0],
-            'processed' => ['total' => 0, 'success' => 0, 'errors' => 0],
+            'original' => ['total' => 5, 'success' => 5, 'skipped' => 0, 'errors' => 0],
+            'processed' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
         ]);
     }
 
@@ -130,8 +146,8 @@ final class CompressionResultHandlerTest extends TestCase
         GeneralUtility::setSingletonInstance(Context::class, $contextMock);
 
         CompressionResultHandler::addFlashMessage([
-            'original' => ['total' => 5, 'success' => 5, 'errors' => 0],
-            'processed' => ['total' => 0, 'success' => 0, 'errors' => 0],
+            'original' => ['total' => 5, 'success' => 5, 'skipped' => 0, 'errors' => 0],
+            'processed' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
         ]);
     }
 
@@ -166,8 +182,8 @@ final class CompressionResultHandlerTest extends TestCase
         GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageServiceMock);
 
         CompressionResultHandler::addFlashMessage([
-            'original' => ['total' => 5, 'success' => 5, 'errors' => 0],
-            'processed' => ['total' => 3, 'success' => 3, 'errors' => 0],
+            'original' => ['total' => 5, 'success' => 5, 'skipped' => 0, 'errors' => 0],
+            'processed' => ['total' => 3, 'success' => 3, 'skipped' => 0, 'errors' => 0],
         ]);
     }
 
@@ -189,19 +205,19 @@ final class CompressionResultHandlerTest extends TestCase
         GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageServiceMock);
 
         CompressionResultHandler::addFlashMessage([
-            'original' => ['total' => 5, 'success' => 4, 'errors' => 1],
-            'processed' => ['total' => 0, 'success' => 0, 'errors' => 0],
+            'original' => ['total' => 5, 'success' => 4, 'skipped' => 0, 'errors' => 1],
+            'processed' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
         ]);
     }
 
     /**
-     * @return array{original: array{total: int, success: int, errors: int}, processed: array{total: int, success: int, errors: int}}
+     * @return array{original: array{total: int, success: int, skipped: int, errors: int}, processed: array{total: int, success: int, skipped: int, errors: int}}
      */
     private function zeroStats(): array
     {
         return [
-            'original' => ['total' => 0, 'success' => 0, 'errors' => 0],
-            'processed' => ['total' => 0, 'success' => 0, 'errors' => 0],
+            'original' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
+            'processed' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
         ];
     }
 }

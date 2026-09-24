@@ -68,7 +68,7 @@ class CompressionInfoElement extends AbstractFormElement
     }
 
     /**
-     * @param array{compressed: bool, compress_error: string, compress_info: string} $fileData
+     * @param array{compressed: bool, compress_skipped: bool, compress_error: string, compress_info: string} $fileData
      */
     private function renderCompressionInfo(array $fileData): string
     {
@@ -80,6 +80,10 @@ class CompressionInfoElement extends AbstractFormElement
 
         if ($fileData['compressed']) {
             return $this->renderTemplate('compressed', $fileData['compress_info']);
+        }
+
+        if ($fileData['compress_skipped']) {
+            return $this->renderTemplate('optimal', $fileData['compress_info']);
         }
 
         return $this->renderTemplate('not_compressed');

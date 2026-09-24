@@ -19,6 +19,7 @@ use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Extbase\Persistence\Exception\InvalidQueryException;
+use TYPO3\CMS\Extbase\Persistence\Generic\Qom\ConstraintInterface;
 use TYPO3\CMS\Extbase\Persistence\{QueryInterface, QueryResultInterface, Repository};
 
 /**
@@ -54,7 +55,10 @@ class FileRepository extends Repository
     }
 
     /**
-     * @param string[] $excludeFolders
+     * @param string[]      $excludeFolders
+     * @param string[]|null $mimeTypes      Overrides the configured `mimeTypes` setting, e.g.
+     *                                      with a provider's effective (zero-configuration
+     *                                      extended) allowlist. Defaults to the configured setting.
      *
      * @return QueryResultInterface<int, File>
      *
@@ -64,13 +68,15 @@ class FileRepository extends Repository
         FileStorage $storage,
         int $limit = 100,
         array $excludeFolders = [],
+        ?array $mimeTypes = null,
+        ?string $folder = null,
     ): QueryResultInterface {
         $query = $this->createQuery();
 
         $excludeFoldersConstraints = [];
         foreach ($excludeFolders as $excludeFolder) {
             $excludeFoldersConstraints[] = $query->logicalNot(
-                $query->like('identifier', $excludeFolder.'%'),
+                $query->like('identifier', $this->escapeLikeValue($excludeFolder).'%'),
             );
         }
 
@@ -80,6 +86,7 @@ class FileRepository extends Repository
                     [
                         $query->equals('storage', $storage),
                         $query->equals('compressed', false),
+                        $query->equals('compressSkipped', false),
                         $query->equals('missing', false),
                         $query->logicalOr(
                             $query->equals('compress_error', null),
@@ -87,10 +94,11 @@ class FileRepository extends Repository
                         ),
                         $query->in(
                             'mime_type',
-                            $this->extensionConfiguration->getMimeTypes(),
+                            $mimeTypes ?? $this->extensionConfiguration->getMimeTypes(),
                         ),
                     ],
                     $excludeFoldersConstraints,
+                    $this->buildFolderConstraint($query, $folder),
                 ),
             ),
         );
@@ -102,7 +110,7 @@ class FileRepository extends Repository
     /**
      * Finds compression status data for a file by its UID.
      *
-     * @return array{compressed: bool, compress_error: string, compress_info: string}|null
+     * @return array{compressed: bool, compress_skipped: bool, compress_error: string, compress_info: string}|null
      *
      * @throws Exception
      */
@@ -111,7 +119,7 @@ class FileRepository extends Repository
         $queryBuilder = $this->connectionPool->getQueryBuilderForTable('sys_file');
 
         $row = $queryBuilder
-            ->select('compressed', 'compress_error', 'compress_info')
+            ->select('compressed', 'compress_skipped', 'compress_error', 'compress_info')
             ->from('sys_file')
             ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($fileUid, ParameterType::INTEGER)))
             ->executeQuery()
@@ -123,6 +131,7 @@ class FileRepository extends Repository
 
         return [
             'compressed' => (bool) $row['compressed'],
+            'compress_skipped' => (bool) $row['compress_skipped'],
             'compress_error' => (string) $row['compress_error'],
             'compress_info' => (string) $row['compress_info'],
         ];
@@ -131,7 +140,10 @@ class FileRepository extends Repository
     /**
      * Finds all files with compression errors in a storage.
      *
-     * @param string[] $excludeFolders
+     * @param string[]      $excludeFolders
+     * @param string[]|null $mimeTypes      Overrides the configured `mimeTypes` setting, e.g.
+     *                                      with a provider's effective (zero-configuration
+     *                                      extended) allowlist. Defaults to the configured setting.
      *
      * @return QueryResultInterface<int, File>
      *
@@ -141,13 +153,15 @@ class FileRepository extends Repository
         FileStorage $storage,
         int $limit = 100,
         array $excludeFolders = [],
+        ?array $mimeTypes = null,
+        ?string $folder = null,
     ): QueryResultInterface {
         $query = $this->createQuery();
 
         $excludeFoldersConstraints = [];
         foreach ($excludeFolders as $excludeFolder) {
             $excludeFoldersConstraints[] = $query->logicalNot(
-                $query->like('identifier', $excludeFolder.'%'),
+                $query->like('identifier', $this->escapeLikeValue($excludeFolder).'%'),
             );
         }
 
@@ -165,10 +179,11 @@ class FileRepository extends Repository
                         ),
                         $query->in(
                             'mime_type',
-                            $this->extensionConfiguration->getMimeTypes(),
+                            $mimeTypes ?? $this->extensionConfiguration->getMimeTypes(),
                         ),
                     ],
                     $excludeFoldersConstraints,
+                    $this->buildFolderConstraint($query, $folder),
                 ),
             ),
         );
@@ -192,11 +207,107 @@ class FileRepository extends Repository
             'sys_file',
             [
                 'compressed' => $compressed ? 1 : 0,
+                'compress_skipped' => 0,
                 'compress_error' => $compressError,
                 'compress_info' => $compressInfo,
             ],
             ['uid' => $fileUid],
         );
+    }
+
+    /**
+     * Stores the relative backup path for a file using DBAL.
+     */
+    public function updateBackupPath(int $fileUid, string $backupPath): void
+    {
+        $connection = $this->connectionPool->getConnectionForTable('sys_file');
+
+        $connection->update(
+            'sys_file',
+            ['backup_path' => $backupPath],
+            ['uid' => $fileUid],
+        );
+    }
+
+    /**
+     * Marks a file as already optimal: the compressed result did not meet
+     * the configured minimum saving threshold, so the original was kept.
+     *
+     * Distinct from `updateCompressionStatus(..., compressed: false, ...)`,
+     * which means "not yet processed" and would otherwise cause the file to
+     * be retried on every batch run.
+     */
+    public function updateCompressionSkipped(int $fileUid, string $compressInfo): void
+    {
+        $connection = $this->connectionPool->getConnectionForTable('sys_file');
+
+        $connection->update(
+            'sys_file',
+            [
+                'compressed' => 0,
+                'compress_skipped' => 1,
+                'compress_error' => '',
+                'compress_info' => $compressInfo,
+            ],
+            ['uid' => $fileUid],
+        );
+    }
+
+    /**
+     * Clears backup_path on every sys_file row still pointing at a given
+     * relative backup path, so pruning a backup file doesn't leave the file
+     * list offering to restore from a path that no longer exists.
+     */
+    public function clearBackupPathByRelativePath(string $backupPath): void
+    {
+        $connection = $this->connectionPool->getConnectionForTable('sys_file');
+
+        $connection->update(
+            'sys_file',
+            ['backup_path' => ''],
+            ['backup_path' => $backupPath],
+        );
+    }
+
+    /**
+     * Returns the relative backup path for a file, or null if none is set.
+     *
+     * @throws Exception
+     */
+    public function findBackupPathByUid(int $fileUid): ?string
+    {
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable('sys_file');
+
+        $backupPath = $queryBuilder
+            ->select('backup_path')
+            ->from('sys_file')
+            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($fileUid, ParameterType::INTEGER)))
+            ->executeQuery()
+            ->fetchOne();
+
+        if (false === $backupPath || '' === $backupPath) {
+            return null;
+        }
+
+        return (string) $backupPath;
+    }
+
+    /**
+     * @return QueryResultInterface<int, File>
+     *
+     * @throws InvalidQueryException
+     */
+    public function findAllWithBackup(): QueryResultInterface
+    {
+        $query = $this->createQuery();
+        $query->matching(
+            $query->logicalAnd(
+                $query->logicalNot($query->equals('backupPath', null)),
+                $query->logicalNot($query->equals('backupPath', '')),
+            ),
+        );
+
+        return $query->execute();
     }
 
     /**
@@ -212,8 +323,8 @@ class FileRepository extends Repository
 
         $result = $queryBuilder
             ->selectLiteral(
-                'SUM(CASE WHEN compressed = 1 THEN 1 ELSE 0 END) AS compressed',
-                'SUM(CASE WHEN compressed = 0 AND (compress_error IS NULL OR compress_error = \'\') THEN 1 ELSE 0 END) AS not_compressed',
+                'SUM(CASE WHEN compressed = 1 OR compress_skipped = 1 THEN 1 ELSE 0 END) AS compressed',
+                'SUM(CASE WHEN compressed = 0 AND compress_skipped = 0 AND (compress_error IS NULL OR compress_error = \'\') THEN 1 ELSE 0 END) AS not_compressed',
                 'SUM(CASE WHEN compress_error IS NOT NULL AND compress_error != \'\' THEN 1 ELSE 0 END) AS errors',
             )
             ->from('sys_file')
@@ -232,5 +343,30 @@ class FileRepository extends Repository
             'not_compressed' => (int) ($result['not_compressed'] ?? 0),
             'errors' => (int) ($result['errors'] ?? 0),
         ];
+    }
+
+    /**
+     * @param QueryInterface<File> $query
+     *
+     * @return list<ConstraintInterface>
+     */
+    private function buildFolderConstraint(QueryInterface $query, ?string $folder): array
+    {
+        if (null === $folder || '' === $folder) {
+            return [];
+        }
+
+        return [$query->like('identifier', $this->escapeLikeValue($folder).'%')];
+    }
+
+    /**
+     * Escapes LIKE metacharacters (`%`, `_`) and the escape character itself
+     * in a value that is about to be used as a LIKE prefix, so folder/path
+     * values containing these characters are matched literally instead of
+     * as wildcards.
+     */
+    private function escapeLikeValue(string $value): string
+    {
+        return addcslashes($value, '\\%_');
     }
 }

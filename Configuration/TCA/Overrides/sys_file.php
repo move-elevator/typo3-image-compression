@@ -24,6 +24,15 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
             'default' => 0,
         ],
     ],
+    'compress_skipped' => [
+        'exclude' => true,
+        'label' => 'Compression Skipped (already optimal)',
+        'config' => [
+            'type' => 'check',
+            'readOnly' => true,
+            'default' => 0,
+        ],
+    ],
     'compress_error' => [
         'exclude' => true,
         'label' => 'Compression Error',
@@ -36,6 +45,15 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
     'compress_info' => [
         'exclude' => true,
         'label' => 'Compression Info',
+        'config' => [
+            'type' => 'input',
+            'readOnly' => true,
+            'default' => '',
+        ],
+    ],
+    'backup_path' => [
+        'exclude' => true,
+        'label' => 'Backup Path',
         'config' => [
             'type' => 'input',
             'readOnly' => true,
