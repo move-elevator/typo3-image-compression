@@ -30,6 +30,7 @@ use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 
 use function in_array;
+use function strlen;
 
 /**
  * TinifyCompressor.
@@ -180,10 +181,24 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
             $filePath = $this->getAbsoluteFilePath($file);
             /** @var \Tinify\Source $source */
             $source = \Tinify\fromFile($filePath);
-            $source->toFile($filePath);
+            $source = $this->applyPreserveOptions($source);
+            /** @var \Tinify\Result $result */
+            $result = $source->result();
+            // strlen(toBuffer()) rather than Result::size() (which reads the
+            // "content-length" response header): it reflects the exact bytes
+            // that would be written and does not depend on that header being
+            // present.
+            $newFileSize = strlen($result->toBuffer());
 
-            clearstatcache(true, $filePath);
-            $newFileSize = (int) filesize($filePath);
+            if (!$this->meetsMinimumSaving($originalFileSize, $newFileSize)) {
+                $compressInfo = $this->buildSkippedInfo(self::PROVIDER_IDENTIFIER, $originalFileSize);
+                $this->markFileAsOptimal($file, $compressInfo);
+                $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
+
+                return;
+            }
+
+            $result->toFile($filePath);
             $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
 
             $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize);
@@ -341,6 +356,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
         try {
             /** @var \Tinify\Source $source */
             $source = \Tinify\fromFile($filePath);
+            $source = $this->applyPreserveOptions($source);
 
             if (false !== $source->toFile($filePath)) {
                 $this->fileProcessedRepository->updateCompressState($fileId);
@@ -371,6 +387,34 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                 ContextualFeedbackSeverity::WARNING,
             );
         }
+    }
+
+    /**
+     * Applies configured metadata preservation. GPS location is never
+     * preserved, it is a data protection concern rather than a compression setting.
+     *
+     * The TinyPNG API's `preserve()` option only supports "copyright" and
+     * "creation"; there is no ICC-profile-preservation option, TinyPNG
+     * always converts images to sRGB. `preserveColorProfile` therefore has
+     * no effect for this provider (see README.md's provider support table).
+     */
+    protected function applyPreserveOptions(\Tinify\Source $source): \Tinify\Source
+    {
+        $options = [];
+
+        if ($this->extensionConfiguration->isPreserveCopyright()) {
+            $options[] = 'copyright';
+        }
+
+        if ($this->extensionConfiguration->isPreserveCreationDate()) {
+            $options[] = 'creation';
+        }
+
+        if ([] === $options) {
+            return $source;
+        }
+
+        return $source->preserve(...$options);
     }
 
     private function fetchCompressionCount(): ?int
