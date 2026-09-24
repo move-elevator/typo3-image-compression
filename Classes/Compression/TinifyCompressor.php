@@ -20,6 +20,8 @@ use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedE
 use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
+use MoveElevator\Typo3ImageCompression\Event\{AfterImageCompressionEvent, BeforeImageCompressionEvent};
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
 use RuntimeException;
 use Tinify\{AccountException, ConnectionException, ServerException};
@@ -65,6 +67,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
         protected readonly StorageRepository $storageRepository,
         protected readonly FrontendInterface $cache,
         protected readonly BackupService $backupService,
+        protected readonly EventDispatcherInterface $eventDispatcher,
     ) {}
 
     public function getProviderIdentifier(): string
@@ -182,6 +185,19 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
             return CompressionOutcome::Failed;
         }
 
+        $beforeEvent = new BeforeImageCompressionEvent(
+            $file,
+            self::PROVIDER_IDENTIFIER,
+            $this->extensionConfiguration->getJpegQuality(),
+            $this->extensionConfiguration->getPngQuality(),
+            $this->extensionConfiguration->getWebpQuality(),
+        );
+        $this->eventDispatcher->dispatch($beforeEvent);
+
+        if ($beforeEvent->isCompressionSkipped()) {
+            return CompressionOutcome::Skipped;
+        }
+
         try {
             $this->initAction();
             $this->assureFileExists($file);
@@ -208,21 +224,10 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
             }
 
             $result->toFile($filePath);
-            $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
 
             $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize);
             $this->markFileAsCompressed($file, $compressInfo);
             $this->updateFileInformation($file);
-
-            if ($percentageSaved > 0) {
-                $this->addFlashMessage(
-                    'success',
-                    [$percentageSaved.'%'],
-                    ContextualFeedbackSeverity::INFO,
-                );
-            }
-
-            return CompressionOutcome::Compressed;
         } catch (AccountException $e) {
             $this->logger?->critical('TinyPNG account error, aborting compression run', [
                 'file' => $file->getIdentifier(),
@@ -259,6 +264,31 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
 
             return CompressionOutcome::Failed;
         }
+
+        // Dispatched outside the try/catch above: compression already
+        // succeeded and was persisted at this point, so an exception from a
+        // listener must propagate as-is instead of being caught here and
+        // mistaken for a compression failure (which would overwrite the
+        // already-persisted success status via saveError()).
+        $this->eventDispatcher->dispatch(new AfterImageCompressionEvent(
+            $file,
+            self::PROVIDER_IDENTIFIER,
+            null,
+            $originalFileSize,
+            $newFileSize,
+        ));
+
+        $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
+
+        if ($percentageSaved > 0) {
+            $this->addFlashMessage(
+                'success',
+                [$percentageSaved.'%'],
+                ContextualFeedbackSeverity::INFO,
+            );
+        }
+
+        return CompressionOutcome::Compressed;
     }
 
     /**

@@ -17,6 +17,8 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 use MoveElevator\Typo3ImageCompression\Backup\BackupService;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
+use MoveElevator\Typo3ImageCompression\Event\{AfterImageCompressionEvent, BeforeImageCompressionEvent};
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
@@ -72,6 +74,7 @@ class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterfac
         protected readonly StorageRepository $storageRepository,
         protected readonly ToolDetection $toolDetection,
         protected readonly BackupService $backupService,
+        protected readonly EventDispatcherInterface $eventDispatcher,
     ) {}
 
     public function getProviderIdentifier(): string
@@ -120,10 +123,24 @@ class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterfac
             return CompressionOutcome::Failed;
         }
 
+        $beforeEvent = new BeforeImageCompressionEvent(
+            $file,
+            self::PROVIDER_IDENTIFIER,
+            $this->extensionConfiguration->getJpegQuality(),
+            $this->extensionConfiguration->getPngQuality(),
+            $this->extensionConfiguration->getWebpQuality(),
+        );
+        $this->eventDispatcher->dispatch($beforeEvent);
+
+        if ($beforeEvent->isCompressionSkipped()) {
+            return CompressionOutcome::Skipped;
+        }
+
+        $qualityOverride = $this->resolveQualityForTool($tool, $beforeEvent);
         $this->maybeBackupOriginal($file, $filePath);
         $outcome = $this->compressToTempAndReplace(
             $filePath,
-            fn (string $tempPath): bool => $this->executeOptimization($tool, $tempPath),
+            fn (string $tempPath): bool => $this->executeOptimization($tool, $tempPath, $qualityOverride),
         );
 
         if (null === $outcome) {
@@ -148,6 +165,14 @@ class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterfac
         $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $outcome['newSize'], $tool);
         $this->markFileAsCompressed($file, $compressInfo);
         $this->updateFileInformation($file);
+
+        $this->eventDispatcher->dispatch(new AfterImageCompressionEvent(
+            $file,
+            self::PROVIDER_IDENTIFIER,
+            $tool,
+            $outcome['originalSize'],
+            $outcome['newSize'],
+        ));
 
         if ($savedPercent > 0) {
             $this->logger?->info('Image compressed', [
@@ -259,7 +284,7 @@ class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterfac
         return $this->toolDetection->getFirstAvailable($tools);
     }
 
-    protected function executeOptimization(string $tool, string $filePath): bool
+    protected function executeOptimization(string $tool, string $filePath, ?int $qualityOverride = null): bool
     {
         $toolPath = $this->toolDetection->getToolPath($tool);
 
@@ -269,7 +294,7 @@ class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterfac
             return false;
         }
 
-        $command = $this->buildCommand($tool, $toolPath, $filePath);
+        $command = $this->buildCommand($tool, $toolPath, $filePath, $qualityOverride);
         $process = new Process($command);
         $process->setTimeout($this->extensionConfiguration->getCommandTimeout());
 
@@ -311,14 +336,14 @@ class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterfac
     /**
      * @return array<int, string>
      */
-    protected function buildCommand(string $tool, string $toolPath, string $filePath): array
+    protected function buildCommand(string $tool, string $toolPath, string $filePath, ?int $qualityOverride = null): array
     {
         return match ($tool) {
             'jpegoptim' => [
                 $toolPath,
                 ...$this->getJpegoptimStripArgument(),
                 '--all-progressive',
-                sprintf('--max=%d', $this->extensionConfiguration->getJpegQuality()),
+                sprintf('--max=%d', $qualityOverride ?? $this->extensionConfiguration->getJpegQuality()),
                 $filePath,
             ],
             'pngquant' => [
@@ -327,20 +352,20 @@ class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterfac
                 '--ext', '.png',
                 '--quality', sprintf(
                     '%d-%d',
-                    max(0, $this->extensionConfiguration->getPngQuality() - 15),
-                    $this->extensionConfiguration->getPngQuality(),
+                    max(0, ($qualityOverride ?? $this->extensionConfiguration->getPngQuality()) - 15),
+                    $qualityOverride ?? $this->extensionConfiguration->getPngQuality(),
                 ),
                 $filePath,
             ],
             'cwebp' => [
                 $toolPath,
-                '-q', (string) $this->extensionConfiguration->getWebpQuality(),
+                '-q', (string) ($qualityOverride ?? $this->extensionConfiguration->getWebpQuality()),
                 $filePath,
                 '-o', $filePath,
             ],
             'avifenc' => [
                 $toolPath,
-                '-q', (string) $this->extensionConfiguration->getWebpQuality(),
+                '-q', (string) ($qualityOverride ?? $this->extensionConfiguration->getWebpQuality()),
                 $filePath,
                 $filePath,
             ],
@@ -383,5 +408,19 @@ class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterfac
         }
 
         return $flags;
+    }
+
+    /**
+     * Maps a tool to the (possibly listener-adjusted) quality setting it
+     * reads. optipng/gifsicle/svgo have no quality concept and always return null.
+     */
+    private function resolveQualityForTool(string $tool, BeforeImageCompressionEvent $event): ?int
+    {
+        return match ($tool) {
+            'jpegoptim' => $event->getJpegQuality(),
+            'pngquant' => $event->getPngQuality(),
+            'cwebp', 'avifenc' => $event->getWebpQuality(),
+            default => null,
+        };
     }
 }

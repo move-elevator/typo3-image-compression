@@ -6,7 +6,9 @@ services:
 
   MoveElevator\Typo3ImageCompression\:
     resource: "../Classes/*"
-    exclude: "../Classes/Domain/Model/*"
+    exclude:
+      - "../Classes/Domain/Model/*"
+      - "../Classes/Event/*"
 
   MoveElevator\Typo3ImageCompression\Compression\CompressorInterface:
     factory: ['@MoveElevator\Typo3ImageCompression\Compression\CompressorFactory', 'create']

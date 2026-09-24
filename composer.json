@@ -37,6 +37,7 @@
 		"ext-fileinfo": "*",
 		"doctrine/dbal": "^3.8 || ^4.0",
 		"psr/container": "^1.1 || ^2.0",
+		"psr/event-dispatcher": "^1.0",
 		"psr/http-message": "^1.0 || ^2.0",
 		"psr/log": "^2.0 || ^3.0",
 		"symfony/console": "^6.4 || ^7.0 || ^8.0",
