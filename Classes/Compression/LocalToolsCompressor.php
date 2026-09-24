@@ -17,10 +17,11 @@ namespace MoveElevator\Typo3ImageCompression\Compression;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\Process;
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
-use TYPO3\CMS\Core\Utility\CommandUtility;
 
 use function in_array;
 use function sprintf;
@@ -41,12 +42,12 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
     private const PROVIDER_IDENTIFIER = 'local-tools';
 
     /**
-     * Tool commands with %s placeholder for file path.
+     * Tool argument lists (file path is appended by buildCommand()).
      * Tools with configurable quality use getToolCommand() method instead.
      */
     private const TOOL_COMMANDS = [
-        'optipng' => '-o2 -strip all %s',
-        'gifsicle' => '--batch -O2 %s',
+        'optipng' => ['-o2', '-strip', 'all'],
+        'gifsicle' => ['--batch', '-O2'],
     ];
 
     /**
@@ -108,29 +109,43 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
             return;
         }
 
-        $originalFileSize = (int) filesize($filePath);
-        $success = $this->executeOptimization($tool, $filePath);
+        $outcome = $this->compressToTempAndReplace(
+            $filePath,
+            fn (string $tempPath): bool => $this->executeOptimization($tool, $tempPath),
+        );
 
-        if ($success) {
-            // Log compression result and show flash message
-            clearstatcache(true, $filePath);
-            $newFileSize = (int) filesize($filePath);
-            $savedPercent = $this->calculateSavedPercent($originalFileSize, $newFileSize);
+        if (null === $outcome) {
+            return;
+        }
 
-            $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize, $tool);
-            $this->markFileAsCompressed($file, $compressInfo);
-            $this->updateFileInformation($file);
+        if (!$outcome['replaced']) {
+            $compressInfo = $this->buildSkippedInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $tool);
+            $this->markFileAsOptimal($file, $compressInfo);
+            $this->logger?->info('Image already optimal, kept original', [
+                'file' => $file->getIdentifier(),
+                'tool' => $tool,
+                'originalSize' => $outcome['originalSize'],
+                'attemptedSize' => $outcome['newSize'],
+            ]);
+            $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
 
-            if ($savedPercent > 0) {
-                $this->logger?->info('Image compressed', [
-                    'file' => $file->getIdentifier(),
-                    'tool' => $tool,
-                    'originalSize' => $originalFileSize,
-                    'newSize' => $newFileSize,
-                    'savedPercent' => $savedPercent,
-                ]);
-                $this->addFlashMessage('success', [$savedPercent.'%'], ContextualFeedbackSeverity::INFO);
-            }
+            return;
+        }
+
+        $savedPercent = $this->calculateSavedPercent($outcome['originalSize'], $outcome['newSize']);
+        $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $outcome['newSize'], $tool);
+        $this->markFileAsCompressed($file, $compressInfo);
+        $this->updateFileInformation($file);
+
+        if ($savedPercent > 0) {
+            $this->logger?->info('Image compressed', [
+                'file' => $file->getIdentifier(),
+                'tool' => $tool,
+                'originalSize' => $outcome['originalSize'],
+                'newSize' => $outcome['newSize'],
+                'savedPercent' => $savedPercent,
+            ]);
+            $this->addFlashMessage('success', [$savedPercent.'%'], ContextualFeedbackSeverity::INFO);
         }
     }
 
@@ -203,18 +218,29 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         }
 
         $command = $this->buildCommand($tool, $toolPath, $filePath);
+        $process = new Process($command);
+        $process->setTimeout($this->extensionConfiguration->getCommandTimeout());
 
-        $output = [];
-        $returnValue = 0;
-        CommandUtility::exec($command, $output, $returnValue);
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            $this->logger?->warning('Image optimization timed out', [
+                'tool' => $tool,
+                'file' => $filePath,
+                'command' => $process->getCommandLine(),
+                'timeout' => $this->extensionConfiguration->getCommandTimeout(),
+            ]);
 
-        if (0 !== $returnValue) {
+            return false;
+        }
+
+        if (!$process->isSuccessful()) {
             $this->logger?->warning('Image optimization failed', [
                 'tool' => $tool,
                 'file' => $filePath,
-                'command' => $command,
-                'exitCode' => $returnValue,
-                'output' => implode("\n", $output ?? []),
+                'command' => $process->getCommandLine(),
+                'exitCode' => $process->getExitCode(),
+                'output' => $process->getErrorOutput().$process->getOutput(),
             ]);
 
             return false;
@@ -223,50 +249,54 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         $this->logger?->debug('Image optimized with local tool', [
             'tool' => $tool,
             'file' => $filePath,
-            'command' => $command,
-            'output' => implode("\n", $output ?? []),
+            'command' => $process->getCommandLine(),
+            'output' => $process->getOutput(),
         ]);
 
         return true;
     }
 
-    protected function buildCommand(string $tool, string $toolPath, string $filePath): string
+    /**
+     * @return array<int, string>
+     */
+    protected function buildCommand(string $tool, string $toolPath, string $filePath): array
     {
-        $escapedPath = escapeshellarg($filePath);
-
         return match ($tool) {
-            'jpegoptim' => sprintf(
-                '%s --strip-all --all-progressive --max=%d %s',
+            'jpegoptim' => [
                 $toolPath,
-                $this->extensionConfiguration->getJpegQuality(),
-                $escapedPath,
-            ),
-            'pngquant' => sprintf(
-                '%s --force --ext .png --quality %d-%d %s',
+                '--strip-all',
+                '--all-progressive',
+                sprintf('--max=%d', $this->extensionConfiguration->getJpegQuality()),
+                $filePath,
+            ],
+            'pngquant' => [
                 $toolPath,
-                max(0, $this->extensionConfiguration->getPngQuality() - 15),
-                $this->extensionConfiguration->getPngQuality(),
-                $escapedPath,
-            ),
-            'cwebp' => sprintf(
-                '%s -q %d %s -o %s',
+                '--force',
+                '--ext', '.png',
+                '--quality', sprintf(
+                    '%d-%d',
+                    max(0, $this->extensionConfiguration->getPngQuality() - 15),
+                    $this->extensionConfiguration->getPngQuality(),
+                ),
+                $filePath,
+            ],
+            'cwebp' => [
                 $toolPath,
-                $this->extensionConfiguration->getWebpQuality(),
-                $escapedPath,
-                $escapedPath,
-            ),
-            'avifenc' => sprintf(
-                '%s -q %d %s %s',
+                '-q', (string) $this->extensionConfiguration->getWebpQuality(),
+                $filePath,
+                '-o', $filePath,
+            ],
+            'avifenc' => [
                 $toolPath,
-                $this->extensionConfiguration->getWebpQuality(),
-                $escapedPath,
-                $escapedPath,
-            ),
-            default => sprintf(
-                '%s %s',
+                '-q', (string) $this->extensionConfiguration->getWebpQuality(),
+                $filePath,
+                $filePath,
+            ],
+            default => [
                 $toolPath,
-                sprintf(self::TOOL_COMMANDS[$tool] ?? '%s', $escapedPath),
-            ),
+                ...(self::TOOL_COMMANDS[$tool] ?? []),
+                $filePath,
+            ],
         };
     }
 }

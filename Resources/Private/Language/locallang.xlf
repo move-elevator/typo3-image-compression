@@ -21,6 +21,9 @@
 			<trans-unit id="flashMessage.message.success">
 				<source>The image compression saved you about %s of your file size!</source>
 			</trans-unit>
+			<trans-unit id="flashMessage.message.alreadyOptimal">
+				<source>Image is already optimally compressed, original was kept.</source>
+			</trans-unit>
 			<trans-unit id="flashMessage.title">
 				<source>Compression</source>
 			</trans-unit>
@@ -57,6 +60,12 @@
 			<trans-unit id="webpQuality">
 				<source>WebP Quality (1-100): Quality setting for local WebP compression</source>
 			</trans-unit>
+			<trans-unit id="commandTimeout">
+				<source>Command Timeout (seconds): Timeout for external tool invocations (local-tools/local-basic providers)</source>
+			</trans-unit>
+			<trans-unit id="minimumSavingPercent">
+				<source>Minimum saving (%, 0-100): Compressed result must be at least this much smaller than the original to be kept. Below this, the original file is preserved.</source>
+			</trans-unit>
 			<trans-unit id="tab.compression">
 				<source>Compression</source>
 			</trans-unit>
@@ -68,6 +77,9 @@
 			</trans-unit>
 			<trans-unit id="status.not_compressed">
 				<source>Not compressed</source>
+			</trans-unit>
+			<trans-unit id="status.optimal">
+				<source>Already optimal</source>
 			</trans-unit>
 			<trans-unit id="status.error">
 				<source>Error</source>
