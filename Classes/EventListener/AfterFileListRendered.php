@@ -94,6 +94,14 @@ final readonly class AfterFileListRendered
             return;
         }
 
+        // The button's visibility is not an authorization boundary on its
+        // own: RestoreFileController re-checks this itself. Filtering here
+        // too keeps this entry point consistent with RestoreFileProvider's
+        // context-menu counterpart, which already applies the same check.
+        if (!$resource->checkActionPermission('replace')) {
+            return;
+        }
+
         $formToken = $this->formProtectionFactory->createForType('backend')->generateToken(
             RestoreFileController::FORM_PROTECTION_FORM_NAME,
             RestoreFileController::FORM_PROTECTION_ACTION,
