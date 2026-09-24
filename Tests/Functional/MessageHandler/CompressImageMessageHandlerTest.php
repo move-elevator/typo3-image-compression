@@ -42,14 +42,13 @@ final class CompressImageMessageHandlerTest extends FunctionalTestCase
     protected array $testExtensionsToLoad = ['typo3/cms-reports', 'move-elevator/typo3-image-compression'];
 
     #[Test]
-    public function dispatchingCompressImageMessageRecordsTheFailureOnTheFileWithoutApiKey(): void
+    public function dispatchingCompressImageMessageDoesNotRecordAnErrorWithoutApiKey(): void
     {
-        // Same reasoning as CompressImageCommandTest: no API key is
-        // configured, so TinifyCompressor's real call fails locally with an
-        // AccountException that it catches internally. From here, no
-        // exception escapes: the handler runs to completion, including the
-        // FileDeletionAspect cleanup call, and the failure is only visible
-        // on the sys_file row.
+        // No API key is configured, so TinifyCompressor's real call fails
+        // locally with an AccountException, which the handler catches
+        // without letting it escape to the message bus. That is a run-wide
+        // problem rather than a per-file one, so unlike a genuine per-file
+        // failure, no error is persisted on the sys_file row.
         $storageUid = $this->createLocalTestStorage();
         $this->writeRealFile($storageUid, 'photo.jpg', 'not-a-real-jpeg-but-nonempty-bytes');
         $fileUid = $this->importSysFileRow($storageUid, '/photo.jpg', 'photo.jpg', 'image/jpeg');
@@ -65,7 +64,7 @@ final class CompressImageMessageHandlerTest extends FunctionalTestCase
             ->fetchAssociative();
 
         self::assertNotFalse($row);
-        self::assertStringContainsString('Provide an API key', (string) $row['compress_error']);
+        self::assertSame('', (string) $row['compress_error']);
     }
 
     #[Test]

@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Command;
 
 use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface};
+use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Model\{File, FileStorage};
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
@@ -52,6 +53,13 @@ use function sprintf;
 final class CompressImageCommand extends Command
 {
     private const DEFAULT_LIMIT_TO_PROCESS = 100;
+
+    /**
+     * Set when a provider signals an unrecoverable, run-wide problem (e.g. an
+     * invalid API key or an exhausted quota). Stops further files from being
+     * attempted for the remainder of this run.
+     */
+    private bool $aborted = false;
 
     public function __construct(
         private readonly FileStorageRepository $fileStorageRepository,
@@ -151,9 +159,13 @@ final class CompressImageCommand extends Command
         CompressionResultHandler::outputToConsole($output, $stats);
         CompressionResultHandler::addFlashMessage($stats);
 
+        if ($this->aborted) {
+            $output->writeln('<error>Compression run aborted: the provider reported an unrecoverable error (e.g. invalid API key or exhausted quota). Remaining files were not attempted.</error>');
+        }
+
         $errors = $stats['original']['errors'] + $stats['processed']['errors'];
 
-        return $errors > 0 ? Command::FAILURE : Command::SUCCESS;
+        return $errors > 0 || $this->aborted ? Command::FAILURE : Command::SUCCESS;
     }
 
     /**
@@ -191,6 +203,7 @@ final class CompressImageCommand extends Command
      */
     private function compressFiles(SymfonyStyle $io, int $limit, bool $includeProcessed, bool $retryErrors, ?int $storageUid, ?string $folder): array
     {
+        $this->aborted = false;
         $stats = [
             'original' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
             'processed' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
@@ -207,7 +220,7 @@ final class CompressImageCommand extends Command
             }
         }
 
-        if ($limit > 0) {
+        if ($limit > 0 && !$this->aborted) {
             $stats['original'] = $this->compressOriginalFiles($io, $limit, $retryErrors, $storageUid, $folder);
         }
 
@@ -230,7 +243,7 @@ final class CompressImageCommand extends Command
         $excludeFolders = $this->extensionConfiguration->getExcludeFolders();
 
         foreach ($this->resolveStorages($storageUid) as $fileStorage) {
-            if ($remaining <= 0) {
+            if ($remaining <= 0 || $this->aborted) {
                 break;
             }
 
@@ -258,6 +271,8 @@ final class CompressImageCommand extends Command
      *
      * @throws FileDoesNotExistException
      * @throws Exception
+     *
+     * @phpstan-impure sets $this->aborted when a provider signals a run-wide abort
      */
     private function compressImagesWithStats(SymfonyStyle $io, QueryResultInterface $files): array
     {
@@ -268,6 +283,10 @@ final class CompressImageCommand extends Command
         $progressBar->start();
 
         foreach ($files as $file) {
+            if ($this->aborted) {
+                break;
+            }
+
             $uid = $file->getUid();
             if (null === $uid) {
                 continue;
@@ -278,6 +297,10 @@ final class CompressImageCommand extends Command
 
             try {
                 $outcome = $this->compressor->compress($resourceFile);
+            } catch (CompressionAbortedException) {
+                $this->aborted = true;
+
+                break;
             } catch (Throwable) {
                 $outcome = CompressionOutcome::Failed;
             }
@@ -307,20 +330,31 @@ final class CompressImageCommand extends Command
      * @param array<int, array<string, mixed>> $files
      *
      * @return array{total: int, success: int, skipped: int, errors: int}
+     *
+     * @phpstan-impure sets $this->aborted when a provider signals a run-wide abort
      */
     private function compressProcessedFilesWithStats(SymfonyStyle $io, array $files): array
     {
-        $stats = ['total' => count($files), 'success' => 0, 'skipped' => 0, 'errors' => 0];
+        $stats = ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0];
 
         $progressBar = $io->createProgressBar(count($files));
         $progressBar->start();
 
         foreach ($files as $file) {
+            if ($this->aborted) {
+                break;
+            }
+
+            ++$stats['total'];
             $uid = (int) ($file['uid'] ?? 0);
 
             try {
                 $this->compressor->compressProcessedFiles([$file]);
                 ++$stats[$this->fileProcessedRepository->classifyOutcome($uid)];
+            } catch (CompressionAbortedException) {
+                $this->aborted = true;
+
+                break;
             } catch (Throwable) {
                 ++$stats['errors'];
             }

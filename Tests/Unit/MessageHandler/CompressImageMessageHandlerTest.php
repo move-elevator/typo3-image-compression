@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\MessageHandler;
 
 use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
+use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use MoveElevator\Typo3ImageCompression\Message\CompressImageMessage;
 use MoveElevator\Typo3ImageCompression\MessageHandler\CompressImageMessageHandler;
 use MoveElevator\Typo3ImageCompression\Resource\FileResolver;
@@ -71,5 +72,26 @@ final class CompressImageMessageHandlerTest extends TestCase
 
         $subject = new CompressImageMessageHandler($fileResolverMock, $compressorMock);
         $subject(new CompressImageMessage(42, 7));
+    }
+
+    #[Test]
+    public function invokeDoesNotLetCompressionAbortedExceptionEscapeTheMessageBus(): void
+    {
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getUid')->willReturn(7);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getStorage')->willReturn($storageMock);
+
+        $fileResolverMock = $this->createMock(FileResolver::class);
+        $fileResolverMock->method('getFileObject')->with(42)->willReturn($fileMock);
+
+        $compressorMock = $this->createMock(CompressorInterface::class);
+        $compressorMock->method('compress')->willThrowException(new CompressionAbortedException('quota exhausted'));
+
+        $subject = new CompressImageMessageHandler($fileResolverMock, $compressorMock);
+        $subject(new CompressImageMessage(42, 7));
+
+        self::expectNotToPerformAssertions();
     }
 }

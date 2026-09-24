@@ -55,13 +55,14 @@ final class CompressImageCommandTest extends FunctionalTestCase
     }
 
     #[Test]
-    public function executeCompressesOriginalFilesAndRecordsTheFailureOnTheFileWithoutApiKey(): void
+    public function executeAbortsTheRunWithoutRecordingAnErrorWhenApiKeyIsMissing(): void
     {
         // No API key is configured (the extension default is empty), so the
-        // real TinyPNG call fails locally with an AccountException. TinifyCompressor
-        // catches that exception itself and now reports CompressionOutcome::Failed,
-        // so the command correctly counts the file as an error instead of a
-        // success. The failure is also visible on the sys_file row (compress_error).
+        // real TinyPNG call fails with a Tinify\AccountException. That is a
+        // run-wide problem (GH-50), not a per-file one: TinifyCompressor
+        // rethrows it as CompressionAbortedException, the command stops
+        // attempting further files, and no compress_error is written to the
+        // sys_file row (the next scheduled run will simply try again).
         $storageUid = $this->createLocalTestStorage();
         $this->writeRealFile($storageUid, 'photo.jpg', 'not-a-real-jpeg-but-nonempty-bytes');
         $fileUid = $this->importSysFileRow($storageUid, '/photo.jpg', 'photo.jpg', 'image/jpeg');
@@ -70,19 +71,19 @@ final class CompressImageCommandTest extends FunctionalTestCase
 
         self::assertSame(1, $this->commandTester->getStatusCode());
         $display = $this->commandTester->getDisplay();
-        self::assertStringContainsString('Compression Summary', $display);
-        self::assertStringContainsString('Original files: 0/1 compressed, 0 skipped, 1 errors', $display);
+        self::assertStringContainsString('Compression run aborted', $display);
 
         $row = $this->getConnectionPool()
             ->getQueryBuilderForTable('sys_file')
-            ->select('compress_error')
+            ->select('compressed', 'compress_error')
             ->from('sys_file')
             ->where('uid = '.$fileUid)
             ->executeQuery()
             ->fetchAssociative();
 
         self::assertNotFalse($row);
-        self::assertStringContainsString('Provide an API key', (string) $row['compress_error']);
+        self::assertSame(0, (int) $row['compressed']);
+        self::assertSame('', (string) $row['compress_error']);
     }
 
     #[Test]
