@@ -56,6 +56,13 @@ interface CompressorTraitTestSubject
     public function calculateSavedPercent(int $originalSize, int $newSize): int;
 
     public function maybeBackupOriginal(File $file, string $filePath): void;
+
+    /**
+     * @param callable(string $tempPath): bool $optimize
+     *
+     * @return array{originalSize: int, newSize: int, replaced: bool}|null
+     */
+    public function compressToTempAndReplace(string $filePath, callable $optimize): ?array;
 }
 
 /**
@@ -72,6 +79,11 @@ final class CompressorTraitTest extends TestCase
     private FileRepository&MockObject $fileRepositoryMock;
     private BackupService&MockObject $backupServiceMock;
     private CompressorTraitTestSubject $subject;
+
+    /**
+     * @var string[]
+     */
+    private array $tmpFiles = [];
 
     protected function setUp(): void
     {
@@ -103,6 +115,7 @@ final class CompressorTraitTest extends TestCase
                 updateFileInformation as public;
                 calculateSavedPercent as public;
                 maybeBackupOriginal as public;
+                compressToTempAndReplace as public;
             }
 
             public ExtensionConfiguration $extensionConfiguration;
@@ -117,6 +130,13 @@ final class CompressorTraitTest extends TestCase
 
     protected function tearDown(): void
     {
+        foreach ($this->tmpFiles as $tmpFile) {
+            if (file_exists($tmpFile)) {
+                unlink($tmpFile);
+            }
+        }
+        $this->tmpFiles = [];
+
         GeneralUtility::purgeInstances();
     }
 
@@ -448,5 +468,82 @@ final class CompressorTraitTest extends TestCase
         $this->fileRepositoryMock->expects(self::never())->method('updateBackupPath');
 
         $this->subject->maybeBackupOriginal($fileMock, '/tmp/image.jpg');
+    }
+
+    #[Test]
+    public function compressToTempAndReplacePreservesOriginalExtensionInTempPath(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-png-bytes', '.png');
+        $capturedTempPath = null;
+
+        $result = $this->subject->compressToTempAndReplace(
+            $tmpFile,
+            static function (string $tempPath) use (&$capturedTempPath): bool {
+                $capturedTempPath = $tempPath;
+
+                // Simulates a tool like pngquant that infers the output
+                // format from the given path's extension: writing directly
+                // to $tempPath only works because it already ends in .png.
+                file_put_contents($tempPath, 'compressed');
+
+                return true;
+            },
+        );
+
+        self::assertNotNull($capturedTempPath);
+        self::assertStringEndsWith('.png', $capturedTempPath);
+        self::assertMatchesRegularExpression('/\.compress-[0-9a-f]{8}\.png$/', $capturedTempPath);
+        self::assertNotNull($result);
+        self::assertTrue($result['replaced']);
+        self::assertSame('compressed', file_get_contents($tmpFile));
+    }
+
+    #[Test]
+    public function compressToTempAndReplaceFallsBackToTmpExtensionWhenFileHasNone(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-bytes', '');
+        $capturedTempPath = null;
+
+        $this->subject->compressToTempAndReplace(
+            $tmpFile,
+            static function (string $tempPath) use (&$capturedTempPath): bool {
+                $capturedTempPath = $tempPath;
+                file_put_contents($tempPath, 'compressed');
+
+                return true;
+            },
+        );
+
+        self::assertNotNull($capturedTempPath);
+        self::assertStringEndsWith('.tmp', $capturedTempPath);
+    }
+
+    #[Test]
+    public function compressToTempAndReplaceRemovesTempFileAfterSuccessfulReplace(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-png-bytes', '.png');
+        $capturedTempPath = null;
+
+        $this->subject->compressToTempAndReplace(
+            $tmpFile,
+            static function (string $tempPath) use (&$capturedTempPath): bool {
+                $capturedTempPath = $tempPath;
+                file_put_contents($tempPath, 'compressed');
+
+                return true;
+            },
+        );
+
+        self::assertNotNull($capturedTempPath);
+        self::assertFileDoesNotExist($capturedTempPath);
+    }
+
+    private function createTmpFile(string $content, string $suffix = '.png'): string
+    {
+        $tmpFile = sys_get_temp_dir().'/ctt_'.bin2hex(random_bytes(8)).$suffix;
+        file_put_contents($tmpFile, $content);
+        $this->tmpFiles[] = $tmpFile;
+
+        return $tmpFile;
     }
 }
