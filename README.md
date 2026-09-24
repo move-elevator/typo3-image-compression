@@ -21,13 +21,11 @@ This TYPO3 extension automatically compresses images uploaded to the TYPO3 backe
 
 ## ✨ Features
 
-- **Multiple compression providers**: [TinyPNG API](#tinify-tinypng-api), [local optimized tools](#local-tools-optimized-tools), or [ImageMagick/GraphicsMagick](#local-basic-imagemagick--graphicsmagick)
-- Automatic compression of JPG, PNG, GIF, AVIF and WebP images on upload
-- [CLI command](#batch-processing-cli) for batch processing existing images
-- [Configurable quality settings](#quality-settings) for local compression
-- Image compression statistics in the [system information toolbar](#backend-integration)
-- Compression status visible in the [sys_file_metadata edit view](#backend-integration)
-- [System report](#backend-integration) with per-provider statistics in Admin Tools
+- **[Multiple compression providers](docs/configuration.md)**: TinyPNG API, local optimized tools, or ImageMagick/GraphicsMagick
+- Automatic compression of JPG, PNG, WebP and AVIF images on upload — GIF support exists but is [off by default](docs/configuration.md#mimetypes)
+- **[CLI command](docs/usage.md)** for batch processing existing images
+- **[Quality settings](docs/configuration.md#quality-settings)** for local compression
+- **[Backend integration](docs/usage.md#backend-integration)**: compression statistics in the system information toolbar, per-file status in the file metadata edit view, and a System Report with per-provider statistics
 
 ## 🔥 Installation
 
@@ -38,7 +36,6 @@ This TYPO3 extension automatically compresses images uploaded to the TYPO3 backe
 
 ### Composer
 
-[![Packagist Version](https://img.shields.io/packagist/v/move-elevator/typo3-image-compression?label=packagist&logo=packagist)](https://packagist.org/packages/move-elevator/typo3-image-compression)
 [![Packagist Downloads](https://img.shields.io/packagist/dt/move-elevator/typo3-image-compression?logo=packagist)](https://packagist.org/packages/move-elevator/typo3-image-compression)
 
 ```bash
@@ -52,148 +49,44 @@ composer require move-elevator/typo3-image-compression
 
 Download the zip file from the [TYPO3 Extension Repository (TER)](https://extensions.typo3.org/extension/typo3_image_compression).
 
+## 🚀 Quick start
+
+```bash
+composer require move-elevator/typo3-image-compression
+```
+
+Set **Provider** to `tinify` and paste your [TinyPNG API key](https://tinypng.com/developers) in **Admin Tools > Settings > Extension Configuration**. That's it: the next image uploaded to the TYPO3 backend is compressed automatically.
+
 ## ⚙️ Configuration
 
 Configure the extension in **Admin Tools > Settings > Extension Configuration**.
 
-### Provider overview
-
 | Provider | Tools | Compression | Cost | Best for |
 |----------|-------|-------------|------|----------|
-| `tinify` | TinyPNG API | ~70–80% | API quota | Production, best quality |
-| `local-tools` | jpegoptim, optipng, pngquant, gifsicle, cwebp | ~50–60% | Free | Self-hosted, no API costs |
-| `local-basic` | ImageMagick / GraphicsMagick | ~30–40% | Free | JPEG only, quick setup |
-
-### `tinify` (TinyPNG API)
-
-1. Register at [TinyPNG Developers](https://tinypng.com/developers) to obtain your API key.
-2. Set **Provider** to `tinify` and enter your API key.
-3. Free tier: **500 compressions/month** — upgrades available via the [TinyPNG dashboard](https://tinypng.com/dashboard).
+| [`tinify`](docs/configuration.md#tinify-tinypng-api) | TinyPNG API | ~70–80% | API quota | Production, best quality |
+| [`local-tools`](docs/configuration.md#local-tools-optimized-tools) | jpegoptim, optipng, pngquant, gifsicle, cwebp, avifenc | ~50–60% | Free | Self-hosted, no API costs |
+| [`local-basic`](docs/configuration.md#local-basic-imagemagick--graphicsmagick) | ImageMagick / GraphicsMagick | ~30–40% | Free | JPEG only, quick setup |
 
 > [!WARNING]
-> The free API limit (500 compressions/month) can be exhausted quickly on large sites with many existing images. Use the CLI `--include-processed` flag with caution.
+> The `tinify` free tier is limited to **500 compressions/month**. Use the CLI `--include-processed` flag with caution on large sites with many existing images.
 
-### `local-tools` (Optimized tools)
+See the [configuration reference](docs/configuration.md) for provider setup, every extension configuration option, and quality tuning.
 
-Install the required tools on your server:
+## 📚 Documentation
 
-```bash
-# Debian/Ubuntu
-apt install jpegoptim optipng pngquant gifsicle webp
-
-# macOS (Homebrew)
-brew install jpegoptim optipng pngquant gifsicle webp
-```
-
-Set **Provider** to `local-tools`. The extension auto-detects available tools.
-
-### `local-basic` (ImageMagick / GraphicsMagick)
-
-No additional installation needed — uses TYPO3's configured graphics processor. Set **Provider** to `local-basic`.
-
-### Quality settings
-
-For local providers, configure quality (1–100) for JPEG, PNG, and WebP compression independently.
-
-### Metadata
-
-By default, compression strips all image metadata: EXIF, IPTC, XMP and the embedded ICC color profile. GPS location data is always stripped and cannot be preserved for `tinify` and `local-basic`, publishing where a photo was taken is a data protection concern.
-
-For press, stock or agency images where the copyright tag matters, or source images authored in a wide-gamut color space (e.g. Adobe RGB) where dropping the ICC profile shifts colors, enable:
-
-| Setting | Effect |
-|---------|--------|
-| `preserveCopyright` | Keeps the EXIF/IPTC copyright tag |
-| `preserveCreationDate` | Keeps the EXIF/IPTC creation date |
-| `preserveColorProfile` | Keeps the embedded ICC color profile |
-
-Support depends on the provider:
-
-- `tinify` preserves copyright and creation date independently via the TinyPNG API. `preserveColorProfile` has no effect: TinyPNG always converts images to sRGB and offers no ICC-preservation option.
-- `local-tools` (jpegoptim, JPEG only) preserves the color profile independently (`--strip-icc`). Copyright and creation date are not independent: jpegoptim can only strip the whole EXIF or IPTC block, not individual tags, so enabling either setting keeps both fields, and any other EXIF/IPTC data including GPS.
-- `local-basic` (ImageMagick/GraphicsMagick) can only preserve the color profile on its own; enabling copyright or creation date preservation keeps the whole EXIF/IPTC block too, since plain `convert` has no per-tag strip flag, except GPS position tags, which are always explicitly cleared regardless of the other settings.
-
-### Command timeout
-
-For local providers, **Command Timeout** limits how long an external tool invocation (`jpegoptim`, `optipng`, ImageMagick, ...) may run before it is killed, in seconds (default: 60). A timed-out invocation is logged and no compression status is recorded. Local tools compress in place, so a process killed mid-write can leave a partially written file, the same risk that already exists for any other abrupt interruption of these tools (crash, OOM kill), not something specific to the timeout feature.
-
-## 💡 Usage
-
-### Automatic compression
-
-Once configured, all images with a supported MIME type uploaded via the TYPO3 backend are automatically compressed.
-
-By default this happens synchronously, within the upload request. To run it on a queue worker instead (recommended with the `tinify` provider, so an editor's upload does not wait on a round trip to the TinyPNG API), route `MoveElevator\Typo3ImageCompression\Message\CompressImageMessage` to an async [Messenger transport](https://docs.typo3.org/m/typo3/reference-coreapi/main/en-us/ApiOverview/MessageBus/Index.html), for example:
-
-```php
-// config/system/additional.php
-$GLOBALS['TYPO3_CONF_VARS']['SYS']['messenger']['routing'][\MoveElevator\Typo3ImageCompression\Message\CompressImageMessage::class] = 'doctrine';
-```
-
-With that in place, run `vendor/bin/typo3 messenger:consume doctrine` (typically as a scheduler task) to process compressions in the background.
-
-### Batch processing (CLI)
-
-Use the CLI command to compress images that were uploaded before the extension was installed.
-
-> [!IMPORTANT]
-> Before running the CLI command, ensure your TYPO3 file index is up to date. Run the scheduler task **"File Abstraction Layer: Update storage index"** first.
-
-```bash
-# Compress up to 100 original images (default)
-vendor/bin/typo3 imagecompression:compressImages
-
-# Compress up to 50 images
-vendor/bin/typo3 imagecompression:compressImages 50
-
-# Also compress processed files (thumbnails, crops, etc.)
-vendor/bin/typo3 imagecompression:compressImages --include-processed
-
-# Retry failed compressions
-vendor/bin/typo3 imagecompression:compressImages --retry-errors
-
-# Preview what a run would do, without writing anything
-vendor/bin/typo3 imagecompression:compressImages 200 --dry-run
-
-# Limit to a single storage or folder
-vendor/bin/typo3 imagecompression:compressImages --storage=2
-vendor/bin/typo3 imagecompression:compressImages --folder=/campaign2024/
-
-# Combine options
-vendor/bin/typo3 imagecompression:compressImages 200 --include-processed --retry-errors
-```
-
-| Argument / Option | Description |
-|-------------------|-------------|
-| `limit` | Number of images to process (default: 100) |
-| `--include-processed`, `-p` | Also compress processed files (thumbnails, crops). Omit to save API quota — processed files are regenerated from already-compressed originals. |
-| `--retry-errors`, `-r` | Retry compression for files that previously failed. Clears error status on success. |
-| `--dry-run`, `-d` | List the files that would be processed, with total size and a per-MIME-type breakdown. Writes nothing. |
-| `--storage`, `-s` | Limit to a single file storage by UID. |
-| `--folder` | Limit to files whose identifier starts with this path (e.g. `/campaign2024/`). Applies to original files only. |
-
-> [!TIP]
-> When using the `tinify` provider, omit `--include-processed` to conserve your monthly API quota. Processed files are regenerated from the already-compressed originals anyway.
-
-The command reports compressed, skipped (excluded folder, unsupported MIME type, no local tool available) and failed files separately, so a run's summary distinguishes "nothing to do" from "something went wrong".
-
-> [!TIP]
-> The command is schedulable out of the box (`console.command` defaults to `schedulable: true`), so it can be run on a recurring schedule via **Admin Tools > Scheduler** using the "Execute console commands" task, without any extra configuration.
-
-### Backend integration
-
-- **System information toolbar** — displays current API usage (TinyPNG) or compression statistics.
-- **System Reports** (`Admin Tools > System Reports`) — active provider, per-file-type statistics, and API usage.
-- **File metadata** (`sys_file_metadata`) — per-file compression status and error messages.
-
-## 🙏 Acknowledgments
-
-This project is a fork and further development of the great [tinyimg](https://github.com/schmitzal/tinyimg) extension.
+| Topic | What's inside |
+|-------|----------------|
+| [Configuration](docs/configuration.md) | Provider setup (`tinify`, `local-tools`, `local-basic`), every extension configuration option, and quality tuning |
+| [Usage](docs/usage.md) | The `imagecompression:compressImages` CLI command and its options, plus backend integration (toolbar, reports, file metadata) |
 
 ## 🧑‍💻 Contributing
 
 Please refer to [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## 📜 License
+## 💎 Credits
+
+This project is a fork and further development of the great [tinyimg](https://github.com/schmitzal/tinyimg) extension.
+
+## ⭐ License
 
 This project is licensed under the [GNU General Public License 2.0 (or later)](LICENSE.md).
