@@ -43,12 +43,12 @@ use function strtolower;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-final class CompressorChain implements CompressorInterface
+final readonly class CompressorChain implements CompressorInterface
 {
     /**
      * @param non-empty-list<CompressorInterface> $compressors In fallback order
      */
-    public function __construct(private readonly array $compressors) {}
+    public function __construct(private array $compressors) {}
 
     public function supports(string $mimeType): bool
     {
