@@ -457,6 +457,54 @@ final class TinifyCompressorTest extends TestCase
     }
 
     #[Test]
+    public function compressMarksFileAsOptimalWhenResultDoesNotMeetMinimumSaving(): void
+    {
+        $tmpFile = $this->createTmpFile(str_repeat('original-bytes', 100));
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('isDebug')->willReturn(false);
+        $this->extensionConfigurationMock->method('getApiKey')->willReturn('');
+        $this->extensionConfigurationMock->method('getMinimumSavingPercent')->willReturn(5);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/photo.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->method('getSize')->willReturn((int) filesize($tmpFile));
+        $fileMock->expects(self::never())->method('getStorage');
+
+        Tinify::setKey('fake-key-for-test');
+        Tinify::setClient(new class {
+            private int $calls = 0;
+
+            public function request(string $method, string $url, mixed $body = null): object
+            {
+                ++$this->calls;
+
+                if (1 === $this->calls) {
+                    return (object) ['headers' => ['location' => 'https://fake.tinify.test/output/abc'], 'body' => ''];
+                }
+
+                // Nearly the same size as the original: below the 5%
+                // minimum saving threshold.
+                return (object) ['headers' => [], 'body' => str_repeat('original-bytes', 99).'original-byte'];
+            }
+        });
+
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+        $this->fileRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressionSkipped')
+            ->with(99, self::stringContains('already optimal'));
+
+        $this->subject->compress($fileMock);
+
+        self::assertSame(str_repeat('original-bytes', 100), file_get_contents($tmpFile));
+    }
+
+    #[Test]
     public function compressProcessedFilesReportsFileStorageNotFound(): void
     {
         $this->extensionConfigurationMock->method('getApiKey')->willReturn('');

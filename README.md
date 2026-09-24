@@ -113,6 +113,10 @@ Support depends on the provider:
 - `local-tools` (jpegoptim, JPEG only) preserves the color profile independently (`--strip-icc`). Copyright and creation date are not independent: jpegoptim can only strip the whole EXIF or IPTC block, not individual tags, so enabling either setting keeps both fields, and any other EXIF/IPTC data including GPS.
 - `local-basic` (ImageMagick/GraphicsMagick) can only preserve the color profile on its own; enabling copyright or creation date preservation keeps the whole EXIF/IPTC block too, since plain `convert` has no per-tag strip flag, except GPS position tags, which are always explicitly cleared regardless of the other settings.
 
+### Command timeout
+
+For local providers, **Command Timeout** limits how long an external tool invocation (`jpegoptim`, `optipng`, ImageMagick, ...) may run before it is killed, in seconds (default: 60). A timed-out invocation is logged and no compression status is recorded. Local tools compress in place, so a process killed mid-write can leave a partially written file, the same risk that already exists for any other abrupt interruption of these tools (crash, OOM kill), not something specific to the timeout feature.
+
 ## 💡 Usage
 
 ### Automatic compression

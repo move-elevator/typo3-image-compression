@@ -27,6 +27,7 @@ use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 
 use function in_array;
+use function strlen;
 
 /**
  * TinifyCompressor.
@@ -177,10 +178,23 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Sing
             /** @var \Tinify\Source $source */
             $source = \Tinify\fromFile($filePath);
             $source = $this->applyPreserveOptions($source);
-            $source->toFile($filePath);
+            /** @var \Tinify\Result $result */
+            $result = $source->result();
+            // strlen(toBuffer()) rather than Result::size() (which reads the
+            // "content-length" response header): it reflects the exact bytes
+            // that would be written and does not depend on that header being
+            // present.
+            $newFileSize = strlen($result->toBuffer());
 
-            clearstatcache(true, $filePath);
-            $newFileSize = (int) filesize($filePath);
+            if (!$this->meetsMinimumSaving($originalFileSize, $newFileSize)) {
+                $compressInfo = $this->buildSkippedInfo(self::PROVIDER_IDENTIFIER, $originalFileSize);
+                $this->markFileAsOptimal($file, $compressInfo);
+                $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
+
+                return;
+            }
+
+            $result->toFile($filePath);
             $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
 
             $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize);
