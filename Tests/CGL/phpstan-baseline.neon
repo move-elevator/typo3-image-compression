@@ -24,6 +24,14 @@ parameters:
 		-
 			message: '#Call to static method .+::assert.+ will always evaluate to true#'
 			path: ../../Tests/Unit/Compression/TinifyCompressorTest.php
+		# ProviderInterface::addItems(array $items): array has no generics docblock
+		# of its own, so typing $items here to satisfy missingType.iterableValue
+		# would make our parameter type narrower than the interface's (untyped)
+		# one and trip method.childParameterType instead. The interface itself
+		# is the constraint; nothing to fix on our side.
+		-
+			message: '#Method .+RestoreFileProvider::addItems\(\) has parameter \$items with no value type specified in iterable type array#'
+			path: ../../Classes/ContextMenu/ItemProviders/RestoreFileProvider.php
 		# Extbase Repository does not require parent constructor call in TYPO3 v12+
 		-
 			message: '#does not call parent constructor from TYPO3\\CMS\\Extbase\\Persistence\\Repository#'
