@@ -150,14 +150,14 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
         return self::FREE_TIER_LIMIT;
     }
 
-    public function compress(File|FileInterface $file): void
+    public function compress(File|FileInterface $file): CompressionOutcome
     {
         if (!$file instanceof File) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         if ($this->isFileInExcludeFolder($file)) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         if (
@@ -167,13 +167,13 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                 true,
             )
         ) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         if ($this->extensionConfiguration->isDebug()) {
             $this->addFlashMessage('debugMode', [], ContextualFeedbackSeverity::INFO);
 
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         try {
@@ -198,7 +198,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                 $this->markFileAsOptimal($file, $compressInfo);
                 $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
 
-                return;
+                return CompressionOutcome::Skipped;
             }
 
             $result->toFile($filePath);
@@ -215,6 +215,8 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                     ContextualFeedbackSeverity::INFO,
                 );
             }
+
+            return CompressionOutcome::Compressed;
         } catch (AccountException $e) {
             $this->logger?->critical('TinyPNG account error, aborting compression run', [
                 'file' => $file->getIdentifier(),
@@ -239,6 +241,8 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                 [$e->getMessage()],
                 ContextualFeedbackSeverity::WARNING,
             );
+
+            return CompressionOutcome::Failed;
         } catch (Exception $e) {
             $this->saveError($file, $e);
             $this->addFlashMessage(
@@ -246,6 +250,8 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                 [$e->getMessage()],
                 ContextualFeedbackSeverity::WARNING,
             );
+
+            return CompressionOutcome::Failed;
         }
     }
 

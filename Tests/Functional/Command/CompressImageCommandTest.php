@@ -93,9 +93,13 @@ final class CompressImageCommandTest extends FunctionalTestCase
 
         $this->commandTester->execute(['--include-processed' => true]);
 
-        self::assertSame(0, $this->commandTester->getStatusCode());
+        // No API key is configured, so the (real) TinifyCompressor fails for
+        // this processed file too. Before this outcome was read back from the
+        // row instead of assumed, this asserted "1/1 compressed" here, which
+        // was wrong: compressProcessedFiles() never actually compressed it.
+        self::assertSame(1, $this->commandTester->getStatusCode());
         $display = $this->commandTester->getDisplay();
-        self::assertStringContainsString('Processed files: 1/1 compressed, 0 errors', $display);
+        self::assertStringContainsString('Processed files: 0/1 compressed, 0 skipped, 1 errors', $display);
         self::assertStringContainsString('Compression Summary', $display);
     }
 
@@ -106,27 +110,74 @@ final class CompressImageCommandTest extends FunctionalTestCase
 
         $this->commandTester->execute(['--include-processed' => true, '--retry-errors' => true]);
 
-        self::assertSame(0, $this->commandTester->getStatusCode());
         // With --retry-errors, findAllWithErrors() is used instead of
         // findAllNonCompressed(), so only the single previously-failed
-        // processed file (uid 2) is picked up.
-        self::assertStringContainsString('Processed files: 1/1 compressed, 0 errors', $this->commandTester->getDisplay());
+        // processed file (uid 2) is picked up. No API key is configured, so
+        // it still fails to compress.
+        self::assertSame(1, $this->commandTester->getStatusCode());
+        self::assertStringContainsString('Processed files: 0/1 compressed, 0 skipped, 1 errors', $this->commandTester->getDisplay());
     }
 
-    private function createLocalTestStorage(): int
+    #[Test]
+    public function executeWithDryRunWritesNothingAndListsCandidateFiles(): void
     {
-        GeneralUtility::mkdir_deep(Environment::getPublicPath().'/fileadmin/test/');
+        $storageUid = $this->createLocalTestStorage();
+        $this->writeRealFile($storageUid, 'photo.jpg', 'not-a-real-jpeg-but-nonempty-bytes');
+        $fileUid = $this->importSysFileRow($storageUid, '/photo.jpg', 'photo.jpg', 'image/jpeg');
+
+        $this->commandTester->execute(['limit' => 10, '--dry-run' => true]);
+
+        self::assertSame(0, $this->commandTester->getStatusCode());
+        $display = $this->commandTester->getDisplay();
+        self::assertStringContainsString('Dry run: nothing was written.', $display);
+        self::assertStringContainsString('image/jpeg', $display);
+        self::assertStringContainsString('1 files', $display);
+
+        $row = $this->getConnectionPool()
+            ->getQueryBuilderForTable('sys_file')
+            ->select('compressed', 'compress_error')
+            ->from('sys_file')
+            ->where('uid = '.$fileUid)
+            ->executeQuery()
+            ->fetchAssociative();
+
+        self::assertNotFalse($row);
+        self::assertSame(0, (int) $row['compressed']);
+        self::assertSame('', (string) $row['compress_error']);
+    }
+
+    #[Test]
+    public function executeWithStorageOptionLimitsToThatStorage(): void
+    {
+        $storageUid = $this->createLocalTestStorage();
+        $otherStorageUid = $this->createLocalTestStorage('other');
+        $this->writeRealFile($storageUid, 'photo.jpg', 'not-a-real-jpeg-but-nonempty-bytes');
+        $this->importSysFileRow($storageUid, '/photo.jpg', 'photo.jpg', 'image/jpeg');
+        $this->writeRealFile($otherStorageUid, 'other.jpg', 'not-a-real-jpeg-but-nonempty-bytes', 'other');
+        $this->importSysFileRow($otherStorageUid, '/other.jpg', 'other.jpg', 'image/jpeg');
+
+        $this->commandTester->execute(['limit' => 10, '--storage' => (string) $otherStorageUid, '--dry-run' => true]);
+
+        $display = $this->commandTester->getDisplay();
+        self::assertStringContainsString('1 files', $display);
+    }
+
+    private function createLocalTestStorage(string $suffix = ''): int
+    {
+        $path = 'fileadmin/test'.('' !== $suffix ? '_'.$suffix : '').'/';
+        GeneralUtility::mkdir_deep(Environment::getPublicPath().'/'.$path);
 
         return $this->get(StorageRepository::class)->createLocalStorage(
-            'Test storage',
-            'fileadmin/test/',
+            'Test storage'.('' !== $suffix ? ' '.$suffix : ''),
+            $path,
             'relative',
         );
     }
 
-    private function writeRealFile(int $storageUid, string $fileName, string $contents): void
+    private function writeRealFile(int $storageUid, string $fileName, string $contents, string $suffix = ''): void
     {
-        GeneralUtility::writeFile(Environment::getPublicPath().'/fileadmin/test/'.$fileName, $contents);
+        $path = 'fileadmin/test'.('' !== $suffix ? '_'.$suffix : '').'/';
+        GeneralUtility::writeFile(Environment::getPublicPath().'/'.$path.$fileName, $contents);
     }
 
     private function importSysFileRow(int $storageUid, string $identifier, string $name, string $mimeType): int

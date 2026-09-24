@@ -15,7 +15,7 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
 use MoveElevator\Typo3ImageCompression\Backup\BackupService;
-use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, LocalToolsCompressor, ToolDetection};
+use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, LocalToolsCompressor, ToolDetection};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use PHPUnit\Framework\Attributes\{CoversClass, DataProvider, Test};
@@ -202,7 +202,7 @@ final class LocalToolsCompressorTest extends TestCase
         $this->extensionConfigurationMock->expects(self::never())->method('getExcludeFolders');
         $this->extensionConfigurationMock->expects(self::never())->method('getMimeTypes');
 
-        $this->subject->compress($fileInterfaceMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileInterfaceMock));
     }
 
     #[Test]
@@ -214,7 +214,7 @@ final class LocalToolsCompressorTest extends TestCase
         $fileMock->method('getIdentifier')->willReturn('/excluded/image.jpg');
         $fileMock->expects(self::never())->method('getMimeType');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -228,7 +228,7 @@ final class LocalToolsCompressorTest extends TestCase
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->expects(self::never())->method('getPublicUrl');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -243,7 +243,7 @@ final class LocalToolsCompressorTest extends TestCase
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->expects(self::never())->method('getPublicUrl');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -260,7 +260,7 @@ final class LocalToolsCompressorTest extends TestCase
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Failed, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -279,7 +279,7 @@ final class LocalToolsCompressorTest extends TestCase
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Failed, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -310,7 +310,7 @@ final class LocalToolsCompressorTest extends TestCase
         // "meets the threshold", so the result replaces the original.
         $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true);
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Compressed, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -362,8 +362,7 @@ final class LocalToolsCompressorTest extends TestCase
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionSkipped');
 
-        $this->subject->compress($fileMock);
-
+        self::assertSame(CompressionOutcome::Failed, $this->subject->compress($fileMock));
         self::assertSame('fake-jpeg-bytes', file_get_contents($tmpFile));
     }
 

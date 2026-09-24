@@ -76,22 +76,22 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         return self::PROVIDER_IDENTIFIER;
     }
 
-    public function compress(File|FileInterface $file): void
+    public function compress(File|FileInterface $file): CompressionOutcome
     {
         if (!$file instanceof File) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         // Check if file is in excluded folder
         if ($this->isFileInExcludeFolder($file)) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         $mimeType = strtolower($file->getMimeType());
 
         // Check if MIME type is configured for compression
         if (!in_array($mimeType, $this->extensionConfiguration->getMimeTypes(), true)) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         $tool = $this->getBestToolForMimeType($mimeType);
@@ -102,13 +102,13 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
                 'file' => $file->getIdentifier(),
             ]);
 
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         $filePath = $this->getAbsoluteFilePath($file);
 
         if (!file_exists($filePath) || 0 === (int) filesize($filePath)) {
-            return;
+            return CompressionOutcome::Failed;
         }
 
         $this->maybeBackupOriginal($file, $filePath);
@@ -118,7 +118,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         );
 
         if (null === $outcome) {
-            return;
+            return CompressionOutcome::Failed;
         }
 
         if (!$outcome['replaced']) {
@@ -132,7 +132,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
             ]);
             $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
 
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         $savedPercent = $this->calculateSavedPercent($outcome['originalSize'], $outcome['newSize']);
@@ -150,6 +150,8 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
             ]);
             $this->addFlashMessage('success', [$savedPercent.'%'], ContextualFeedbackSeverity::INFO);
         }
+
+        return CompressionOutcome::Compressed;
     }
 
     /**
