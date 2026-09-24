@@ -24,6 +24,7 @@ use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
 use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
+use TYPO3\CMS\Core\Resource\Index\Indexer;
 use TYPO3\CMS\Core\Resource\{ResourceFactory, StorageRepository};
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
@@ -80,6 +81,13 @@ final class RestoreFileControllerTest extends FunctionalTestCase
         $backupRelativePath = $storageUid.'/backup-hash.jpg';
         $this->writeBackupFile($backupRelativePath, 'original-bytes');
         $fileUid = $this->importSysFileRow($storageUid, '/photo.jpg', 'photo.jpg', $backupRelativePath);
+
+        // The restored bytes aren't a real JPEG, so real metadata extraction
+        // (width/height via GraphicsMagick/ImageMagick) would choke on them;
+        // RestoreService re-indexes after every restore, so that's stubbed
+        // out here the same way other tests double the Indexer.
+        $indexerMock = $this->createMock(Indexer::class);
+        GeneralUtility::addInstance(Indexer::class, $indexerMock);
 
         $response = $this->callMainAction($fileUid);
 
