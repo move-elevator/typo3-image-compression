@@ -128,7 +128,7 @@ final class CompressionInfoElementTest extends FunctionalTestCase
         $result = $subject->render();
 
         self::assertStringContainsString('Compressed', $result['html']);
-        self::assertStringContainsString('provider=tinify;original=2000;compressed=1500', $result['html']);
+        self::assertStringContainsString('tinify: 2 KB -&gt; 1 KB (-25%) - 01.01.2025', $result['html']);
     }
 
     #[Test]

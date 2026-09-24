@@ -78,6 +78,23 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
     }
 
     #[Test]
+    public function findAllNonCompressedInStorageWithLimitTreatsLikeMetacharactersInFolderLiterally(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+        $storage = $this->getStorage(1);
+
+        // Without escaping, "_" in the requested folder is interpreted as a
+        // SQL LIKE single-character wildcard and would also match
+        // "/fooXbar/", not just a literal "/foo_bar/".
+        $this->insertFile(9, 1, '/foo_bar/decoy.jpg');
+        $this->insertFile(10, 1, '/fooXbar/should-not-match.jpg');
+
+        $result = $this->subject->findAllNonCompressedInStorageWithLimit($storage, 100, [], null, '/foo_bar/');
+
+        self::assertCount(1, $result);
+    }
+
+    #[Test]
     public function findAllNonCompressedInStorageWithLimitRespectsLimit(): void
     {
         $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
@@ -85,6 +102,19 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         $storage = $this->getStorage(1);
 
         $result = $this->subject->findAllNonCompressedInStorageWithLimit($storage, 1);
+
+        self::assertCount(1, $result);
+    }
+
+    #[Test]
+    public function findAllNonCompressedInStorageWithLimitExcludesSkippedFiles(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+        $this->subject->updateCompressionSkipped(1, 'already optimal');
+
+        $storage = $this->getStorage(1);
+
+        $result = $this->subject->findAllNonCompressedInStorageWithLimit($storage);
 
         self::assertCount(1, $result);
     }
@@ -99,6 +129,22 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         $result = $this->subject->findAllNonCompressedInStorageWithLimit($storage);
 
         self::assertCount(1, $result);
+    }
+
+    #[Test]
+    public function findAllNonCompressedInStorageWithLimitUsesProvidedMimeTypesOverConfiguredOnes(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $storage = $this->getStorage(1);
+
+        // Configured mimeTypes is ['image/jpeg'], matching 2 files; the
+        // explicit override additionally allows the application/pdf fixture
+        // row, so a caller (e.g. a MimeTypeAwareInterface provider) can
+        // widen the effective allowlist beyond the extension setting.
+        $result = $this->subject->findAllNonCompressedInStorageWithLimit($storage, 100, [], ['image/jpeg', 'application/pdf']);
+
+        self::assertCount(3, $result);
     }
 
     #[Test]
@@ -149,6 +195,22 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
     }
 
     #[Test]
+    public function findAllWithErrorsInStorageWithLimitUsesProvidedMimeTypesOverConfiguredOnes(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $storage = $this->getStorage(1);
+
+        // Both error fixture rows are image/jpeg; overriding the allowlist
+        // to exclude it must drop them from the result, proving the
+        // explicit $mimeTypes argument is applied instead of the
+        // configured mimeTypes setting.
+        $result = $this->subject->findAllWithErrorsInStorageWithLimit($storage, 100, [], ['application/pdf']);
+
+        self::assertCount(0, $result);
+    }
+
+    #[Test]
     public function findCompressionStatusByUidReturnsNullForUnknownFile(): void
     {
         self::assertNull($this->subject->findCompressionStatusByUid(999));
@@ -162,7 +224,17 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         $status = $this->subject->findCompressionStatusByUid(4);
 
         self::assertSame(
-            ['compressed' => false, 'compress_error' => 'Some error', 'compress_info' => ''],
+            [
+                'compressed' => false,
+                'compress_skipped' => false,
+                'compress_error' => 'Some error',
+                'compress_info' => '',
+                'compress_provider' => '',
+                'compress_tool' => '',
+                'compress_original_size' => 0,
+                'compress_size' => 0,
+                'compress_tstamp' => 0,
+            ],
             $status,
         );
     }
@@ -172,11 +244,11 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
     {
         $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
 
-        $this->subject->updateCompressionStatus(1, true, '', 'saved 50%');
+        $this->subject->updateCompressionStatus(1, true, '', 'tinify', 'jpegoptim', 1000, 500);
 
         $row = $this->getConnectionPool()
             ->getQueryBuilderForTable('sys_file')
-            ->select('compressed', 'compress_error', 'compress_info')
+            ->select('compressed', 'compress_error', 'compress_provider', 'compress_tool', 'compress_original_size', 'compress_size', 'compress_tstamp')
             ->from('sys_file')
             ->where('uid = 1')
             ->executeQuery()
@@ -185,7 +257,11 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         self::assertNotFalse($row);
         self::assertSame(1, (int) $row['compressed']);
         self::assertSame('', $row['compress_error']);
-        self::assertSame('saved 50%', $row['compress_info']);
+        self::assertSame('tinify', $row['compress_provider']);
+        self::assertSame('jpegoptim', $row['compress_tool']);
+        self::assertSame(1000, (int) $row['compress_original_size']);
+        self::assertSame(500, (int) $row['compress_size']);
+        self::assertGreaterThan(0, (int) $row['compress_tstamp']);
     }
 
     #[Test]
@@ -193,11 +269,11 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
     {
         $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
 
-        $this->subject->updateCompressionStatus(1, false, 'boom', '');
+        $this->subject->updateCompressionStatus(1, false, 'boom');
 
         $row = $this->getConnectionPool()
             ->getQueryBuilderForTable('sys_file')
-            ->select('compressed', 'compress_error', 'compress_info')
+            ->select('compressed', 'compress_error', 'compress_provider', 'compress_tstamp')
             ->from('sys_file')
             ->where('uid = 1')
             ->executeQuery()
@@ -206,7 +282,92 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         self::assertNotFalse($row);
         self::assertSame(0, (int) $row['compressed']);
         self::assertSame('boom', $row['compress_error']);
-        self::assertSame('', $row['compress_info']);
+        self::assertSame('', $row['compress_provider']);
+        self::assertSame(0, (int) $row['compress_tstamp']);
+    }
+
+    #[Test]
+    public function findBackupPathByUidReturnsNullWhenUnset(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        self::assertNull($this->subject->findBackupPathByUid(1));
+    }
+
+    #[Test]
+    public function updateBackupPathStoresPathAndFindBackupPathByUidReturnsIt(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateBackupPath(1, '1/some-hash.jpg');
+
+        self::assertSame('1/some-hash.jpg', $this->subject->findBackupPathByUid(1));
+    }
+
+    #[Test]
+    public function updateBackupPathWithEmptyStringClearsIt(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateBackupPath(1, '1/some-hash.jpg');
+        $this->subject->updateBackupPath(1, '');
+
+        self::assertNull($this->subject->findBackupPathByUid(1));
+    }
+
+    #[Test]
+    public function findAllWithBackupReturnsOnlyFilesWithABackupPath(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateBackupPath(1, '1/some-hash.jpg');
+        $this->subject->updateBackupPath(2, '1/other-hash.jpg');
+
+        $result = $this->subject->findAllWithBackup();
+
+        self::assertCount(2, $result);
+    }
+
+    #[Test]
+    public function updateCompressionSkippedMarksFileAsSkipped(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateCompressionSkipped(1, 'tinify: already optimal, kept original - 01.01.2026');
+
+        $row = $this->getConnectionPool()
+            ->getQueryBuilderForTable('sys_file')
+            ->select('compressed', 'compress_skipped', 'compress_error', 'compress_info')
+            ->from('sys_file')
+            ->where('uid = 1')
+            ->executeQuery()
+            ->fetchAssociative();
+
+        self::assertNotFalse($row);
+        self::assertSame(0, (int) $row['compressed']);
+        self::assertSame(1, (int) $row['compress_skipped']);
+        self::assertSame('', $row['compress_error']);
+        self::assertSame('tinify: already optimal, kept original - 01.01.2026', $row['compress_info']);
+    }
+
+    #[Test]
+    public function updateCompressionStatusResetsCompressSkipped(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateCompressionSkipped(1, 'already optimal');
+        $this->subject->updateCompressionStatus(1, true, '', 'saved 50%');
+
+        $row = $this->getConnectionPool()
+            ->getQueryBuilderForTable('sys_file')
+            ->select('compress_skipped')
+            ->from('sys_file')
+            ->where('uid = 1')
+            ->executeQuery()
+            ->fetchAssociative();
+
+        self::assertNotFalse($row);
+        self::assertSame(0, (int) $row['compress_skipped']);
     }
 
     #[Test]
@@ -227,6 +388,64 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
             ['compressed' => 1, 'not_compressed' => 3, 'errors' => 2],
             $this->subject->getCompressionStatistics(['image/jpeg']),
         );
+    }
+
+    #[Test]
+    public function getTotalBytesSavedReturnsZeroWithoutData(): void
+    {
+        self::assertSame(0, $this->subject->getTotalBytesSaved());
+    }
+
+    #[Test]
+    public function getTotalBytesSavedSumsSavingsAcrossCompressedFiles(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateCompressionStatus(1, true, '', 'tinify', '', 1000, 700);
+        $this->subject->updateCompressionStatus(2, true, '', 'tinify', '', 2000, 1900);
+
+        self::assertSame(400, $this->subject->getTotalBytesSaved());
+    }
+
+    #[Test]
+    public function getTotalBytesSavedExcludesRowsWhereCompressedOutputIsLarger(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        // uid 1 genuinely saved space; uid 2 is still marked compressed even
+        // though the output grew. That row must not drag the total below
+        // the real savings from uid 1.
+        $this->subject->updateCompressionStatus(1, true, '', 'tinify', '', 1000, 700);
+        $this->subject->updateCompressionStatus(2, true, '', 'tinify', '', 500, 550);
+
+        self::assertSame(300, $this->subject->getTotalBytesSaved());
+    }
+
+    #[Test]
+    public function getCompressionStatisticsCountsSkippedFilesAsCompressed(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateCompressionSkipped(1, 'already optimal');
+
+        self::assertSame(
+            ['compressed' => 2, 'not_compressed' => 2, 'errors' => 2],
+            $this->subject->getCompressionStatistics(['image/jpeg']),
+        );
+    }
+
+    private function insertFile(int $uid, int $storage, string $identifier): void
+    {
+        $this->getConnectionPool()->getConnectionForTable('sys_file')->insert('sys_file', [
+            'uid' => $uid,
+            'pid' => 0,
+            'storage' => $storage,
+            'identifier' => $identifier,
+            'name' => basename($identifier),
+            'mime_type' => 'image/jpeg',
+            'missing' => 0,
+            'compressed' => 0,
+        ]);
     }
 
     private function getStorage(int $uid): FileStorage

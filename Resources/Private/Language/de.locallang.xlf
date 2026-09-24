@@ -27,6 +27,10 @@
 				<source/>
 				<target>Die Bildkomprimierung hat Ihnen etwa %s Ihrer Dateigröße eingespart.</target>
 			</trans-unit>
+			<trans-unit id="flashMessage.message.alreadyOptimal">
+				<source/>
+				<target>Bild ist bereits optimal komprimiert, Original wurde beibehalten.</target>
+			</trans-unit>
 			<trans-unit id="flashMessage.title">
 				<source/>
 				<target>Komprimierung</target>
@@ -59,6 +63,38 @@
 				<source/>
 				<target>Zeige Komprimierungsstatistik im Systemberichte-Modul an.</target>
 			</trans-unit>
+			<trans-unit id="enableBackup">
+				<source/>
+				<target>Originaldateien sichern: Behält vor der Komprimierung eine Kopie der Originaldatei, damit sie später wiederhergestellt werden kann.</target>
+			</trans-unit>
+			<trans-unit id="backupRetentionDays">
+				<source/>
+				<target>Backup-Aufbewahrung (Tage): Backups, die älter sind, werden vom Befehl "imagecompression:pruneBackups" entfernt. 0 bewahrt Backups unbegrenzt auf.</target>
+			</trans-unit>
+			<trans-unit id="restoreAction">
+				<source/>
+				<target>Originaldatei wiederherstellen</target>
+			</trans-unit>
+			<trans-unit id="flashMessage.message.restoreSuccess">
+				<source/>
+				<target>Originaldatei aus Backup wiederhergestellt.</target>
+			</trans-unit>
+			<trans-unit id="flashMessage.message.restoreFailed">
+				<source/>
+				<target>Wiederherstellung der Originaldatei fehlgeschlagen. Es wurde kein gültiges Backup gefunden.</target>
+			</trans-unit>
+			<trans-unit id="preserveCopyright">
+				<source/>
+				<target>Copyright-Metadaten erhalten: Behält das EXIF/IPTC-Copyright-Tag bei der Komprimierung bei, statt es zu entfernen.</target>
+			</trans-unit>
+			<trans-unit id="preserveCreationDate">
+				<source/>
+				<target>Erstellungsdatum erhalten: Behält das EXIF/IPTC-Erstellungsdatum bei der Komprimierung bei, statt es zu entfernen.</target>
+			</trans-unit>
+			<trans-unit id="preserveColorProfile">
+				<source/>
+				<target>Farbprofil erhalten: Behält das eingebettete ICC-Farbprofil bei der Komprimierung bei, statt es zu entfernen.</target>
+			</trans-unit>
 			<trans-unit id="provider">
 				<source/>
 				<target>Komprimierungsanbieter: tinify = TinyPNG API, local-tools = jpegoptim/optipng/etc., local-basic = ImageMagick/GraphicsMagick. Kommagetrennt für eine Fallback-Reihenfolge, z. B. weicht "tinify,local-tools" auf local-tools aus, sobald das Kontingent von tinify aufgebraucht ist oder für einen von tinify nicht unterstützten MIME-Typ.</target>
@@ -75,6 +111,14 @@
 				<source/>
 				<target>WebP-Qualität (1-100): Qualitätseinstellung für lokale WebP-Komprimierung</target>
 			</trans-unit>
+			<trans-unit id="commandTimeout">
+				<source/>
+				<target>Befehls-Timeout (Sekunden): Timeout für externe Tool-Aufrufe (local-tools/local-basic Provider)</target>
+			</trans-unit>
+			<trans-unit id="minimumSavingPercent">
+				<source/>
+				<target>Mindesteinsparung (%, 0-100): Das komprimierte Ergebnis muss mindestens so viel kleiner sein als das Original, um übernommen zu werden. Darunter bleibt die Originaldatei erhalten.</target>
+			</trans-unit>
 			<trans-unit id="tab.compression">
 				<source/>
 				<target>Komprimierung</target>
@@ -90,6 +134,10 @@
 			<trans-unit id="status.not_compressed">
 				<source/>
 				<target>Nicht komprimiert</target>
+			</trans-unit>
+			<trans-unit id="status.optimal">
+				<source/>
+				<target>Bereits optimal</target>
 			</trans-unit>
 			<trans-unit id="status.error">
 				<source/>
@@ -146,6 +194,42 @@
 			<trans-unit id="report.api_usage.description">
 				<source/>
 				<target>TinyPNG API Komprimierungszähler für diesen Monat. &lt;a href="https://tinify.com/dashboard/api" target="_blank" rel="noopener"&gt;Dashboard öffnen&lt;/a&gt;</target>
+			</trans-unit>
+			<trans-unit id="report.bytes_saved">
+				<source/>
+				<target>Eingesparter Speicherplatz</target>
+			</trans-unit>
+			<trans-unit id="report.bytes_saved.description">
+				<source/>
+				<target>Insgesamt eingesparter Speicherplatz über alle erfolgreich komprimierten Dateien.</target>
+			</trans-unit>
+			<trans-unit id="compress_provider">
+				<source/>
+				<target>Komprimierungsanbieter</target>
+			</trans-unit>
+			<trans-unit id="compress_tool">
+				<source/>
+				<target>Komprimierungswerkzeug</target>
+			</trans-unit>
+			<trans-unit id="compress_original_size">
+				<source/>
+				<target>Originalgröße (Bytes)</target>
+			</trans-unit>
+			<trans-unit id="compress_size">
+				<source/>
+				<target>Komprimierte Größe (Bytes)</target>
+			</trans-unit>
+			<trans-unit id="compress_tstamp">
+				<source/>
+				<target>Komprimiert am</target>
+			</trans-unit>
+			<trans-unit id="upgradeWizard.compressionColumns.title">
+				<source/>
+				<target>Strukturierte Komprimierungsspalten für bereits komprimierte Dateien zurücksetzen</target>
+			</trans-unit>
+			<trans-unit id="upgradeWizard.compressionColumns.description">
+				<source/>
+				<target>Frühere Versionen dieser Extension speicherten das Komprimierungsergebnis als einzelnen formatierten String (compress_info). Diese Spalte wurde durch strukturierte Spalten ersetzt (Anbieter, Werkzeug, Originalgröße, komprimierte Größe, Zeitstempel). Die alten Strings werden nicht nachträglich geparst; dieser Assistent setzt die neuen Spalten für bereits als komprimiert markierte Dateien auf "unbekannt" zurück, das compressed-Flag selbst bleibt unverändert.</target>
 			</trans-unit>
 		</body>
 	</file>

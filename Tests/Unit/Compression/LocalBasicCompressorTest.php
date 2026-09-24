@@ -14,7 +14,8 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
-use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, LocalBasicCompressor, ToolDetection};
+use MoveElevator\Typo3ImageCompression\Backup\BackupService;
+use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, LocalBasicCompressor, ToolDetection};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use MoveElevator\Typo3ImageCompression\Event\{AfterImageCompressionEvent, BeforeImageCompressionEvent};
@@ -45,6 +46,7 @@ final class LocalBasicCompressorTest extends TestCase
     private ExtensionConfiguration&MockObject $extensionConfigurationMock;
     private StorageRepository&MockObject $storageRepositoryMock;
     private ToolDetection&MockObject $toolDetectionMock;
+    private BackupService&MockObject $backupServiceMock;
     private EventDispatcherInterface&MockObject $eventDispatcherMock;
 
     /**
@@ -75,6 +77,7 @@ final class LocalBasicCompressorTest extends TestCase
         $this->extensionConfigurationMock = $this->createMock(ExtensionConfiguration::class);
         $this->storageRepositoryMock = $this->createMock(StorageRepository::class);
         $this->toolDetectionMock = $this->createMock(ToolDetection::class);
+        $this->backupServiceMock = $this->createMock(BackupService::class);
         $this->eventDispatcherMock = $this->createMock(EventDispatcherInterface::class);
         $this->eventDispatcherMock->method('dispatch')->willReturnArgument(0);
 
@@ -84,6 +87,7 @@ final class LocalBasicCompressorTest extends TestCase
             $this->extensionConfigurationMock,
             $this->storageRepositoryMock,
             $this->toolDetectionMock,
+            $this->backupServiceMock,
             $this->eventDispatcherMock,
         );
     }
@@ -161,7 +165,7 @@ final class LocalBasicCompressorTest extends TestCase
         $this->extensionConfigurationMock->expects(self::never())->method('getExcludeFolders');
         $this->extensionConfigurationMock->expects(self::never())->method('getMimeTypes');
 
-        $this->subject->compress($fileInterfaceMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileInterfaceMock));
     }
 
     #[Test]
@@ -173,7 +177,7 @@ final class LocalBasicCompressorTest extends TestCase
         $fileMock->method('getIdentifier')->willReturn('/excluded/image.jpg');
         $fileMock->expects(self::never())->method('getMimeType');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -187,7 +191,7 @@ final class LocalBasicCompressorTest extends TestCase
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->expects(self::never())->method('getPublicUrl');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -201,7 +205,7 @@ final class LocalBasicCompressorTest extends TestCase
         $fileMock->method('getMimeType')->willReturn('image/png');
         $fileMock->expects(self::never())->method('getPublicUrl');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Skipped, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -214,10 +218,11 @@ final class LocalBasicCompressorTest extends TestCase
         $fileMock->method('getIdentifier')->willReturn('/user_upload/does-not-exist.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn('does-not-exist-'.bin2hex(random_bytes(8)).'.jpg');
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Failed, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -232,10 +237,11 @@ final class LocalBasicCompressorTest extends TestCase
         $fileMock->method('getIdentifier')->willReturn('/user_upload/empty.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
-        $this->subject->compress($fileMock);
+        self::assertSame(CompressionOutcome::Failed, $this->subject->compress($fileMock));
     }
 
     #[Test]
@@ -246,22 +252,100 @@ final class LocalBasicCompressorTest extends TestCase
         $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
         $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
         $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
-        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn('/usr/bin/true');
+        $this->extensionConfigurationMock->method('getMinimumSavingPercent')->willReturn(0);
+        $this->toolDetectionMock->method('getToolPath')->willReturnMap([
+            ['imagemagick', '/usr/bin/true'],
+            ['identify', null],
+        ]);
 
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
         $fileMock->method('getUid')->willReturn(99);
-        $fileMock->method('getStorage')->willReturn($this->createMock(ResourceStorage::class));
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         $indexerMock = $this->createMock(Indexer::class);
         $indexerMock->expects(self::once())->method('updateIndexEntry')->with($fileMock);
         GeneralUtility::addInstance(Indexer::class, $indexerMock);
 
-        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true);
+        // A minimum saving threshold of 0% counts a byte-identical result
+        // (the tool mock does not actually shrink the file) as "meets the
+        // threshold", so it still replaces the original.
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true, '', 'local-basic', 'ImageMagick', 15, 15);
+
+        self::assertSame(CompressionOutcome::Compressed, $this->subject->compress($fileMock));
+    }
+
+    #[Test]
+    public function compressMarksFileAsOptimalWhenResultDoesNotMeetMinimumSaving(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('getMinimumSavingPercent')->willReturn(5);
+        $this->toolDetectionMock->method('getToolPath')->willReturnMap([
+            ['imagemagick', '/usr/bin/true'],
+            ['identify', null],
+        ]);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+        $fileMock->method('getStorage')->willReturn($storageMock);
+
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionSkipped')
+            ->with(99, self::stringContains('already optimal'));
 
         $this->subject->compress($fileMock);
+
+        self::assertSame('fake-jpeg-bytes', file_get_contents($tmpFile));
+    }
+
+    #[Test]
+    public function compressMarksFileAsOptimalWhenTargetQualityIsNotBelowSourceQuality(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+        // Source is already at a lower (or equal) quality than the
+        // configured target (80): re-encoding it would not improve
+        // anything, only degrade it further.
+        $identifyStub = $this->createExecutableStub('echo 70');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->toolDetectionMock->method('getToolPath')->willReturnMap([
+            ['imagemagick', '/usr/bin/true'],
+            ['identify', $identifyStub],
+        ]);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+        $fileMock->method('getStorage')->willReturn($storageMock);
+
+        // Configured target quality (80) is not below the source's own
+        // encoding quality (70, reported by the "identify" tool mock), so
+        // re-encoding is skipped entirely without invoking the graphics
+        // processor at all.
+        $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionSkipped')
+            ->with(99, self::stringContains('already optimal'));
+
+        $this->subject->compress($fileMock);
+
+        self::assertSame('fake-jpeg-bytes', file_get_contents($tmpFile));
     }
 
     #[Test]
@@ -272,14 +356,17 @@ final class LocalBasicCompressorTest extends TestCase
         $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
         $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
         $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
-        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn('/usr/bin/true');
+        $this->toolDetectionMock->method('getToolPath')->willReturnMap([
+            ['imagemagick', '/usr/bin/true'],
+            ['identify', null],
+        ]);
 
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
         $fileMock->method('getUid')->willReturn(99);
-        $fileMock->method('getStorage')->willReturn($this->createMock(ResourceStorage::class));
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         GeneralUtility::addInstance(Indexer::class, $this->createMock(Indexer::class));
 
@@ -312,6 +399,7 @@ final class LocalBasicCompressorTest extends TestCase
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         $this->eventDispatcherMock
             ->method('dispatch')
@@ -338,14 +426,17 @@ final class LocalBasicCompressorTest extends TestCase
         $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
         $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
         $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
-        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn($recording['script']);
+        $this->toolDetectionMock->method('getToolPath')->willReturnMap([
+            ['imagemagick', $recording['script']],
+            ['identify', null],
+        ]);
 
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
         $fileMock->method('getUid')->willReturn(99);
-        $fileMock->method('getStorage')->willReturn($this->createMock(ResourceStorage::class));
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         GeneralUtility::addInstance(Indexer::class, $this->createMock(Indexer::class));
 
@@ -374,14 +465,45 @@ final class LocalBasicCompressorTest extends TestCase
 
         $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
         $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
-        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn(null);
+        $this->toolDetectionMock->method('getToolPath')->willReturnMap([
+            ['imagemagick', null],
+            ['identify', null],
+        ]);
 
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
         $fileMock->method('getMimeType')->willReturn('image/jpeg');
         $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
+
+        self::assertSame(CompressionOutcome::Failed, $this->subject->compress($fileMock));
+    }
+
+    #[Test]
+    public function compressPersistsErrorAndReturnsEarlyWhenStorageIsNotLocal(): void
+    {
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Aws3');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getStorage')->willReturn($storageMock);
+        $fileMock->method('getUid')->willReturn(7);
+        $fileMock->expects(self::never())->method('getPublicUrl');
+
+        // The error must be persisted (not left as compressed=false), so the
+        // CLI batch command's non-compressed query stops reselecting this
+        // file on every run.
+        $this->fileRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressionStatus')
+            ->with(7, false, self::stringContains('Aws3'));
 
         $this->subject->compress($fileMock);
     }
@@ -399,10 +521,27 @@ final class LocalBasicCompressorTest extends TestCase
     }
 
     #[Test]
+    public function compressProcessedFilesReportsUnsupportedStorageDriver(): void
+    {
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Aws3');
+
+        $this->fileProcessedRepositoryMock->method('findStorageId')->with(6)->willReturn(1);
+        $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
+        $this->fileProcessedRepositoryMock
+            ->expects(self::once())
+            ->method('updateCompressState')
+            ->with(6, 0, 'unsupported storage driver: Aws3');
+
+        $this->subject->compressProcessedFiles([['uid' => 6, 'identifier' => '/_processed_/foo.jpg']]);
+    }
+
+    #[Test]
     public function compressProcessedFilesReportsFileNotFound(): void
     {
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getConfiguration')->willReturn(['basePath' => 'fileadmin/']);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $this->fileProcessedRepositoryMock->method('findStorageId')->with(2)->willReturn(1);
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
@@ -420,6 +559,7 @@ final class LocalBasicCompressorTest extends TestCase
         $tmpFile = $this->createTmpFile('');
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getConfiguration')->willReturn(['basePath' => '']);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $this->fileProcessedRepositoryMock->method('findStorageId')->with(3)->willReturn(1);
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
@@ -437,6 +577,7 @@ final class LocalBasicCompressorTest extends TestCase
         $tmpFile = $this->createTmpFile('plain text content, not an image');
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getConfiguration')->willReturn(['basePath' => '']);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $this->fileProcessedRepositoryMock->method('findStorageId')->with(4)->willReturn(1);
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
@@ -451,6 +592,7 @@ final class LocalBasicCompressorTest extends TestCase
         $tmpFile = $this->createTmpJpegFile();
         $storageMock = $this->createMock(ResourceStorage::class);
         $storageMock->method('getConfiguration')->willReturn(['basePath' => '']);
+        $storageMock->method('getDriverType')->willReturn('Local');
 
         $this->fileProcessedRepositoryMock->method('findStorageId')->with(5)->willReturn(1);
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
@@ -536,6 +678,92 @@ final class LocalBasicCompressorTest extends TestCase
         self::assertFalse($this->invokeCompressWithGraphicsProcessor($tmpFile, 'image/jpeg'));
     }
 
+    #[Test]
+    public function getMetadataArgumentReturnsStripByDefault(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+
+        self::assertSame(['-strip'], $this->invokeGetMetadataArgument());
+    }
+
+    #[Test]
+    public function getMetadataArgumentReturnsProfileFlagWhenOnlyColorProfilePreserved(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(true);
+
+        self::assertSame(['+profile', '!icc,*'], $this->invokeGetMetadataArgument());
+    }
+
+    #[Test]
+    public function getMetadataArgumentBlanksGpsTagsWhenCopyrightPreserved(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(true);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+
+        $result = $this->invokeGetMetadataArgument();
+
+        self::assertContains('exif:GPSLatitude', $result);
+        self::assertContains('exif:GPSLongitude', $result);
+        self::assertNotContains('-strip', $result);
+    }
+
+    #[Test]
+    public function getMetadataArgumentBlanksGpsTagsWhenCreationDatePreserved(): void
+    {
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(true);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+
+        $result = $this->invokeGetMetadataArgument();
+
+        self::assertContains('exif:GPSLatitude', $result);
+        self::assertContains('exif:GPSLongitude', $result);
+        self::assertNotContains('-strip', $result);
+    }
+
+    #[Test]
+    public function compressWithGraphicsProcessorSucceedsWhenCopyrightPreservationBlanksGpsTags(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('isPreserveCopyright')->willReturn(true);
+        $this->extensionConfigurationMock->method('isPreserveCreationDate')->willReturn(false);
+        $this->extensionConfigurationMock->method('isPreserveColorProfile')->willReturn(false);
+        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn('/usr/bin/true');
+
+        self::assertTrue($this->invokeCompressWithGraphicsProcessor($tmpFile, 'image/jpeg'));
+    }
+
+    #[Test]
+    public function compressWithGraphicsProcessorReturnsFalseWhenProcessTimesOut(): void
+    {
+        // A binary that ignores its arguments and just sleeps past a
+        // near-zero timeout must be treated as a failure, not left to hang.
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+        $sleepScript = $this->createExecutableSleepScript();
+
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->extensionConfigurationMock->method('getCommandTimeout')->willReturn(1);
+        $this->toolDetectionMock->method('getToolPath')->with('imagemagick')->willReturn($sleepScript);
+
+        self::assertFalse($this->invokeCompressWithGraphicsProcessor($tmpFile, 'image/jpeg'));
+    }
+
+    private function createExecutableSleepScript(): string
+    {
+        $script = sys_get_temp_dir().'/lbc_sleep_'.bin2hex(random_bytes(8)).'.sh';
+        file_put_contents($script, "#!/bin/sh\nsleep 5\n");
+        chmod($script, 0o755);
+        $this->tmpFiles[] = $script;
+
+        return $script;
+    }
+
     private function createTmpFile(string $content, string $suffix = '.jpg'): string
     {
         $tmpFile = sys_get_temp_dir().'/lbc_'.bin2hex(random_bytes(8)).$suffix;
@@ -566,6 +794,19 @@ final class LocalBasicCompressorTest extends TestCase
     }
 
     /**
+     * Creates a tiny executable shell script that prints a fixed value to
+     * stdout, standing in for a CLI tool binary (e.g. "identify") whose
+     * output the code under test parses.
+     */
+    private function createExecutableStub(string $body): string
+    {
+        $stub = $this->createTmpFile("#!/bin/sh\n{$body}\n", '.sh');
+        chmod($stub, 0755);
+
+        return $stub;
+    }
+
+    /**
      * Creates a genuine, tiny JPEG file so mime_content_type() reliably
      * detects it as "image/jpeg" (content-based, not extension-based).
      */
@@ -580,12 +821,33 @@ final class LocalBasicCompressorTest extends TestCase
         return $tmpFile;
     }
 
+    private function createLocalStorageMock(): ResourceStorage&MockObject
+    {
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+
+        return $storageMock;
+    }
+
     private function invokeGetQualityForMimeType(string $mimeType): int
     {
         $method = new ReflectionMethod($this->subject, 'getQualityForMimeType');
 
         /** @var int $result */
         $result = $method->invoke($this->subject, $mimeType);
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function invokeGetMetadataArgument(): array
+    {
+        $method = new ReflectionMethod($this->subject, 'getMetadataArgument');
+
+        /** @var array<int, string> $result */
+        $result = $method->invoke($this->subject);
 
         return $result;
     }

@@ -17,7 +17,7 @@ namespace MoveElevator\Typo3ImageCompression\Form\Element;
 use Doctrine\DBAL\Exception;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
-use MoveElevator\Typo3ImageCompression\Utility\ViewUtility;
+use MoveElevator\Typo3ImageCompression\Utility\{CompressionInfoFormatter, ViewUtility};
 use TYPO3\CMS\Backend\Form\Element\AbstractFormElement;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -68,7 +68,7 @@ class CompressionInfoElement extends AbstractFormElement
     }
 
     /**
-     * @param array{compressed: bool, compress_error: string, compress_info: string} $fileData
+     * @param array{compressed: bool, compress_skipped: bool, compress_error: string, compress_info: string, compress_provider: string, compress_tool: string, compress_original_size: int, compress_size: int, compress_tstamp: int} $fileData
      */
     private function renderCompressionInfo(array $fileData): string
     {
@@ -79,7 +79,19 @@ class CompressionInfoElement extends AbstractFormElement
         }
 
         if ($fileData['compressed']) {
-            return $this->renderTemplate('compressed', $fileData['compress_info']);
+            $message = CompressionInfoFormatter::format(
+                $fileData['compress_provider'],
+                $fileData['compress_original_size'],
+                $fileData['compress_size'],
+                $fileData['compress_tool'],
+                $fileData['compress_tstamp'] > 0 ? $fileData['compress_tstamp'] : null,
+            );
+
+            return $this->renderTemplate('compressed', $message);
+        }
+
+        if ($fileData['compress_skipped']) {
+            return $this->renderTemplate('optimal', $fileData['compress_info']);
         }
 
         return $this->renderTemplate('not_compressed');

@@ -35,7 +35,7 @@ interface CompressorInterface
     /**
      * Compresses a single file.
      */
-    public function compress(File|FileInterface $file): void;
+    public function compress(File|FileInterface $file): CompressionOutcome;
 
     /**
      * Compresses multiple processed files.

@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Functional\Report;
 
-use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, QuotaAwareInterface};
+use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, QuotaAwareInterface};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use MoveElevator\Typo3ImageCompression\Report\CompressionStatusProvider;
@@ -84,10 +84,12 @@ final class CompressionStatusProviderTest extends FunctionalTestCase
 
         self::assertArrayHasKey('provider', $statuses);
         self::assertArrayHasKey('statistics', $statuses);
+        self::assertArrayHasKey('bytesSaved', $statuses);
         self::assertArrayNotHasKey('apiUsage', $statuses);
 
         self::assertSame('2 / 6', $statuses['statistics']->getValue());
         self::assertStringContainsString('Original Files', $statuses['statistics']->getMessage());
+        self::assertSame('200 B', $statuses['bytesSaved']->getValue());
     }
 
     #[Test]
@@ -152,7 +154,10 @@ final class CompressionStatusProviderTest extends FunctionalTestCase
                     return true;
                 }
 
-                public function compress(File|FileInterface $file): void {}
+                public function compress(File|FileInterface $file): CompressionOutcome
+                {
+                    return CompressionOutcome::Skipped;
+                }
 
                 public function compressProcessedFiles(array $files): void {}
 

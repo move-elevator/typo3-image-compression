@@ -24,11 +24,29 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
             'default' => 0,
         ],
     ],
+    'compress_skipped' => [
+        'exclude' => true,
+        'label' => 'Compression Skipped (already optimal)',
+        'config' => [
+            'type' => 'check',
+            'readOnly' => true,
+            'default' => 0,
+        ],
+    ],
     'compress_error' => [
         'exclude' => true,
         'label' => 'Compression Error',
         'config' => [
             'type' => 'text',
+            'readOnly' => true,
+            'default' => '',
+        ],
+    ],
+    'compress_provider' => [
+        'exclude' => true,
+        'label' => 'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:compress_provider',
+        'config' => [
+            'type' => 'input',
             'readOnly' => true,
             'default' => '',
         ],
@@ -42,6 +60,54 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
             'default' => '',
         ],
     ],
+    'backup_path' => [
+        'exclude' => true,
+        'label' => 'Backup Path',
+        'config' => [
+            'type' => 'input',
+            'readOnly' => true,
+            'default' => '',
+        ],
+    ],
+    'compress_tool' => [
+        'exclude' => true,
+        'label' => 'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:compress_tool',
+        'config' => [
+            'type' => 'input',
+            'readOnly' => true,
+            'default' => '',
+        ],
+    ],
+    'compress_original_size' => [
+        'exclude' => true,
+        'label' => 'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:compress_original_size',
+        'config' => [
+            'type' => 'number',
+            'readOnly' => true,
+            'default' => 0,
+        ],
+    ],
+    'compress_size' => [
+        'exclude' => true,
+        'label' => 'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:compress_size',
+        'config' => [
+            'type' => 'number',
+            'readOnly' => true,
+            'default' => 0,
+        ],
+    ],
+    'compress_tstamp' => [
+        'exclude' => true,
+        'label' => 'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:compress_tstamp',
+        'config' => [
+            'type' => 'datetime',
+            'readOnly' => true,
+            'default' => 0,
+        ],
+    ],
 ]);
 
-ExtensionManagementUtility::addToAllTCAtypes('sys_file', 'compress_error,compress_info');
+ExtensionManagementUtility::addToAllTCAtypes(
+    'sys_file',
+    'compress_error,compress_info,compress_provider,compress_tool,compress_original_size,compress_size,compress_tstamp',
+);

@@ -20,6 +20,7 @@ use Rector\TypeDeclaration\Rector\ClassMethod\AddVoidReturnTypeWhereNoReturnRect
 use Rector\ValueObject\PhpVersion;
 use Ssch\TYPO3Rector\CodeQuality\General\{ConvertImplicitVariablesToExplicitGlobalsRector, ExtEmConfRector};
 use Ssch\TYPO3Rector\Configuration\Typo3Option;
+use Ssch\TYPO3Rector\General\Renaming\ConstantsToBackedEnumRector;
 use Ssch\TYPO3Rector\Set\{Typo3LevelSetList, Typo3SetList};
 
 $rootPath = dirname(__DIR__, 2);
@@ -64,6 +65,10 @@ return RectorConfig::configure()
             'ClassAliasMap.php',
         ],
         NullToStrictStringFuncCallArgRector::class,
+        // TYPO3\CMS\Core\Imaging\IconSize does not exist on the v12.4 floor this
+        // project still supports; Icon::SIZE_* constants stay the only choice
+        // that works across all three supported TYPO3 major versions.
+        ConstantsToBackedEnumRector::class,
     ])
     ->withTypeCoverageLevel(0)
     ->withDeadCodeLevel(0)

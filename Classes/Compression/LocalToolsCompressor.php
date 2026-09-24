@@ -14,15 +14,17 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Compression;
 
+use MoveElevator\Typo3ImageCompression\Backup\BackupService;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use MoveElevator\Typo3ImageCompression\Event\{AfterImageCompressionEvent, BeforeImageCompressionEvent};
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\Process;
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
-use TYPO3\CMS\Core\Utility\CommandUtility;
 
 use function in_array;
 use function sprintf;
@@ -34,7 +36,7 @@ use function sprintf;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface, SingletonInterface
+class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterface, LoggerAwareInterface, SingletonInterface
 {
     use CompressorTrait;
     use FlashMessageTrait;
@@ -43,12 +45,14 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
     private const PROVIDER_IDENTIFIER = 'local-tools';
 
     /**
-     * Tool commands with %s placeholder for file path.
+     * Tool argument lists (file path is appended by buildCommand()).
      * Tools with configurable quality use getToolCommand() method instead.
      */
     private const TOOL_COMMANDS = [
-        'optipng' => '-o2 -strip all %s',
-        'gifsicle' => '--batch -O2 %s',
+        'optipng' => ['-o2', '-strip', 'all'],
+        'gifsicle' => ['--batch', '-O2'],
+        // svgo overwrites its input in place when no -o is given, same as every other tool here.
+        'svgo' => ['--quiet'],
     ];
 
     /**
@@ -60,6 +64,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         'image/gif' => ['gifsicle'],
         'image/webp' => ['cwebp'],
         'image/avif' => ['avifenc'],
+        'image/svg+xml' => ['svgo'],
     ];
 
     public function __construct(
@@ -68,6 +73,7 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly StorageRepository $storageRepository,
         protected readonly ToolDetection $toolDetection,
+        protected readonly BackupService $backupService,
         protected readonly EventDispatcherInterface $eventDispatcher,
     ) {}
 
@@ -85,22 +91,22 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         return null !== $this->getBestToolForMimeType($mimeType);
     }
 
-    public function compress(File|FileInterface $file): void
+    public function compress(File|FileInterface $file): CompressionOutcome
     {
         if (!$file instanceof File) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         // Check if file is in excluded folder
         if ($this->isFileInExcludeFolder($file)) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         $mimeType = strtolower($file->getMimeType());
 
         // Check if MIME type is configured for compression
-        if (!in_array($mimeType, $this->extensionConfiguration->getMimeTypes(), true)) {
-            return;
+        if (!$this->isMimeTypeSupported($mimeType)) {
+            return CompressionOutcome::Skipped;
         }
 
         $tool = $this->getBestToolForMimeType($mimeType);
@@ -111,13 +117,19 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
                 'file' => $file->getIdentifier(),
             ]);
 
-            return;
+            return CompressionOutcome::Skipped;
+        }
+
+        if (!$this->isLocalStorage($file->getStorage())) {
+            $this->rejectUnsupportedStorage($file);
+
+            return CompressionOutcome::Failed;
         }
 
         $filePath = $this->getAbsoluteFilePath($file);
 
         if (!file_exists($filePath) || 0 === (int) filesize($filePath)) {
-            return;
+            return CompressionOutcome::Failed;
         }
 
         $beforeEvent = new BeforeImageCompressionEvent(
@@ -130,41 +142,58 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         $this->eventDispatcher->dispatch($beforeEvent);
 
         if ($beforeEvent->isCompressionSkipped()) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
-        $originalFileSize = (int) filesize($filePath);
-        $success = $this->executeOptimization($tool, $filePath, $this->resolveQualityForTool($tool, $beforeEvent));
+        $qualityOverride = $this->resolveQualityForTool($tool, $beforeEvent);
+        $this->maybeBackupOriginal($file, $filePath);
+        $outcome = $this->compressToTempAndReplace(
+            $filePath,
+            fn (string $tempPath): bool => $this->executeOptimization($tool, $tempPath, $qualityOverride),
+        );
 
-        if ($success) {
-            // Log compression result and show flash message
-            clearstatcache(true, $filePath);
-            $newFileSize = (int) filesize($filePath);
-            $savedPercent = $this->calculateSavedPercent($originalFileSize, $newFileSize);
-
-            $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize, $tool);
-            $this->markFileAsCompressed($file, $compressInfo);
-            $this->updateFileInformation($file);
-
-            $this->eventDispatcher->dispatch(new AfterImageCompressionEvent(
-                $file,
-                self::PROVIDER_IDENTIFIER,
-                $tool,
-                $originalFileSize,
-                $newFileSize,
-            ));
-
-            if ($savedPercent > 0) {
-                $this->logger?->info('Image compressed', [
-                    'file' => $file->getIdentifier(),
-                    'tool' => $tool,
-                    'originalSize' => $originalFileSize,
-                    'newSize' => $newFileSize,
-                    'savedPercent' => $savedPercent,
-                ]);
-                $this->addFlashMessage('success', [$savedPercent.'%'], ContextualFeedbackSeverity::INFO);
-            }
+        if (null === $outcome) {
+            return CompressionOutcome::Failed;
         }
+
+        if (!$outcome['replaced']) {
+            $compressInfo = $this->buildSkippedInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $tool);
+            $this->markFileAsOptimal($file, $compressInfo);
+            $this->logger?->info('Image already optimal, kept original', [
+                'file' => $file->getIdentifier(),
+                'tool' => $tool,
+                'originalSize' => $outcome['originalSize'],
+                'attemptedSize' => $outcome['newSize'],
+            ]);
+            $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
+
+            return CompressionOutcome::Skipped;
+        }
+
+        $savedPercent = $this->calculateSavedPercent($outcome['originalSize'], $outcome['newSize']);
+        $this->markFileAsCompressed($file, self::PROVIDER_IDENTIFIER, $tool, $outcome['originalSize'], $outcome['newSize']);
+        $this->updateFileInformation($file);
+
+        $this->eventDispatcher->dispatch(new AfterImageCompressionEvent(
+            $file,
+            self::PROVIDER_IDENTIFIER,
+            $tool,
+            $outcome['originalSize'],
+            $outcome['newSize'],
+        ));
+
+        if ($savedPercent > 0) {
+            $this->logger?->info('Image compressed', [
+                'file' => $file->getIdentifier(),
+                'tool' => $tool,
+                'originalSize' => $outcome['originalSize'],
+                'newSize' => $outcome['newSize'],
+                'savedPercent' => $savedPercent,
+            ]);
+            $this->addFlashMessage('success', [$savedPercent.'%'], ContextualFeedbackSeverity::INFO);
+        }
+
+        return CompressionOutcome::Compressed;
     }
 
     /**
@@ -184,6 +213,13 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
 
             /** @var ResourceStorage $storage */
             $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
+
+            if (!$this->isLocalStorage($storage)) {
+                $this->fileProcessedRepository->updateCompressState($fileId, 0, 'unsupported storage driver: '.$storage->getDriverType());
+
+                continue;
+            }
+
             $filePath = $this->resolveProcessedFilePath($storage, (string) $file['identifier']);
 
             if (null === $filePath || !file_exists($filePath)) {
@@ -218,6 +254,37 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         }
     }
 
+    /**
+     * Returns the configured `mimeTypes` plus `image/svg+xml` when svgo is
+     * detected, so consumers outside `compress()` (the CLI batch command,
+     * the statistics report) apply the same effective allowlist as the
+     * zero-configuration SVG support above.
+     *
+     * @return string[]
+     */
+    public function getSupportedMimeTypes(): array
+    {
+        $mimeTypes = $this->extensionConfiguration->getMimeTypes();
+
+        if (!in_array('image/svg+xml', $mimeTypes, true) && $this->toolDetection->isAvailable('svgo')) {
+            $mimeTypes[] = 'image/svg+xml';
+        }
+
+        return $mimeTypes;
+    }
+
+    /**
+     * SVG is deliberately excluded from the extension's mimeTypes default:
+     * unlike the raster formats, it is only compressible once svgo is
+     * actually installed. Treating it as supported the moment svgo is
+     * detected means it works with zero configuration where the tool is
+     * present, and stays inert everywhere else.
+     */
+    protected function isMimeTypeSupported(string $mimeType): bool
+    {
+        return in_array($mimeType, $this->getSupportedMimeTypes(), true);
+    }
+
     protected function getBestToolForMimeType(string $mimeType): ?string
     {
         $tools = self::MIME_TYPE_TOOLS[$mimeType] ?? [];
@@ -236,18 +303,29 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         }
 
         $command = $this->buildCommand($tool, $toolPath, $filePath, $qualityOverride);
+        $process = new Process($command);
+        $process->setTimeout($this->extensionConfiguration->getCommandTimeout());
 
-        $output = [];
-        $returnValue = 0;
-        CommandUtility::exec($command, $output, $returnValue);
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            $this->logger?->warning('Image optimization timed out', [
+                'tool' => $tool,
+                'file' => $filePath,
+                'command' => $process->getCommandLine(),
+                'timeout' => $this->extensionConfiguration->getCommandTimeout(),
+            ]);
 
-        if (0 !== $returnValue) {
+            return false;
+        }
+
+        if (!$process->isSuccessful()) {
             $this->logger?->warning('Image optimization failed', [
                 'tool' => $tool,
                 'file' => $filePath,
-                'command' => $command,
-                'exitCode' => $returnValue,
-                'output' => implode("\n", $output ?? []),
+                'command' => $process->getCommandLine(),
+                'exitCode' => $process->getExitCode(),
+                'output' => $process->getErrorOutput().$process->getOutput(),
             ]);
 
             return false;
@@ -256,56 +334,93 @@ class LocalToolsCompressor implements CompressorInterface, LoggerAwareInterface,
         $this->logger?->debug('Image optimized with local tool', [
             'tool' => $tool,
             'file' => $filePath,
-            'command' => $command,
-            'output' => implode("\n", $output ?? []),
+            'command' => $process->getCommandLine(),
+            'output' => $process->getOutput(),
         ]);
 
         return true;
     }
 
-    protected function buildCommand(string $tool, string $toolPath, string $filePath, ?int $qualityOverride = null): string
+    /**
+     * @return array<int, string>
+     */
+    protected function buildCommand(string $tool, string $toolPath, string $filePath, ?int $qualityOverride = null): array
     {
-        $escapedPath = escapeshellarg($filePath);
-
         return match ($tool) {
-            'jpegoptim' => sprintf(
-                '%s --strip-all --all-progressive --max=%d %s',
+            'jpegoptim' => [
                 $toolPath,
-                $qualityOverride ?? $this->extensionConfiguration->getJpegQuality(),
-                $escapedPath,
-            ),
-            'pngquant' => sprintf(
-                '%s --force --ext .png --quality %d-%d %s',
+                ...$this->getJpegoptimStripArgument(),
+                '--all-progressive',
+                sprintf('--max=%d', $qualityOverride ?? $this->extensionConfiguration->getJpegQuality()),
+                $filePath,
+            ],
+            'pngquant' => [
                 $toolPath,
-                max(0, ($qualityOverride ?? $this->extensionConfiguration->getPngQuality()) - 15),
-                $qualityOverride ?? $this->extensionConfiguration->getPngQuality(),
-                $escapedPath,
-            ),
-            'cwebp' => sprintf(
-                '%s -q %d %s -o %s',
+                '--force',
+                '--ext', '.png',
+                '--quality', sprintf(
+                    '%d-%d',
+                    max(0, ($qualityOverride ?? $this->extensionConfiguration->getPngQuality()) - 15),
+                    $qualityOverride ?? $this->extensionConfiguration->getPngQuality(),
+                ),
+                $filePath,
+            ],
+            'cwebp' => [
                 $toolPath,
-                $qualityOverride ?? $this->extensionConfiguration->getWebpQuality(),
-                $escapedPath,
-                $escapedPath,
-            ),
-            'avifenc' => sprintf(
-                '%s -q %d %s %s',
+                '-q', (string) ($qualityOverride ?? $this->extensionConfiguration->getWebpQuality()),
+                $filePath,
+                '-o', $filePath,
+            ],
+            'avifenc' => [
                 $toolPath,
-                $qualityOverride ?? $this->extensionConfiguration->getWebpQuality(),
-                $escapedPath,
-                $escapedPath,
-            ),
-            default => sprintf(
-                '%s %s',
+                '-q', (string) ($qualityOverride ?? $this->extensionConfiguration->getWebpQuality()),
+                $filePath,
+                $filePath,
+            ],
+            default => [
                 $toolPath,
-                sprintf(self::TOOL_COMMANDS[$tool] ?? '%s', $escapedPath),
-            ),
+                ...(self::TOOL_COMMANDS[$tool] ?? []),
+                $filePath,
+            ],
         };
     }
 
     /**
+     * Builds the jpegoptim strip flags from configuration.
+     *
+     * The color profile has its own block (`--strip-icc`) and is preserved
+     * independently. Copyright and creation date, however, both live inside
+     * the same EXIF/IPTC blocks (alongside GPS): jpegoptim can only strip
+     * `--strip-exif`/`--strip-iptc` as whole blocks, not individual tags, so
+     * enabling either `preserveCopyright` or `preserveCreationDate` keeps
+     * the whole EXIF/IPTC data, including the other field and GPS, rather
+     * than that one field alone (see README.md's provider support table).
+     * Comments carry none of that data and are always stripped.
+     *
+     * @return array<int, string>
+     */
+    protected function getJpegoptimStripArgument(): array
+    {
+        $preserveCopyrightOrDate = $this->extensionConfiguration->isPreserveCopyright()
+            || $this->extensionConfiguration->isPreserveCreationDate();
+
+        $flags = ['--strip-com', '--strip-xmp'];
+
+        if (!$preserveCopyrightOrDate) {
+            $flags[] = '--strip-exif';
+            $flags[] = '--strip-iptc';
+        }
+
+        if (!$this->extensionConfiguration->isPreserveColorProfile()) {
+            $flags[] = '--strip-icc';
+        }
+
+        return $flags;
+    }
+
+    /**
      * Maps a tool to the (possibly listener-adjusted) quality setting it
-     * reads. optipng/gifsicle have no quality concept and always return null.
+     * reads. optipng/gifsicle/svgo have no quality concept and always return null.
      */
     private function resolveQualityForTool(string $tool, BeforeImageCompressionEvent $event): ?int
     {

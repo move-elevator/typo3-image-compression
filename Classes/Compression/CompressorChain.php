@@ -61,9 +61,15 @@ final readonly class CompressorChain implements CompressorInterface
         return false;
     }
 
-    public function compress(File|FileInterface $file): void
+    public function compress(File|FileInterface $file): CompressionOutcome
     {
-        $this->resolveFor(strtolower($file->getMimeType()))?->compress($file);
+        $compressor = $this->resolveFor(strtolower($file->getMimeType()));
+
+        if (null === $compressor) {
+            return CompressionOutcome::Skipped;
+        }
+
+        return $compressor->compress($file);
     }
 
     public function compressProcessedFiles(array $files): void

@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 
-use MoveElevator\Typo3ImageCompression\Compression\{AvailabilityAwareInterface, CompressorChain, CompressorInterface};
+use MoveElevator\Typo3ImageCompression\Compression\{AvailabilityAwareInterface, CompressionOutcome, CompressorChain, CompressorInterface};
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -67,7 +67,7 @@ final class CompressorChainTest extends TestCase
 
         $supporting = $this->createMock(CompressorInterface::class);
         $supporting->method('supports')->with('image/jpeg')->willReturn(true);
-        $supporting->expects(self::once())->method('compress')->with($fileMock);
+        $supporting->expects(self::once())->method('compress')->with($fileMock)->willReturn(CompressionOutcome::Compressed);
 
         $subject = new CompressorChain([$unsupporting, $supporting]);
         $subject->compress($fileMock);
@@ -87,7 +87,7 @@ final class CompressorChainTest extends TestCase
 
         $fallback = $this->createMock(CompressorInterface::class);
         $fallback->method('supports')->willReturn(true);
-        $fallback->expects(self::once())->method('compress')->with($fileMock);
+        $fallback->expects(self::once())->method('compress')->with($fileMock)->willReturn(CompressionOutcome::Compressed);
 
         $subject = new CompressorChain([$exhausted, $fallback]);
         $subject->compress($fileMock);
@@ -107,7 +107,7 @@ final class CompressorChainTest extends TestCase
         $exhausted = $this->createMockForIntersectionOfInterfaces([CompressorInterface::class, AvailabilityAwareInterface::class]);
         $exhausted->method('supports')->willReturn(true);
         $exhausted->method('isAvailable')->willReturn(false);
-        $exhausted->expects(self::once())->method('compress')->with($fileMock);
+        $exhausted->expects(self::once())->method('compress')->with($fileMock)->willReturn(CompressionOutcome::Failed);
 
         $subject = new CompressorChain([$exhausted]);
         $subject->compress($fileMock);
@@ -135,7 +135,7 @@ final class CompressorChainTest extends TestCase
 
         $compressorMock = $this->createMock(CompressorInterface::class);
         $compressorMock->method('supports')->with('image/jpeg')->willReturn(true);
-        $compressorMock->expects(self::once())->method('compress')->with($fileMock);
+        $compressorMock->expects(self::once())->method('compress')->with($fileMock)->willReturn(CompressionOutcome::Compressed);
 
         $subject = new CompressorChain([$compressorMock]);
         $subject->compress($fileMock);

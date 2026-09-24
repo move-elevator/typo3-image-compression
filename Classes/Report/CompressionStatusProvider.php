@@ -14,11 +14,11 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Report;
 
-use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, QuotaAwareInterface};
+use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, MimeTypeAwareInterface, QuotaAwareInterface};
 use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
-use MoveElevator\Typo3ImageCompression\Utility\ViewUtility;
+use MoveElevator\Typo3ImageCompression\Utility\{CompressionInfoFormatter, ViewUtility};
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Reports\{Status, StatusProviderInterface};
@@ -63,6 +63,7 @@ class CompressionStatusProvider implements StatusProviderInterface
 
         $statuses['provider'] = $this->getProviderStatus();
         $statuses['statistics'] = $this->getStatisticsStatus();
+        $statuses['bytesSaved'] = $this->getBytesSavedStatus();
 
         if ($this->compressor instanceof QuotaAwareInterface) {
             $apiUsageStatus = $this->getApiUsageStatus();
@@ -88,9 +89,11 @@ class CompressionStatusProvider implements StatusProviderInterface
 
     private function getStatisticsStatus(): Status
     {
-        $originalStats = $this->fileRepository->getCompressionStatistics(
-            $this->extensionConfiguration->getMimeTypes(),
-        );
+        $mimeTypes = $this->compressor instanceof MimeTypeAwareInterface
+            ? $this->compressor->getSupportedMimeTypes()
+            : $this->extensionConfiguration->getMimeTypes();
+
+        $originalStats = $this->fileRepository->getCompressionStatistics($mimeTypes);
         $processedStats = $this->fileProcessedRepository->getCompressionStatistics();
 
         $originalTotal = $originalStats['compressed'] + $originalStats['not_compressed'] + $originalStats['errors'];
@@ -135,6 +138,18 @@ class CompressionStatusProvider implements StatusProviderInterface
             $value,
             $message,
             $severity,
+        );
+    }
+
+    private function getBytesSavedStatus(): Status
+    {
+        $bytesSaved = $this->fileRepository->getTotalBytesSaved();
+
+        return new Status(
+            $this->translate('report.bytes_saved'),
+            CompressionInfoFormatter::formatBytes($bytesSaved),
+            $this->translate('report.bytes_saved.description'),
+            ContextualFeedbackSeverity::INFO,
         );
     }
 

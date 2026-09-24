@@ -15,10 +15,11 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Command;
 
 use MoveElevator\Typo3ImageCompression\Command\CompressImageCommand;
-use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
+use MoveElevator\Typo3ImageCompression\Compression\{CompressionOutcome, CompressorInterface, MimeTypeAwareInterface};
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
+use MoveElevator\Typo3ImageCompression\Domain\Model\FileStorage;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository, FileStorageRepository};
-use PHPUnit\Framework\Attributes\{CoversClass, Test};
+use PHPUnit\Framework\Attributes\{CoversClass, DataProvider, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -26,7 +27,7 @@ use ReflectionMethod;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceFactory};
 use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
 
 /**
@@ -92,13 +93,130 @@ final class CompressImageCommandTest extends TestCase
         self::assertSame(Command::SUCCESS, $exitCode);
     }
 
-    private function invokeExecute(bool $includeProcessed, bool $retryErrors, int $limit): int
+    #[Test]
+    public function passesProviderEffectiveMimeTypesToFileRepositoryWhenCompressorIsMimeTypeAware(): void
+    {
+        $storage = new FileStorage();
+
+        $storagesMock = $this->createMock(QueryResultInterface::class);
+        $storagesMock->method('valid')->willReturn(true, false);
+        $storagesMock->method('current')->willReturn($storage);
+        $this->fileStorageRepositoryMock->method('findAll')->willReturn($storagesMock);
+
+        $emptyFiles = $this->createMock(QueryResultInterface::class);
+        $emptyFiles->method('count')->willReturn(0);
+
+        $mimeTypeAwareCompressor = new class implements CompressorInterface, MimeTypeAwareInterface {
+            public function supports(string $mimeType): bool
+            {
+                return true;
+            }
+
+            public function compress(File|FileInterface $file): CompressionOutcome
+            {
+                return CompressionOutcome::Skipped;
+            }
+
+            public function compressProcessedFiles(array $files): void {}
+
+            public function getProviderIdentifier(): string
+            {
+                return 'test';
+            }
+
+            public function getSupportedMimeTypes(): array
+            {
+                return ['image/jpeg', 'image/svg+xml'];
+            }
+        };
+
+        $subject = new CompressImageCommand(
+            $this->fileStorageRepositoryMock,
+            $this->fileRepositoryMock,
+            $this->fileProcessedRepositoryMock,
+            $this->resourceFactory,
+            $mimeTypeAwareCompressor,
+            $this->extensionConfigurationMock,
+        );
+
+        $this->extensionConfigurationMock->expects(self::never())->method('getMimeTypes');
+        $this->fileRepositoryMock
+            ->expects(self::once())
+            ->method('findAllNonCompressedInStorageWithLimit')
+            ->with($storage, 100, [], ['image/jpeg', 'image/svg+xml'], null)
+            ->willReturn($emptyFiles);
+
+        $input = $this->createMock(InputInterface::class);
+        $input->method('getArgument')->with('limit')->willReturn(100);
+        $input->method('getOption')->willReturnMap([
+            ['include-processed', false],
+            ['retry-errors', false],
+        ]);
+        $output = $this->createMock(OutputInterface::class);
+
+        $method = new ReflectionMethod($subject, 'execute');
+        $method->invoke($subject, $input, $output);
+    }
+
+    #[Test]
+    public function executeWithDryRunNeverInvokesTheCompressor(): void
+    {
+        $emptyStorages = $this->createMock(QueryResultInterface::class);
+        $emptyStorages->method('valid')->willReturn(false);
+        $this->fileStorageRepositoryMock->method('findAll')->willReturn($emptyStorages);
+
+        $this->compressorMock->expects(self::never())->method('compress');
+        $this->compressorMock->expects(self::never())->method('compressProcessedFiles');
+
+        $exitCode = $this->invokeExecute(includeProcessed: false, retryErrors: false, limit: 100, dryRun: true);
+
+        self::assertSame(Command::SUCCESS, $exitCode);
+    }
+
+    #[Test]
+    public function executeWithStorageOptionResolvesSingleStorageByUid(): void
+    {
+        $this->fileStorageRepositoryMock->expects(self::never())->method('findAll');
+        $this->fileStorageRepositoryMock->expects(self::once())->method('findByUid')->with(7)->willReturn(null);
+
+        $exitCode = $this->invokeExecute(includeProcessed: false, retryErrors: false, limit: 100, storage: '7');
+
+        self::assertSame(Command::SUCCESS, $exitCode);
+    }
+
+    #[Test]
+    #[DataProvider('invalidStorageOptionProvider')]
+    public function executeWithInvalidStorageOptionReturnsInvalidWithoutQueryingAnything(string $storage): void
+    {
+        $this->fileStorageRepositoryMock->expects(self::never())->method('findAll');
+        $this->fileStorageRepositoryMock->expects(self::never())->method('findByUid');
+
+        $exitCode = $this->invokeExecute(includeProcessed: false, retryErrors: false, limit: 100, storage: $storage);
+
+        self::assertSame(Command::INVALID, $exitCode);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function invalidStorageOptionProvider(): iterable
+    {
+        yield 'non-numeric' => ['abc'];
+        yield 'empty string' => [''];
+        yield 'negative' => ['-1'];
+        yield 'zero' => ['0'];
+    }
+
+    private function invokeExecute(bool $includeProcessed, bool $retryErrors, int $limit, bool $dryRun = false, ?string $storage = null): int
     {
         $input = $this->createMock(InputInterface::class);
         $input->method('getArgument')->with('limit')->willReturn($limit);
         $input->method('getOption')->willReturnMap([
             ['include-processed', $includeProcessed],
             ['retry-errors', $retryErrors],
+            ['dry-run', $dryRun],
+            ['storage', $storage],
+            ['folder', null],
         ]);
 
         $output = $this->createMock(OutputInterface::class);
