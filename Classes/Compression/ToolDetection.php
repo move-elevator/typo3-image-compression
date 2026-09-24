@@ -39,6 +39,7 @@ class ToolDetection
         'avifenc' => 'avifenc',
         'imagemagick' => ['magick', 'convert'], // magick (v7+) preferred, convert (v6) as fallback
         'graphicsmagick' => 'gm',
+        'identify' => 'identify', // separate binary shipped by both ImageMagick and GraphicsMagick installs
     ];
 
     /**

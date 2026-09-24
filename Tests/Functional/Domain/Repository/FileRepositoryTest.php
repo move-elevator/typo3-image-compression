@@ -90,6 +90,19 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
     }
 
     #[Test]
+    public function findAllNonCompressedInStorageWithLimitExcludesSkippedFiles(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+        $this->subject->updateCompressionSkipped(1, 'already optimal');
+
+        $storage = $this->getStorage(1);
+
+        $result = $this->subject->findAllNonCompressedInStorageWithLimit($storage);
+
+        self::assertCount(1, $result);
+    }
+
+    #[Test]
     public function findAllNonCompressedInStorageWithLimitScopesToStorage(): void
     {
         $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
@@ -162,7 +175,7 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
         $status = $this->subject->findCompressionStatusByUid(4);
 
         self::assertSame(
-            ['compressed' => false, 'compress_error' => 'Some error', 'compress_info' => ''],
+            ['compressed' => false, 'compress_skipped' => false, 'compress_error' => 'Some error', 'compress_info' => ''],
             $status,
         );
     }
@@ -210,6 +223,48 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
     }
 
     #[Test]
+    public function updateCompressionSkippedMarksFileAsSkipped(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateCompressionSkipped(1, 'tinify: already optimal, kept original - 01.01.2026');
+
+        $row = $this->getConnectionPool()
+            ->getQueryBuilderForTable('sys_file')
+            ->select('compressed', 'compress_skipped', 'compress_error', 'compress_info')
+            ->from('sys_file')
+            ->where('uid = 1')
+            ->executeQuery()
+            ->fetchAssociative();
+
+        self::assertNotFalse($row);
+        self::assertSame(0, (int) $row['compressed']);
+        self::assertSame(1, (int) $row['compress_skipped']);
+        self::assertSame('', $row['compress_error']);
+        self::assertSame('tinify: already optimal, kept original - 01.01.2026', $row['compress_info']);
+    }
+
+    #[Test]
+    public function updateCompressionStatusResetsCompressSkipped(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateCompressionSkipped(1, 'already optimal');
+        $this->subject->updateCompressionStatus(1, true, '', 'saved 50%');
+
+        $row = $this->getConnectionPool()
+            ->getQueryBuilderForTable('sys_file')
+            ->select('compress_skipped')
+            ->from('sys_file')
+            ->where('uid = 1')
+            ->executeQuery()
+            ->fetchAssociative();
+
+        self::assertNotFalse($row);
+        self::assertSame(0, (int) $row['compress_skipped']);
+    }
+
+    #[Test]
     public function getCompressionStatisticsReturnsZerosWithoutData(): void
     {
         self::assertSame(
@@ -225,6 +280,19 @@ final class FileRepositoryTest extends \TYPO3\TestingFramework\Core\Functional\F
 
         self::assertSame(
             ['compressed' => 1, 'not_compressed' => 3, 'errors' => 2],
+            $this->subject->getCompressionStatistics(['image/jpeg']),
+        );
+    }
+
+    #[Test]
+    public function getCompressionStatisticsCountsSkippedFilesAsCompressed(): void
+    {
+        $this->importCSVDataSet(__DIR__.'/Fixtures/FileRepositoryTest.csv');
+
+        $this->subject->updateCompressionSkipped(1, 'already optimal');
+
+        self::assertSame(
+            ['compressed' => 2, 'not_compressed' => 2, 'errors' => 2],
             $this->subject->getCompressionStatistics(['image/jpeg']),
         );
     }

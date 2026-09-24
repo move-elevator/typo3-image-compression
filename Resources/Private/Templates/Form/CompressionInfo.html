@@ -17,6 +17,12 @@
     <f:if condition="{status} == 'not_compressed'">
         <span class="badge badge-warning" style="margin-left: 8px;">{statusLabel}</span>
     </f:if>
+    <f:if condition="{status} == 'optimal'">
+        <span class="badge badge-info" style="margin-left: 8px;">{statusLabel}</span>
+        <f:if condition="{message}">
+            <div class="form-description" style="margin-top: 8px;">{message}</div>
+        </f:if>
+    </f:if>
     <f:if condition="{status} == 'no_file'">
         <span class="badge badge-secondary" style="margin-left: 8px;">{statusLabel}</span>
     </f:if>
