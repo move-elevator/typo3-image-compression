@@ -14,11 +14,10 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\EventListener;
 
-use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
-use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
-use TYPO3\CMS\Core\Exception;
+use MoveElevator\Typo3ImageCompression\Message\CompressImageMessage;
+use Symfony\Component\Messenger\MessageBusInterface;
 use TYPO3\CMS\Core\Resource\Event\AfterFileAddedEvent;
-use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, UnknownObjectException};
+use TYPO3\CMS\Core\Resource\File;
 
 /**
  * AfterFileAdded.
@@ -29,22 +28,14 @@ use TYPO3\CMS\Extbase\Persistence\Exception\{IllegalObjectTypeException, Unknown
  */
 final readonly class AfterFileAdded
 {
-    public function __construct(private CompressorInterface $compressor) {}
+    public function __construct(private MessageBusInterface $messageBus) {}
 
-    /**
-     * @throws Exception
-     * @throws UnknownObjectException
-     * @throws IllegalObjectTypeException
-     */
     public function __invoke(AfterFileAddedEvent $event): AfterFileAddedEvent
     {
-        try {
-            $this->compressor->compress($event->getFile());
-        } catch (CompressionAbortedException) {
-            // A broken TinyPNG account (invalid key, exhausted quota) must
-            // not fail the upload itself: the compressor already logged the
-            // failure and flashed a message, this listener only prevents it
-            // from escaping the synchronous file-add request.
+        $file = $event->getFile();
+
+        if ($file instanceof File) {
+            $this->messageBus->dispatch(new CompressImageMessage($file->getUid(), $file->getStorage()->getUid()));
         }
 
         return $event;

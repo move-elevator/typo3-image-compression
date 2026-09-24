@@ -14,13 +14,13 @@ declare(strict_types=1);
 
 namespace MoveElevator\Typo3ImageCompression\Tests\Unit\EventListener;
 
-use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
-use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use MoveElevator\Typo3ImageCompression\EventListener\AfterFileAdded;
+use MoveElevator\Typo3ImageCompression\Message\CompressImageMessage;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Messenger\{Envelope, MessageBusInterface};
 use TYPO3\CMS\Core\Resource\Event\AfterFileAddedEvent;
-use TYPO3\CMS\Core\Resource\{FileInterface, Folder};
+use TYPO3\CMS\Core\Resource\{File, FileInterface, Folder, ResourceStorage};
 
 /**
  * AfterFileAddedTest.
@@ -33,32 +33,43 @@ use TYPO3\CMS\Core\Resource\{FileInterface, Folder};
 final class AfterFileAddedTest extends TestCase
 {
     #[Test]
-    public function invokeCompressesFileAndReturnsEvent(): void
+    public function invokeDispatchesCompressImageMessageAndReturnsEvent(): void
     {
-        $fileMock = $this->createMock(FileInterface::class);
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getUid')->willReturn(7);
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getUid')->willReturn(42);
+        $fileMock->method('getStorage')->willReturn($storageMock);
+
         $folderMock = $this->createMock(Folder::class);
         $event = new AfterFileAddedEvent($fileMock, $folderMock);
 
-        $compressorMock = $this->createMock(CompressorInterface::class);
-        $compressorMock->expects(self::once())->method('compress')->with($fileMock);
+        $messageBusMock = $this->createMock(MessageBusInterface::class);
+        $messageBusMock->expects(self::once())
+            ->method('dispatch')
+            ->with(self::callback(
+                static fn (CompressImageMessage $message): bool => 42 === $message->fileUid && 7 === $message->storageUid,
+            ))
+            ->willReturn(new Envelope(new CompressImageMessage(42, 7)));
 
-        $subject = new AfterFileAdded($compressorMock);
+        $subject = new AfterFileAdded($messageBusMock);
         $result = $subject($event);
 
         self::assertSame($event, $result);
     }
 
     #[Test]
-    public function invokeDoesNotLetCompressionAbortedExceptionEscapeTheUpload(): void
+    public function invokeSkipsDispatchForNonFileInstances(): void
     {
         $fileMock = $this->createMock(FileInterface::class);
         $folderMock = $this->createMock(Folder::class);
         $event = new AfterFileAddedEvent($fileMock, $folderMock);
 
-        $compressorMock = $this->createMock(CompressorInterface::class);
-        $compressorMock->method('compress')->willThrowException(new CompressionAbortedException('quota exhausted'));
+        $messageBusMock = $this->createMock(MessageBusInterface::class);
+        $messageBusMock->expects(self::never())->method('dispatch');
 
-        $subject = new AfterFileAdded($compressorMock);
+        $subject = new AfterFileAdded($messageBusMock);
         $result = $subject($event);
 
         self::assertSame($event, $result);
