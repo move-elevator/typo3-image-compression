@@ -248,7 +248,7 @@ final class LocalBasicCompressorTest extends TestCase
         // A minimum saving threshold of 0% counts a byte-identical result
         // (the tool mock does not actually shrink the file) as "meets the
         // threshold", so it still replaces the original.
-        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true);
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true, '', 'local-basic', 'ImageMagick', 15, 15);
 
         self::assertSame(CompressionOutcome::Compressed, $this->subject->compress($fileMock));
     }

@@ -88,7 +88,7 @@ Deletes backups older than [`backupRetentionDays`](configuration.md#backup--rest
 
 - **Upload progress** — the file list's drag-uploader shows a "Compressing…" label while a JPEG or PNG upload is being processed.
 - **System information toolbar** — shows current TinyPNG API usage (`compressed / limit`). Only appears when the `tinify` provider is active, an API key is configured, and [`systemInformationToolbar`](configuration.md#systeminformationtoolbar-showcompressionstatus-showstatusreport) is enabled.
-- **System Reports** (`Admin Tools > System Reports`) — the active provider, compression statistics for original and processed files, and (with `tinify`) API usage. Controlled by [`showStatusReport`](configuration.md#systeminformationtoolbar-showcompressionstatus-showstatusreport).
+- **System Reports** (`Admin Tools > System Reports`) — the active provider, compression statistics for original and processed files, total bytes saved, and (with `tinify`) API usage. Controlled by [`showStatusReport`](configuration.md#systeminformationtoolbar-showcompressionstatus-showstatusreport).
 - **File metadata** (`sys_file_metadata`) — per-file compression status and error messages, next to the file's other metadata. Controlled by [`showCompressionStatus`](configuration.md#systeminformationtoolbar-showcompressionstatus-showstatusreport).
 
 ## See also

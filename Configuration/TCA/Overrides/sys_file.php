@@ -42,6 +42,15 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
             'default' => '',
         ],
     ],
+    'compress_provider' => [
+        'exclude' => true,
+        'label' => 'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:compress_provider',
+        'config' => [
+            'type' => 'input',
+            'readOnly' => true,
+            'default' => '',
+        ],
+    ],
     'compress_info' => [
         'exclude' => true,
         'label' => 'Compression Info',
@@ -60,6 +69,45 @@ ExtensionManagementUtility::addTCAcolumns('sys_file', [
             'default' => '',
         ],
     ],
+    'compress_tool' => [
+        'exclude' => true,
+        'label' => 'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:compress_tool',
+        'config' => [
+            'type' => 'input',
+            'readOnly' => true,
+            'default' => '',
+        ],
+    ],
+    'compress_original_size' => [
+        'exclude' => true,
+        'label' => 'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:compress_original_size',
+        'config' => [
+            'type' => 'number',
+            'readOnly' => true,
+            'default' => 0,
+        ],
+    ],
+    'compress_size' => [
+        'exclude' => true,
+        'label' => 'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:compress_size',
+        'config' => [
+            'type' => 'number',
+            'readOnly' => true,
+            'default' => 0,
+        ],
+    ],
+    'compress_tstamp' => [
+        'exclude' => true,
+        'label' => 'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:compress_tstamp',
+        'config' => [
+            'type' => 'datetime',
+            'readOnly' => true,
+            'default' => 0,
+        ],
+    ],
 ]);
 
-ExtensionManagementUtility::addToAllTCAtypes('sys_file', 'compress_error,compress_info');
+ExtensionManagementUtility::addToAllTCAtypes(
+    'sys_file',
+    'compress_error,compress_info,compress_provider,compress_tool,compress_original_size,compress_size,compress_tstamp',
+);

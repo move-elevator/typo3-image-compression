@@ -79,3 +79,10 @@ services:
       - name: console.command
         command: imagecompression:pruneBackups
         description: Delete backups older than the configured retention
+
+  # Upgrade Wizards
+  MoveElevator\Typo3ImageCompression\Updates\CompressionColumnsUpgradeWizard:
+    public: true
+    tags:
+      - name: install.upgradewizard
+        identifier: typo3ImageCompression_compressionColumns

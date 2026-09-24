@@ -29,6 +29,11 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
     protected string $compressError = '';
     protected string $compressInfo = '';
     protected string $backupPath = '';
+    protected string $compressProvider = '';
+    protected string $compressTool = '';
+    protected int $compressOriginalSize = 0;
+    protected int $compressSize = 0;
+    protected int $compressTstamp = 0;
 
     public function getStorage(): int
     {
@@ -83,6 +88,56 @@ class File extends \TYPO3\CMS\Extbase\Domain\Model\File
     public function setCompressInfo(string $compressInfo): void
     {
         $this->compressInfo = $compressInfo;
+    }
+
+    public function getCompressProvider(): string
+    {
+        return $this->compressProvider;
+    }
+
+    public function setCompressProvider(string $compressProvider): void
+    {
+        $this->compressProvider = $compressProvider;
+    }
+
+    public function getCompressTool(): string
+    {
+        return $this->compressTool;
+    }
+
+    public function setCompressTool(string $compressTool): void
+    {
+        $this->compressTool = $compressTool;
+    }
+
+    public function getCompressOriginalSize(): int
+    {
+        return $this->compressOriginalSize;
+    }
+
+    public function setCompressOriginalSize(int $compressOriginalSize): void
+    {
+        $this->compressOriginalSize = $compressOriginalSize;
+    }
+
+    public function getCompressSize(): int
+    {
+        return $this->compressSize;
+    }
+
+    public function setCompressSize(int $compressSize): void
+    {
+        $this->compressSize = $compressSize;
+    }
+
+    public function getCompressTstamp(): int
+    {
+        return $this->compressTstamp;
+    }
+
+    public function setCompressTstamp(int $compressTstamp): void
+    {
+        $this->compressTstamp = $compressTstamp;
     }
 
     public function getBackupPath(): string

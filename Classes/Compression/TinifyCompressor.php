@@ -225,8 +225,7 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
 
             $result->toFile($filePath);
 
-            $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize);
-            $this->markFileAsCompressed($file, $compressInfo);
+            $this->markFileAsCompressed($file, self::PROVIDER_IDENTIFIER, '', $originalFileSize, $newFileSize);
             $this->updateFileInformation($file);
         } catch (AccountException $e) {
             $this->logger?->critical('TinyPNG account error, aborting compression run', [

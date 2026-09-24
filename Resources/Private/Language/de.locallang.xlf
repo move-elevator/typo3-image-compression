@@ -195,6 +195,42 @@
 				<source/>
 				<target>TinyPNG API Komprimierungszähler für diesen Monat. &lt;a href="https://tinify.com/dashboard/api" target="_blank" rel="noopener"&gt;Dashboard öffnen&lt;/a&gt;</target>
 			</trans-unit>
+			<trans-unit id="report.bytes_saved">
+				<source/>
+				<target>Eingesparter Speicherplatz</target>
+			</trans-unit>
+			<trans-unit id="report.bytes_saved.description">
+				<source/>
+				<target>Insgesamt eingesparter Speicherplatz über alle erfolgreich komprimierten Dateien.</target>
+			</trans-unit>
+			<trans-unit id="compress_provider">
+				<source/>
+				<target>Komprimierungsanbieter</target>
+			</trans-unit>
+			<trans-unit id="compress_tool">
+				<source/>
+				<target>Komprimierungswerkzeug</target>
+			</trans-unit>
+			<trans-unit id="compress_original_size">
+				<source/>
+				<target>Originalgröße (Bytes)</target>
+			</trans-unit>
+			<trans-unit id="compress_size">
+				<source/>
+				<target>Komprimierte Größe (Bytes)</target>
+			</trans-unit>
+			<trans-unit id="compress_tstamp">
+				<source/>
+				<target>Komprimiert am</target>
+			</trans-unit>
+			<trans-unit id="upgradeWizard.compressionColumns.title">
+				<source/>
+				<target>Strukturierte Komprimierungsspalten für bereits komprimierte Dateien zurücksetzen</target>
+			</trans-unit>
+			<trans-unit id="upgradeWizard.compressionColumns.description">
+				<source/>
+				<target>Frühere Versionen dieser Extension speicherten das Komprimierungsergebnis als einzelnen formatierten String (compress_info). Diese Spalte wurde durch strukturierte Spalten ersetzt (Anbieter, Werkzeug, Originalgröße, komprimierte Größe, Zeitstempel). Die alten Strings werden nicht nachträglich geparst; dieser Assistent setzt die neuen Spalten für bereits als komprimiert markierte Dateien auf "unbekannt" zurück, das compressed-Flag selbst bleibt unverändert.</target>
+			</trans-unit>
 		</body>
 	</file>
 </xliff>

@@ -448,7 +448,7 @@ final class TinifyCompressorTest extends TestCase
         $this->fileRepositoryMock
             ->expects(self::once())
             ->method('updateCompressionStatus')
-            ->with(99, true, '', self::stringContains('tinify:'));
+            ->with(99, true, '', 'tinify', '', 1400, 5);
 
         self::assertSame(CompressionOutcome::Compressed, $this->subject->compress($fileMock));
         self::assertSame('short', file_get_contents($tmpFile));
@@ -911,7 +911,7 @@ final class TinifyCompressorTest extends TestCase
         $this->fileRepositoryMock
             ->expects(self::once())
             ->method('updateCompressionStatus')
-            ->with(99, true, '', self::stringContains('tinify:'));
+            ->with(99, true, '', 'tinify', '', self::callback('is_int'), self::callback('is_int'));
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('listener exploded');

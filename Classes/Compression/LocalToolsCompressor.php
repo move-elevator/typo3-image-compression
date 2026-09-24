@@ -162,8 +162,7 @@ class LocalToolsCompressor implements CompressorInterface, MimeTypeAwareInterfac
         }
 
         $savedPercent = $this->calculateSavedPercent($outcome['originalSize'], $outcome['newSize']);
-        $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $outcome['newSize'], $tool);
-        $this->markFileAsCompressed($file, $compressInfo);
+        $this->markFileAsCompressed($file, self::PROVIDER_IDENTIFIER, $tool, $outcome['originalSize'], $outcome['newSize']);
         $this->updateFileInformation($file);
 
         $this->eventDispatcher->dispatch(new AfterImageCompressionEvent(

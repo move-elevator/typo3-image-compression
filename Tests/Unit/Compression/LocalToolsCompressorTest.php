@@ -418,37 +418,6 @@ final class LocalToolsCompressorTest extends TestCase
     }
 
     #[Test]
-    public function compressMarksFileAsCompressedWhenOptimizationSucceeds(): void
-    {
-        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
-
-        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
-        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
-        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
-        $this->extensionConfigurationMock->method('getMinimumSavingPercent')->willReturn(0);
-        $this->toolDetectionMock->method('getFirstAvailable')->with(['jpegoptim'])->willReturn('jpegoptim');
-        $this->toolDetectionMock->method('getToolPath')->with('jpegoptim')->willReturn('/usr/bin/true');
-
-        $fileMock = $this->createMock(File::class);
-        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
-        $fileMock->method('getMimeType')->willReturn('image/jpeg');
-        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
-        $fileMock->method('getUid')->willReturn(99);
-        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
-
-        $indexerMock = $this->createMock(Indexer::class);
-        $indexerMock->expects(self::once())->method('updateIndexEntry')->with($fileMock);
-        GeneralUtility::addInstance(Indexer::class, $indexerMock);
-
-        // The tool mock does not actually shrink the file (byte-identical
-        // result), but a minimum saving threshold of 0% still counts that as
-        // "meets the threshold", so the result replaces the original.
-        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true);
-
-        self::assertSame(CompressionOutcome::Compressed, $this->subject->compress($fileMock));
-    }
-
-    #[Test]
     public function compressMarksFileAsOptimalWhenResultDoesNotMeetMinimumSaving(): void
     {
         $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
@@ -479,6 +448,36 @@ final class LocalToolsCompressorTest extends TestCase
         $this->subject->compress($fileMock);
 
         self::assertSame('fake-jpeg-bytes', file_get_contents($tmpFile));
+    }
+
+    #[Test]
+    public function compressMarksFileAsCompressedWhenOptimizationSucceeds(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-jpeg-bytes');
+
+        $this->extensionConfigurationMock->method('getExcludeFolders')->willReturn([]);
+        $this->extensionConfigurationMock->method('getMimeTypes')->willReturn(['image/jpeg']);
+        $this->extensionConfigurationMock->method('getJpegQuality')->willReturn(80);
+        $this->toolDetectionMock->method('getFirstAvailable')->with(['jpegoptim'])->willReturn('jpegoptim');
+        $this->toolDetectionMock->method('getToolPath')->with('jpegoptim')->willReturn('/usr/bin/true');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getMimeType')->willReturn('image/jpeg');
+        $fileMock->method('getPublicUrl')->willReturn(basename($tmpFile));
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->method('getStorage')->willReturn($this->createLocalStorageMock());
+
+        $indexerMock = $this->createMock(Indexer::class);
+        $indexerMock->expects(self::once())->method('updateIndexEntry')->with($fileMock);
+        GeneralUtility::addInstance(Indexer::class, $indexerMock);
+
+        // markFileAsCompressed() runs unconditionally on a successful
+        // optimization, regardless of whether savedPercent ends up > 0
+        // (the tool mock does not actually shrink the file).
+        $this->fileRepositoryMock->expects(self::once())->method('updateCompressionStatus')->with(99, true, '', 'local-tools', 'jpegoptim', 15, 15);
+
+        $this->subject->compress($fileMock);
     }
 
     #[Test]

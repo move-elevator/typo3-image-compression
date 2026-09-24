@@ -177,8 +177,7 @@ class LocalBasicCompressor implements CompressorInterface, LoggerAwareInterface,
         }
 
         $savedPercent = $this->calculateSavedPercent($outcome['originalSize'], $outcome['newSize']);
-        $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $outcome['originalSize'], $outcome['newSize'], $processor);
-        $this->markFileAsCompressed($file, $compressInfo);
+        $this->markFileAsCompressed($file, self::PROVIDER_IDENTIFIER, $processor, $outcome['originalSize'], $outcome['newSize']);
         $this->updateFileInformation($file);
 
         $this->eventDispatcher->dispatch(new AfterImageCompressionEvent(

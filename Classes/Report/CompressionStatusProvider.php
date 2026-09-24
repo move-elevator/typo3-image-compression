@@ -18,7 +18,7 @@ use MoveElevator\Typo3ImageCompression\Compression\{CompressorInterface, MimeTyp
 use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
-use MoveElevator\Typo3ImageCompression\Utility\ViewUtility;
+use MoveElevator\Typo3ImageCompression\Utility\{CompressionInfoFormatter, ViewUtility};
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Reports\{Status, StatusProviderInterface};
@@ -63,6 +63,7 @@ class CompressionStatusProvider implements StatusProviderInterface
 
         $statuses['provider'] = $this->getProviderStatus();
         $statuses['statistics'] = $this->getStatisticsStatus();
+        $statuses['bytesSaved'] = $this->getBytesSavedStatus();
 
         if ($this->compressor instanceof QuotaAwareInterface) {
             $apiUsageStatus = $this->getApiUsageStatus();
@@ -137,6 +138,18 @@ class CompressionStatusProvider implements StatusProviderInterface
             $value,
             $message,
             $severity,
+        );
+    }
+
+    private function getBytesSavedStatus(): Status
+    {
+        $bytesSaved = $this->fileRepository->getTotalBytesSaved();
+
+        return new Status(
+            $this->translate('report.bytes_saved'),
+            CompressionInfoFormatter::formatBytes($bytesSaved),
+            $this->translate('report.bytes_saved.description'),
+            ContextualFeedbackSeverity::INFO,
         );
     }
 
