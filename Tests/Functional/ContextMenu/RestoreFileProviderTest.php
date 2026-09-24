@@ -21,7 +21,7 @@ use PHPUnit\Framework\Attributes\{CoversClass, RunClassInSeparateProcess, Test};
 use TYPO3\CMS\Backend\ContextMenu\ContextMenu;
 use TYPO3\CMS\Backend\ContextMenu\ItemProviders\ItemProvidersRegistry;
 use TYPO3\CMS\Core\Core\SystemEnvironmentBuilder;
-use TYPO3\CMS\Core\Http\ServerRequest;
+use TYPO3\CMS\Core\Http\{NormalizedParams, ServerRequest};
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
@@ -57,7 +57,17 @@ final class RestoreFileProviderTest extends FunctionalTestCase
 
         $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS'][ExtensionKey::EXT_KEY]['enableBackup'] = '1';
         $GLOBALS['LANG'] = $this->get(LanguageServiceFactory::class)->createFromUserPreferences(null);
-        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest('https://typo3-testing.local/typo3/'))->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_BE);
+        // TYPO3 v14's IconFactory resolves each SVG icon's public URL via
+        // DefaultSystemResourcePublisher, which requires the request's
+        // "normalizedParams" attribute; a real HTTP request always has one
+        // (set by the routing middleware stack), but this manually built
+        // request doesn't, and the native context menu's own FileProvider
+        // renders icons for every item it offers. Without this, ANY test
+        // that reaches ContextMenu::getItems() fails on v14 with a TypeError
+        // before it even gets to this extension's own provider.
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest('https://typo3-testing.local/typo3/'))
+            ->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_BE)
+            ->withAttribute('normalizedParams', NormalizedParams::createFromServerParams($_SERVER));
     }
 
     protected function tearDown(): void
