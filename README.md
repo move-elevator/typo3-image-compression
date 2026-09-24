@@ -33,6 +33,7 @@ This TYPO3 extension automatically compresses images uploaded to the TYPO3 backe
 
 - TYPO3 >= 12.4
 - PHP >= 8.2
+- A FAL storage using the built-in `Local` driver. Storages on a non-local driver (S3, Azure, ...) are detected and skipped automatically, since compression needs to read and write the file on local disk.
 
 ### Composer
 

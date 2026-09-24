@@ -28,8 +28,9 @@ use function strlen;
 /**
  * CompressorTrait.
  *
- * @property ExtensionConfiguration $extensionConfiguration
- * @property FileRepository         $fileRepository
+ * @property ExtensionConfiguration        $extensionConfiguration
+ * @property FileRepository                $fileRepository
+ * @property \Psr\Log\LoggerInterface|null $logger
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
@@ -37,6 +38,44 @@ use function strlen;
  */
 trait CompressorTrait
 {
+    private const LOCAL_DRIVER_TYPE = 'Local';
+
+    /**
+     * Checks whether the storage uses TYPO3's Local driver.
+     *
+     * Compression reads and writes files directly on the filesystem, which
+     * only works for storages backed by the Local driver. A non-local
+     * storage (S3, Azure, ...) resolves its public URL to a remote
+     * location, not a filesystem path, so a path built from that URL would
+     * never exist on disk.
+     */
+    protected function isLocalStorage(ResourceStorage $storage): bool
+    {
+        return self::LOCAL_DRIVER_TYPE === $storage->getDriverType();
+    }
+
+    /**
+     * Records a non-local storage as an unsupported, permanent skip.
+     *
+     * Persisted as an error (rather than left as compressed=false) so the
+     * CLI batch command's non-compressed query excludes the file instead of
+     * reselecting and reattempting it indefinitely.
+     */
+    protected function rejectUnsupportedStorage(File $file): void
+    {
+        $driver = $file->getStorage()->getDriverType();
+        $this->logger?->info('Skipping compression: unsupported storage driver', [
+            'file' => $file->getIdentifier(),
+            'driver' => $driver,
+        ]);
+
+        $this->fileRepository->updateCompressionStatus(
+            $file->getUid(),
+            false,
+            sprintf('skipped: unsupported storage driver (%s)', $driver),
+        );
+    }
+
     /**
      * Checks if the file is located in an excluded folder.
      *

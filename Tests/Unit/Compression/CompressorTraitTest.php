@@ -20,6 +20,7 @@ use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
 use PHPUnit\Framework\Attributes\{CoversClass, DataProvider, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Core\{ApplicationContext, Environment};
 use TYPO3\CMS\Core\Resource\{File, ResourceStorage};
 use TYPO3\CMS\Core\Resource\Index\Indexer;
@@ -37,6 +38,10 @@ use function sprintf;
 interface CompressorTraitTestSubject
 {
     public function isFileInExcludeFolder(File $file): bool;
+
+    public function isLocalStorage(ResourceStorage $storage): bool;
+
+    public function rejectUnsupportedStorage(File $file): void;
 
     public function getAbsoluteFilePath(File $file): string;
 
@@ -101,6 +106,8 @@ final class CompressorTraitTest extends TestCase
         $this->subject = new class implements CompressorTraitTestSubject {
             use CompressorTrait {
                 isFileInExcludeFolder as public;
+                isLocalStorage as public;
+                rejectUnsupportedStorage as public;
                 getAbsoluteFilePath as public;
                 markFileAsCompressed as public;
                 buildCompressInfo as public;
@@ -111,6 +118,7 @@ final class CompressorTraitTest extends TestCase
                 calculateSavedPercent as public;
                 compressToTempAndReplace as public;
             }
+            use LoggerAwareTrait;
 
             public ExtensionConfiguration $extensionConfiguration;
             public FileRepository $fileRepository;
@@ -174,6 +182,42 @@ final class CompressorTraitTest extends TestCase
         $fileMock->method('getIdentifier')->willReturn('/second/image.jpg');
 
         self::assertTrue($this->subject->isFileInExcludeFolder($fileMock));
+    }
+
+    #[Test]
+    public function isLocalStorageReturnsTrueForLocalDriver(): void
+    {
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Local');
+
+        self::assertTrue($this->subject->isLocalStorage($storageMock));
+    }
+
+    #[Test]
+    public function isLocalStorageReturnsFalseForNonLocalDriver(): void
+    {
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Aws3');
+
+        self::assertFalse($this->subject->isLocalStorage($storageMock));
+    }
+
+    #[Test]
+    public function rejectUnsupportedStoragePersistsAnErrorWithTheDriverName(): void
+    {
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Aws3');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->method('getStorage')->willReturn($storageMock);
+
+        $this->fileRepositoryMock->expects(self::once())
+            ->method('updateCompressionStatus')
+            ->with(99, false, 'skipped: unsupported storage driver (Aws3)');
+
+        $this->subject->rejectUnsupportedStorage($fileMock);
     }
 
     #[Test]

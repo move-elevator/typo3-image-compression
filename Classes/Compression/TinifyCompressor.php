@@ -174,6 +174,12 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
             return CompressionOutcome::Skipped;
         }
 
+        if (!$this->isLocalStorage($file->getStorage())) {
+            $this->rejectUnsupportedStorage($file);
+
+            return CompressionOutcome::Failed;
+        }
+
         try {
             $this->initAction();
             $this->assureFileExists($file);
@@ -257,24 +263,29 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
      */
     public function compressProcessedFiles(array $files): void
     {
-        try {
-            $this->initAction();
-        } catch (AccountException $e) {
-            $this->logger?->critical('TinyPNG account error, aborting compression run', [
-                'message' => $e->getMessage(),
-            ]);
+        // Deferred until a local file is actually present: initAction()
+        // validates the TinyPNG API key with a real HTTP request, which a
+        // batch made up only of remote-storage files should never trigger.
+        if ($this->hasLocalStorageFile($files)) {
+            try {
+                $this->initAction();
+            } catch (AccountException $e) {
+                $this->logger?->critical('TinyPNG account error, aborting compression run', [
+                    'message' => $e->getMessage(),
+                ]);
 
-            throw new CompressionAbortedException($e->getMessage(), 0, $e);
-        } catch (ServerException|ConnectionException $e) {
-            // Transient failure during initialization: leave the whole
-            // batch unprocessed without an error record, so it is retried
-            // on the next scheduled run, consistent with the per-file
-            // transient handling in compressSingleProcessedFile().
-            $this->logger?->warning('Transient TinyPNG error during initialization, batch will be retried on next run', [
-                'message' => $e->getMessage(),
-            ]);
+                throw new CompressionAbortedException($e->getMessage(), 0, $e);
+            } catch (ServerException|ConnectionException $e) {
+                // Transient failure during initialization: leave the whole
+                // batch unprocessed without an error record, so it is retried
+                // on the next scheduled run, consistent with the per-file
+                // transient handling in compressSingleProcessedFile().
+                $this->logger?->warning('Transient TinyPNG error during initialization, batch will be retried on next run', [
+                    'message' => $e->getMessage(),
+                ]);
 
-            return;
+                return;
+            }
         }
 
         foreach ($files as $file) {
@@ -354,6 +365,29 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
     }
 
     /**
+     * @param array<int, array<string, mixed>> $files
+     */
+    private function hasLocalStorageFile(array $files): bool
+    {
+        foreach ($files as $file) {
+            $fileStorageId = $this->fileProcessedRepository->findStorageId((int) ($file['uid'] ?? 0));
+
+            if (0 === $fileStorageId) {
+                continue;
+            }
+
+            /** @var ResourceStorage $storage */
+            $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
+
+            if ($this->isLocalStorage($storage)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array<string, mixed> $file
      */
     private function compressSingleProcessedFile(array $file): void
@@ -369,6 +403,13 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
 
         /** @var ResourceStorage $storage */
         $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
+
+        if (!$this->isLocalStorage($storage)) {
+            $this->fileProcessedRepository->updateCompressState($fileId, 0, 'unsupported storage driver: '.$storage->getDriverType());
+
+            return;
+        }
+
         $filePath = $this->resolveProcessedFilePath($storage, (string) $file['identifier']);
 
         if (null === $filePath || false === file_exists($filePath)) {
