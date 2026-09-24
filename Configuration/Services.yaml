@@ -12,6 +12,9 @@ services:
     factory: ['@MoveElevator\Typo3ImageCompression\Compression\CompressorFactory', 'create']
     public: true
 
+  MoveElevator\Typo3ImageCompression\Resource\FileResolver:
+    alias: MoveElevator\Typo3ImageCompression\Resource\Typo3FileResolver
+
   cache.typo3_image_compression:
     class: TYPO3\CMS\Core\Cache\Frontend\FrontendInterface
     factory: ['@TYPO3\CMS\Core\Cache\CacheManager', 'getCache']

@@ -17,10 +17,11 @@ namespace MoveElevator\Typo3ImageCompression\Tests\Unit\MessageHandler;
 use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
 use MoveElevator\Typo3ImageCompression\Message\CompressImageMessage;
 use MoveElevator\Typo3ImageCompression\MessageHandler\CompressImageMessageHandler;
+use MoveElevator\Typo3ImageCompression\Resource\FileResolver;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\TestCase;
 use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
-use TYPO3\CMS\Core\Resource\{File, ResourceFactory, ResourceStorage};
+use TYPO3\CMS\Core\Resource\{File, ResourceStorage};
 
 /**
  * CompressImageMessageHandlerTest.
@@ -40,8 +41,8 @@ final class CompressImageMessageHandlerTest extends TestCase
     #[Test]
     public function invokeSkipsCompressionWhenFileNoLongerExists(): void
     {
-        $resourceFactoryMock = $this->createMock(ResourceFactory::class);
-        $resourceFactoryMock->expects(self::once())
+        $fileResolverMock = $this->createMock(FileResolver::class);
+        $fileResolverMock->expects(self::once())
             ->method('getFileObject')
             ->with(42)
             ->willThrowException(new FileDoesNotExistException('gone', 1317178604));
@@ -49,7 +50,7 @@ final class CompressImageMessageHandlerTest extends TestCase
         $compressorMock = $this->createMock(CompressorInterface::class);
         $compressorMock->expects(self::never())->method('compress');
 
-        $subject = new CompressImageMessageHandler($resourceFactoryMock, $compressorMock);
+        $subject = new CompressImageMessageHandler($fileResolverMock, $compressorMock);
         $subject(new CompressImageMessage(42, 7));
     }
 
@@ -62,13 +63,13 @@ final class CompressImageMessageHandlerTest extends TestCase
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getStorage')->willReturn($storageMock);
 
-        $resourceFactoryMock = $this->createMock(ResourceFactory::class);
-        $resourceFactoryMock->method('getFileObject')->with(42)->willReturn($fileMock);
+        $fileResolverMock = $this->createMock(FileResolver::class);
+        $fileResolverMock->method('getFileObject')->with(42)->willReturn($fileMock);
 
         $compressorMock = $this->createMock(CompressorInterface::class);
         $compressorMock->expects(self::never())->method('compress');
 
-        $subject = new CompressImageMessageHandler($resourceFactoryMock, $compressorMock);
+        $subject = new CompressImageMessageHandler($fileResolverMock, $compressorMock);
         $subject(new CompressImageMessage(42, 7));
     }
 }

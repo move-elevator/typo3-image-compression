@@ -16,11 +16,11 @@ namespace MoveElevator\Typo3ImageCompression\MessageHandler;
 
 use MoveElevator\Typo3ImageCompression\Compression\CompressorInterface;
 use MoveElevator\Typo3ImageCompression\Message\CompressImageMessage;
+use MoveElevator\Typo3ImageCompression\Resource\FileResolver;
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
 use TYPO3\CMS\Core\Resource\Event\AfterFileReplacedEvent;
 use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
 use TYPO3\CMS\Core\Resource\Processing\FileDeletionAspect;
-use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -46,14 +46,14 @@ final class CompressImageMessageHandler implements LoggerAwareInterface
     use LoggerAwareTrait;
 
     public function __construct(
-        private readonly ResourceFactory $resourceFactory,
+        private readonly FileResolver $fileResolver,
         private readonly CompressorInterface $compressor,
     ) {}
 
     public function __invoke(CompressImageMessage $message): void
     {
         try {
-            $file = $this->resourceFactory->getFileObject($message->fileUid);
+            $file = $this->fileResolver->getFileObject($message->fileUid);
         } catch (FileDoesNotExistException) {
             $this->logger?->notice('Skipping compression: file no longer exists', [
                 'fileUid' => $message->fileUid,
