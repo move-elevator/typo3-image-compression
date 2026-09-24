@@ -22,7 +22,10 @@ pngQuality = 85
 # cat=quality/settings/30; type=int+; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:webpQuality
 webpQuality = 80
 
-# cat=quality/settings/40; type=int+; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:minimumSavingPercent
+# cat=quality/settings/40; type=int+; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:commandTimeout
+commandTimeout = 60
+
+# cat=quality/settings/50; type=int+; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:minimumSavingPercent
 minimumSavingPercent = 5
 
 # cat=features/enable/10; type=boolean; label=LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:systemInformationToolbar

@@ -79,6 +79,10 @@
 				<source/>
 				<target>WebP-Qualität (1-100): Qualitätseinstellung für lokale WebP-Komprimierung</target>
 			</trans-unit>
+			<trans-unit id="commandTimeout">
+				<source/>
+				<target>Befehls-Timeout (Sekunden): Timeout für externe Tool-Aufrufe (local-tools/local-basic Provider)</target>
+			</trans-unit>
 			<trans-unit id="minimumSavingPercent">
 				<source/>
 				<target>Mindesteinsparung (%, 0-100): Das komprimierte Ergebnis muss mindestens so viel kleiner sein als das Original, um übernommen zu werden. Darunter bleibt die Originaldatei erhalten.</target>

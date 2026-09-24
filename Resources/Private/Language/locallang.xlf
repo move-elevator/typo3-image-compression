@@ -60,6 +60,9 @@
 			<trans-unit id="webpQuality">
 				<source>WebP Quality (1-100): Quality setting for local WebP compression</source>
 			</trans-unit>
+			<trans-unit id="commandTimeout">
+				<source>Command Timeout (seconds): Timeout for external tool invocations (local-tools/local-basic providers)</source>
+			</trans-unit>
 			<trans-unit id="minimumSavingPercent">
 				<source>Minimum saving (%, 0-100): Compressed result must be at least this much smaller than the original to be kept. Below this, the original file is preserved.</source>
 			</trans-unit>
