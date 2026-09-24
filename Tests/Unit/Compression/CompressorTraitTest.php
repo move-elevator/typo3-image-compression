@@ -20,6 +20,7 @@ use MoveElevator\Typo3ImageCompression\Domain\Repository\FileRepository;
 use PHPUnit\Framework\Attributes\{CoversClass, DataProvider, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Core\{ApplicationContext, Environment};
 use TYPO3\CMS\Core\Resource\{File, ResourceStorage};
 use TYPO3\CMS\Core\Resource\Index\Indexer;
@@ -40,6 +41,8 @@ interface CompressorTraitTestSubject
 
     public function isLocalStorage(ResourceStorage $storage): bool;
 
+    public function rejectUnsupportedStorage(File $file): void;
+
     public function getAbsoluteFilePath(File $file): string;
 
     public function markFileAsCompressed(File $file, string $compressInfo = ''): void;
@@ -55,6 +58,13 @@ interface CompressorTraitTestSubject
     public function updateFileInformation(File $file): void;
 
     public function calculateSavedPercent(int $originalSize, int $newSize): int;
+
+    /**
+     * @param callable(string $tempPath): bool $optimize
+     *
+     * @return array{originalSize: int, newSize: int, replaced: bool}|null
+     */
+    public function compressToTempAndReplace(string $filePath, callable $optimize): ?array;
 }
 
 /**
@@ -70,6 +80,11 @@ final class CompressorTraitTest extends TestCase
     private ExtensionConfiguration&MockObject $extensionConfigurationMock;
     private FileRepository&MockObject $fileRepositoryMock;
     private CompressorTraitTestSubject $subject;
+
+    /**
+     * @var string[]
+     */
+    private array $tmpFiles = [];
 
     protected function setUp(): void
     {
@@ -92,6 +107,7 @@ final class CompressorTraitTest extends TestCase
             use CompressorTrait {
                 isFileInExcludeFolder as public;
                 isLocalStorage as public;
+                rejectUnsupportedStorage as public;
                 getAbsoluteFilePath as public;
                 markFileAsCompressed as public;
                 buildCompressInfo as public;
@@ -100,7 +116,9 @@ final class CompressorTraitTest extends TestCase
                 buildStoragePath as public;
                 updateFileInformation as public;
                 calculateSavedPercent as public;
+                compressToTempAndReplace as public;
             }
+            use LoggerAwareTrait;
 
             public ExtensionConfiguration $extensionConfiguration;
             public FileRepository $fileRepository;
@@ -112,6 +130,13 @@ final class CompressorTraitTest extends TestCase
 
     protected function tearDown(): void
     {
+        foreach ($this->tmpFiles as $tmpFile) {
+            if (file_exists($tmpFile)) {
+                unlink($tmpFile);
+            }
+        }
+        $this->tmpFiles = [];
+
         GeneralUtility::purgeInstances();
     }
 
@@ -175,6 +200,24 @@ final class CompressorTraitTest extends TestCase
         $storageMock->method('getDriverType')->willReturn('Aws3');
 
         self::assertFalse($this->subject->isLocalStorage($storageMock));
+    }
+
+    #[Test]
+    public function rejectUnsupportedStoragePersistsAnErrorWithTheDriverName(): void
+    {
+        $storageMock = $this->createMock(ResourceStorage::class);
+        $storageMock->method('getDriverType')->willReturn('Aws3');
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getIdentifier')->willReturn('/user_upload/image.jpg');
+        $fileMock->method('getUid')->willReturn(99);
+        $fileMock->method('getStorage')->willReturn($storageMock);
+
+        $this->fileRepositoryMock->expects(self::once())
+            ->method('updateCompressionStatus')
+            ->with(99, false, 'skipped: unsupported storage driver (Aws3)');
+
+        $this->subject->rejectUnsupportedStorage($fileMock);
     }
 
     #[Test]
@@ -427,5 +470,82 @@ final class CompressorTraitTest extends TestCase
         GeneralUtility::addInstance(Indexer::class, $indexerMock);
 
         $this->subject->updateFileInformation($fileMock);
+    }
+
+    #[Test]
+    public function compressToTempAndReplacePreservesOriginalExtensionInTempPath(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-png-bytes', '.png');
+        $capturedTempPath = null;
+
+        $result = $this->subject->compressToTempAndReplace(
+            $tmpFile,
+            static function (string $tempPath) use (&$capturedTempPath): bool {
+                $capturedTempPath = $tempPath;
+
+                // Simulates a tool like pngquant that infers the output
+                // format from the given path's extension: writing directly
+                // to $tempPath only works because it already ends in .png.
+                file_put_contents($tempPath, 'compressed');
+
+                return true;
+            },
+        );
+
+        self::assertNotNull($capturedTempPath);
+        self::assertStringEndsWith('.png', $capturedTempPath);
+        self::assertMatchesRegularExpression('/\.compress-[0-9a-f]{8}\.png$/', $capturedTempPath);
+        self::assertNotNull($result);
+        self::assertTrue($result['replaced']);
+        self::assertSame('compressed', file_get_contents($tmpFile));
+    }
+
+    #[Test]
+    public function compressToTempAndReplaceFallsBackToTmpExtensionWhenFileHasNone(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-bytes', '');
+        $capturedTempPath = null;
+
+        $this->subject->compressToTempAndReplace(
+            $tmpFile,
+            static function (string $tempPath) use (&$capturedTempPath): bool {
+                $capturedTempPath = $tempPath;
+                file_put_contents($tempPath, 'compressed');
+
+                return true;
+            },
+        );
+
+        self::assertNotNull($capturedTempPath);
+        self::assertStringEndsWith('.tmp', $capturedTempPath);
+    }
+
+    #[Test]
+    public function compressToTempAndReplaceRemovesTempFileAfterSuccessfulReplace(): void
+    {
+        $tmpFile = $this->createTmpFile('fake-png-bytes', '.png');
+        $capturedTempPath = null;
+
+        $this->subject->compressToTempAndReplace(
+            $tmpFile,
+            static function (string $tempPath) use (&$capturedTempPath): bool {
+                $capturedTempPath = $tempPath;
+                file_put_contents($tempPath, 'compressed');
+
+                return true;
+            },
+        );
+
+        self::assertNotNull($capturedTempPath);
+        self::assertFileDoesNotExist($capturedTempPath);
+    }
+
+    private function createTmpFile(string $content, string $suffix = '.png'): string
+    {
+        $tmpFile = sys_get_temp_dir().'/ctt_'.bin2hex(random_bytes(8)).$suffix;
+        file_put_contents($tmpFile, $content);
+        $this->tmpFiles[] = $tmpFile;
+
+        return $tmpFile;
     }
 }

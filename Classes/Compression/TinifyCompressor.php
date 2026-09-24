@@ -15,11 +15,13 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Compression;
 
 use Exception;
+use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedException;
 use MoveElevator\Typo3ImageCompression\Configuration;
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait};
 use RuntimeException;
+use Tinify\{AccountException, ConnectionException, ServerException};
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Configuration\Exception\{ExtensionConfigurationExtensionNotConfiguredException,
     ExtensionConfigurationPathDoesNotExistException};
@@ -28,7 +30,7 @@ use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 
 use function in_array;
-use function sprintf;
+use function strlen;
 
 /**
  * TinifyCompressor.
@@ -146,14 +148,14 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
         return self::FREE_TIER_LIMIT;
     }
 
-    public function compress(File|FileInterface $file): void
+    public function compress(File|FileInterface $file): CompressionOutcome
     {
         if (!$file instanceof File) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         if ($this->isFileInExcludeFolder($file)) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         if (
@@ -163,32 +165,19 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                 true,
             )
         ) {
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         if ($this->extensionConfiguration->isDebug()) {
             $this->addFlashMessage('debugMode', [], ContextualFeedbackSeverity::INFO);
 
-            return;
+            return CompressionOutcome::Skipped;
         }
 
         if (!$this->isLocalStorage($file->getStorage())) {
-            $driver = $file->getStorage()->getDriverType();
-            $this->logger?->info('Skipping compression: unsupported storage driver', [
-                'file' => $file->getIdentifier(),
-                'driver' => $driver,
-            ]);
+            $this->rejectUnsupportedStorage($file);
 
-            // Persisted as an error (rather than left as compressed=false)
-            // so the CLI batch command's non-compressed query excludes this
-            // file instead of reselecting and reattempting it indefinitely.
-            $this->fileRepository->updateCompressionStatus(
-                $file->getUid(),
-                false,
-                sprintf('skipped: unsupported storage driver (%s)', $driver),
-            );
-
-            return;
+            return CompressionOutcome::Failed;
         }
 
         try {
@@ -198,10 +187,24 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
             $filePath = $this->getAbsoluteFilePath($file);
             /** @var \Tinify\Source $source */
             $source = \Tinify\fromFile($filePath);
-            $source->toFile($filePath);
+            $source = $this->applyPreserveOptions($source);
+            /** @var \Tinify\Result $result */
+            $result = $source->result();
+            // strlen(toBuffer()) rather than Result::size() (which reads the
+            // "content-length" response header): it reflects the exact bytes
+            // that would be written and does not depend on that header being
+            // present.
+            $newFileSize = strlen($result->toBuffer());
 
-            clearstatcache(true, $filePath);
-            $newFileSize = (int) filesize($filePath);
+            if (!$this->meetsMinimumSaving($originalFileSize, $newFileSize)) {
+                $compressInfo = $this->buildSkippedInfo(self::PROVIDER_IDENTIFIER, $originalFileSize);
+                $this->markFileAsOptimal($file, $compressInfo);
+                $this->addFlashMessage('alreadyOptimal', [], ContextualFeedbackSeverity::INFO);
+
+                return CompressionOutcome::Skipped;
+            }
+
+            $result->toFile($filePath);
             $percentageSaved = $this->calculateSavedPercent($originalFileSize, $newFileSize);
 
             $compressInfo = $this->buildCompressInfo(self::PROVIDER_IDENTIFIER, $originalFileSize, $newFileSize);
@@ -215,6 +218,34 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                     ContextualFeedbackSeverity::INFO,
                 );
             }
+
+            return CompressionOutcome::Compressed;
+        } catch (AccountException $e) {
+            $this->logger?->critical('TinyPNG account error, aborting compression run', [
+                'file' => $file->getIdentifier(),
+                'message' => $e->getMessage(),
+            ]);
+            $this->addFlashMessage(
+                'compressionFailed',
+                [$e->getMessage()],
+                ContextualFeedbackSeverity::WARNING,
+            );
+
+            throw new CompressionAbortedException($e->getMessage(), 0, $e);
+        } catch (ServerException|ConnectionException $e) {
+            // Transient failure: leave the file uncompressed without an error
+            // record, so the next scheduled run picks it up again.
+            $this->logger?->warning('Transient TinyPNG error, file will be retried on next run', [
+                'file' => $file->getIdentifier(),
+                'message' => $e->getMessage(),
+            ]);
+            $this->addFlashMessage(
+                'compressionFailed',
+                [$e->getMessage()],
+                ContextualFeedbackSeverity::WARNING,
+            );
+
+            return CompressionOutcome::Failed;
         } catch (Exception $e) {
             $this->saveError($file, $e);
             $this->addFlashMessage(
@@ -222,6 +253,8 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
                 [$e->getMessage()],
                 ContextualFeedbackSeverity::WARNING,
             );
+
+            return CompressionOutcome::Failed;
         }
     }
 
@@ -230,65 +263,33 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
      */
     public function compressProcessedFiles(array $files): void
     {
-        foreach ($files as $file) {
-            $fileId = $file['uid'];
-            $fileStorageId = $this->fileProcessedRepository->findStorageId($fileId);
-
-            if (0 === $fileStorageId) {
-                $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file storage not found');
-                continue;
-            }
-
-            /** @var ResourceStorage $storage */
-            $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
-
-            if (!$this->isLocalStorage($storage)) {
-                $this->fileProcessedRepository->updateCompressState($fileId, 0, 'unsupported storage driver: '.$storage->getDriverType());
-                continue;
-            }
-
-            // Deferred until the first local file in the batch: initAction()
-            // validates the TinyPNG API key with a real HTTP request, which
-            // a batch made up only of remote-storage files should never
-            // trigger. The internal $initialized guard keeps this a no-op
-            // on subsequent iterations.
-            $this->initAction();
-
-            $filePath = $this->resolveProcessedFilePath($storage, (string) $file['identifier']);
-
-            if (null === $filePath || false === file_exists($filePath)) {
-                $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file not found');
-                continue;
-            }
-
-            if (0 === (int) filesize($filePath)) {
-                $this->fileProcessedRepository->updateCompressState($fileId, 0, 'filesize invalid');
-                continue;
-            }
-
-            if (false === in_array(mime_content_type($filePath), $this->extensionConfiguration->getMimeTypes(), true)) {
-                continue;
-            }
-
+        // Deferred until a local file is actually present: initAction()
+        // validates the TinyPNG API key with a real HTTP request, which a
+        // batch made up only of remote-storage files should never trigger.
+        if ($this->hasLocalStorageFile($files)) {
             try {
-                /** @var \Tinify\Source $source */
-                $source = \Tinify\fromFile($filePath);
+                $this->initAction();
+            } catch (AccountException $e) {
+                $this->logger?->critical('TinyPNG account error, aborting compression run', [
+                    'message' => $e->getMessage(),
+                ]);
 
-                if (false !== $source->toFile($filePath)) {
-                    $this->fileProcessedRepository->updateCompressState($fileId);
-                } else {
-                    $this->fileProcessedRepository->updateCompressState($fileId, 0, 'failed to write compressed file');
-                }
-            } catch (Exception $e) {
-                // Persist the error so the file is not retried on every run,
-                // which would otherwise keep consuming the TinyPNG quota.
-                $this->fileProcessedRepository->updateCompressState($fileId, 0, $e->getCode().' : '.$e->getMessage());
-                $this->addFlashMessage(
-                    'compressionFailed',
-                    [$e->getMessage()],
-                    ContextualFeedbackSeverity::WARNING,
-                );
+                throw new CompressionAbortedException($e->getMessage(), 0, $e);
+            } catch (ServerException|ConnectionException $e) {
+                // Transient failure during initialization: leave the whole
+                // batch unprocessed without an error record, so it is retried
+                // on the next scheduled run, consistent with the per-file
+                // transient handling in compressSingleProcessedFile().
+                $this->logger?->warning('Transient TinyPNG error during initialization, batch will be retried on next run', [
+                    'message' => $e->getMessage(),
+                ]);
+
+                return;
             }
+        }
+
+        foreach ($files as $file) {
+            $this->compressSingleProcessedFile($file);
         }
     }
 
@@ -333,6 +334,134 @@ class TinifyCompressor implements CompressorInterface, QuotaAwareInterface, Logg
     {
         $errorMessage = $e->getCode().' : '.$e->getMessage();
         $this->fileRepository->updateCompressionStatus($file->getUid(), false, $errorMessage, '');
+    }
+
+    /**
+     * Applies configured metadata preservation. GPS location is never
+     * preserved, it is a data protection concern rather than a compression setting.
+     *
+     * The TinyPNG API's `preserve()` option only supports "copyright" and
+     * "creation"; there is no ICC-profile-preservation option, TinyPNG
+     * always converts images to sRGB. `preserveColorProfile` therefore has
+     * no effect for this provider (see README.md's provider support table).
+     */
+    protected function applyPreserveOptions(\Tinify\Source $source): \Tinify\Source
+    {
+        $options = [];
+
+        if ($this->extensionConfiguration->isPreserveCopyright()) {
+            $options[] = 'copyright';
+        }
+
+        if ($this->extensionConfiguration->isPreserveCreationDate()) {
+            $options[] = 'creation';
+        }
+
+        if ([] === $options) {
+            return $source;
+        }
+
+        return $source->preserve(...$options);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $files
+     */
+    private function hasLocalStorageFile(array $files): bool
+    {
+        foreach ($files as $file) {
+            $fileStorageId = $this->fileProcessedRepository->findStorageId((int) ($file['uid'] ?? 0));
+
+            if (0 === $fileStorageId) {
+                continue;
+            }
+
+            /** @var ResourceStorage $storage */
+            $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
+
+            if ($this->isLocalStorage($storage)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     */
+    private function compressSingleProcessedFile(array $file): void
+    {
+        $fileId = $file['uid'];
+        $fileStorageId = $this->fileProcessedRepository->findStorageId($fileId);
+
+        if (0 === $fileStorageId) {
+            $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file storage not found');
+
+            return;
+        }
+
+        /** @var ResourceStorage $storage */
+        $storage = $this->storageRepository->getStorageObject(max(0, $fileStorageId));
+
+        if (!$this->isLocalStorage($storage)) {
+            $this->fileProcessedRepository->updateCompressState($fileId, 0, 'unsupported storage driver: '.$storage->getDriverType());
+
+            return;
+        }
+
+        $filePath = $this->resolveProcessedFilePath($storage, (string) $file['identifier']);
+
+        if (null === $filePath || false === file_exists($filePath)) {
+            $this->fileProcessedRepository->updateCompressState($fileId, 0, 'file not found');
+
+            return;
+        }
+
+        if (0 === (int) filesize($filePath)) {
+            $this->fileProcessedRepository->updateCompressState($fileId, 0, 'filesize invalid');
+
+            return;
+        }
+
+        if (false === in_array(mime_content_type($filePath), $this->extensionConfiguration->getMimeTypes(), true)) {
+            return;
+        }
+
+        try {
+            /** @var \Tinify\Source $source */
+            $source = \Tinify\fromFile($filePath);
+            $source = $this->applyPreserveOptions($source);
+
+            if (false !== $source->toFile($filePath)) {
+                $this->fileProcessedRepository->updateCompressState($fileId);
+            } else {
+                $this->fileProcessedRepository->updateCompressState($fileId, 0, 'failed to write compressed file');
+            }
+        } catch (AccountException $e) {
+            $this->logger?->critical('TinyPNG account error, aborting compression run', [
+                'file' => $file['identifier'] ?? $fileId,
+                'message' => $e->getMessage(),
+            ]);
+
+            throw new CompressionAbortedException($e->getMessage(), 0, $e);
+        } catch (ServerException|ConnectionException $e) {
+            // Transient failure: leave the file uncompressed without an
+            // error record, so the next scheduled run picks it up again.
+            $this->logger?->warning('Transient TinyPNG error, file will be retried on next run', [
+                'file' => $file['identifier'] ?? $fileId,
+                'message' => $e->getMessage(),
+            ]);
+        } catch (Exception $e) {
+            // Persist the error so the file is not retried on every run,
+            // which would otherwise keep consuming the TinyPNG quota.
+            $this->fileProcessedRepository->updateCompressState($fileId, 0, $e->getCode().' : '.$e->getMessage());
+            $this->addFlashMessage(
+                'compressionFailed',
+                [$e->getMessage()],
+                ContextualFeedbackSeverity::WARNING,
+            );
+        }
     }
 
     private function fetchCompressionCount(): ?int

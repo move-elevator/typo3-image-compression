@@ -96,11 +96,42 @@ No additional installation needed — uses TYPO3's configured graphics processor
 
 For local providers, configure quality (1–100) for JPEG, PNG, and WebP compression independently.
 
+### Metadata
+
+By default, compression strips all image metadata: EXIF, IPTC, XMP and the embedded ICC color profile. GPS location data is always stripped and cannot be preserved for `tinify` and `local-basic`, publishing where a photo was taken is a data protection concern.
+
+For press, stock or agency images where the copyright tag matters, or source images authored in a wide-gamut color space (e.g. Adobe RGB) where dropping the ICC profile shifts colors, enable:
+
+| Setting | Effect |
+|---------|--------|
+| `preserveCopyright` | Keeps the EXIF/IPTC copyright tag |
+| `preserveCreationDate` | Keeps the EXIF/IPTC creation date |
+| `preserveColorProfile` | Keeps the embedded ICC color profile |
+
+Support depends on the provider:
+
+- `tinify` preserves copyright and creation date independently via the TinyPNG API. `preserveColorProfile` has no effect: TinyPNG always converts images to sRGB and offers no ICC-preservation option.
+- `local-tools` (jpegoptim, JPEG only) preserves the color profile independently (`--strip-icc`). Copyright and creation date are not independent: jpegoptim can only strip the whole EXIF or IPTC block, not individual tags, so enabling either setting keeps both fields, and any other EXIF/IPTC data including GPS.
+- `local-basic` (ImageMagick/GraphicsMagick) can only preserve the color profile on its own; enabling copyright or creation date preservation keeps the whole EXIF/IPTC block too, since plain `convert` has no per-tag strip flag, except GPS position tags, which are always explicitly cleared regardless of the other settings.
+
+### Command timeout
+
+For local providers, **Command Timeout** limits how long an external tool invocation (`jpegoptim`, `optipng`, ImageMagick, ...) may run before it is killed, in seconds (default: 60). A timed-out invocation is logged and no compression status is recorded. Local tools compress in place, so a process killed mid-write can leave a partially written file, the same risk that already exists for any other abrupt interruption of these tools (crash, OOM kill), not something specific to the timeout feature.
+
 ## 💡 Usage
 
 ### Automatic compression
 
 Once configured, all images with a supported MIME type uploaded via the TYPO3 backend are automatically compressed.
+
+By default this happens synchronously, within the upload request. To run it on a queue worker instead (recommended with the `tinify` provider, so an editor's upload does not wait on a round trip to the TinyPNG API), route `MoveElevator\Typo3ImageCompression\Message\CompressImageMessage` to an async [Messenger transport](https://docs.typo3.org/m/typo3/reference-coreapi/main/en-us/ApiOverview/MessageBus/Index.html), for example:
+
+```php
+// config/system/additional.php
+$GLOBALS['TYPO3_CONF_VARS']['SYS']['messenger']['routing'][\MoveElevator\Typo3ImageCompression\Message\CompressImageMessage::class] = 'doctrine';
+```
+
+With that in place, run `vendor/bin/typo3 messenger:consume doctrine` (typically as a scheduler task) to process compressions in the background.
 
 ### Batch processing (CLI)
 
@@ -122,6 +153,13 @@ vendor/bin/typo3 imagecompression:compressImages --include-processed
 # Retry failed compressions
 vendor/bin/typo3 imagecompression:compressImages --retry-errors
 
+# Preview what a run would do, without writing anything
+vendor/bin/typo3 imagecompression:compressImages 200 --dry-run
+
+# Limit to a single storage or folder
+vendor/bin/typo3 imagecompression:compressImages --storage=2
+vendor/bin/typo3 imagecompression:compressImages --folder=/campaign2024/
+
 # Combine options
 vendor/bin/typo3 imagecompression:compressImages 200 --include-processed --retry-errors
 ```
@@ -131,9 +169,17 @@ vendor/bin/typo3 imagecompression:compressImages 200 --include-processed --retry
 | `limit` | Number of images to process (default: 100) |
 | `--include-processed`, `-p` | Also compress processed files (thumbnails, crops). Omit to save API quota — processed files are regenerated from already-compressed originals. |
 | `--retry-errors`, `-r` | Retry compression for files that previously failed. Clears error status on success. |
+| `--dry-run`, `-d` | List the files that would be processed, with total size and a per-MIME-type breakdown. Writes nothing. |
+| `--storage`, `-s` | Limit to a single file storage by UID. |
+| `--folder` | Limit to files whose identifier starts with this path (e.g. `/campaign2024/`). Applies to original files only. |
 
 > [!TIP]
 > When using the `tinify` provider, omit `--include-processed` to conserve your monthly API quota. Processed files are regenerated from the already-compressed originals anyway.
+
+The command reports compressed, skipped (excluded folder, unsupported MIME type, no local tool available) and failed files separately, so a run's summary distinguishes "nothing to do" from "something went wrong".
+
+> [!TIP]
+> The command is schedulable out of the box (`console.command` defaults to `schedulable: true`), so it can be run on a recurring schedule via **Admin Tools > Scheduler** using the "Execute console commands" task, without any extra configuration.
 
 ### Backend integration
 
