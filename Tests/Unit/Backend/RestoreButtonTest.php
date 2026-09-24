@@ -55,23 +55,29 @@ final class RestoreButtonTest extends TestCase
     }
 
     #[Test]
-    public function renderProducesAPostFormWithTheFileUidAsHiddenField(): void
+    public function renderProducesAPlainButtonCarryingTheActionUrlAndFileUidAsDataAttributes(): void
     {
         $html = $this->createSubject('/typo3-image-compression/restore', 42)->render();
 
-        self::assertStringContainsString('<form', $html);
-        self::assertStringContainsString('method="post"', $html);
-        self::assertStringContainsString('action="/typo3-image-compression/restore"', $html);
-        self::assertStringContainsString('name="fileUid" value="42"', $html);
-        self::assertStringContainsString('type="submit"', $html);
+        // Not a <form>: the button is rendered inside EXT:filelist's own
+        // page-level <form name="fileListForm">, and nested <form> elements
+        // are invalid HTML. Browsers silently drop the inner <form> tag and
+        // reassociate its inputs with the outer form instead, so a real
+        // <form> here submits fileListForm's own search action and never
+        // reaches RestoreFileController. A plain button driven by JS avoids
+        // the nesting entirely.
+        self::assertStringNotContainsString('<form', $html);
+        self::assertStringContainsString('type="button"', $html);
+        self::assertStringContainsString('data-restorefileaction-url="/typo3-image-compression/restore"', $html);
+        self::assertStringContainsString('data-restorefileaction-uid="42"', $html);
     }
 
     #[Test]
-    public function renderProducesTheFormTokenAsHiddenField(): void
+    public function renderProducesTheFormTokenAsADataAttribute(): void
     {
         $html = $this->createSubject('/typo3-image-compression/restore', 42, 'Restore original file', 'the-token')->render();
 
-        self::assertStringContainsString('name="formToken" value="the-token"', $html);
+        self::assertStringContainsString('data-restorefileaction-token="the-token"', $html);
     }
 
     #[Test]

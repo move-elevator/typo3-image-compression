@@ -23,8 +23,12 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * RestoreButton.
  *
  * A file-list action button that restores a file's backup. Rendered as a
- * plain POST form (not a link) so the mutation cannot be triggered by
- * simple navigation, matching how EXT:filelist's own "download" action works.
+ * plain <button>, not a <form>: this button is placed inside EXT:filelist's
+ * own page-level <form name="fileListForm">, and a nested <form> is invalid
+ * HTML. Browsers silently drop the inner <form> tag and reassociate its
+ * inputs with the outer form, so the submission would never reach
+ * RestoreFileController. The RestoreFileAction.js module reads this button's
+ * data attributes and submits a detached, out-of-band form instead.
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
@@ -57,24 +61,17 @@ final readonly class RestoreButton implements ButtonInterface, Stringable
 
     public function render(): string
     {
-        $formAttributes = GeneralUtility::implodeAttributes([
-            'method' => 'post',
-            'action' => $this->actionUrl,
-            'class' => 'd-inline',
-        ], true);
-
         $buttonAttributes = GeneralUtility::implodeAttributes([
-            'type' => 'submit',
+            'type' => 'button',
             'class' => 'btn btn-sm btn-default',
             'title' => $this->label,
+            'data-restorefileaction-url' => $this->actionUrl,
+            'data-restorefileaction-uid' => (string) $this->fileUid,
+            'data-restorefileaction-token' => $this->formToken,
         ], true);
 
-        return '<form '.$formAttributes.'>'
-            .'<input type="hidden" name="fileUid" value="'.$this->fileUid.'">'
-            .'<input type="hidden" name="formToken" value="'.htmlspecialchars($this->formToken, \ENT_QUOTES).'">'
-            .'<button '.$buttonAttributes.'>'
+        return '<button '.$buttonAttributes.'>'
             .$this->icon->render()
-            .'</button>'
-            .'</form>';
+            .'</button>';
     }
 }

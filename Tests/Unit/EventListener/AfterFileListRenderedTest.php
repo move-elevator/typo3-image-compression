@@ -110,9 +110,12 @@ final class AfterFileListRenderedTest extends TestCase
         $event = $this->createEvent($resourceMock);
 
         $this->pageRendererMock
-            ->expects(self::once())
+            ->expects(self::exactly(2))
             ->method('loadJavaScriptModule')
-            ->with('@move-elevator/typo3-image-compression/ExtendedUpload.js');
+            ->with(self::logicalOr(
+                '@move-elevator/typo3-image-compression/ExtendedUpload.js',
+                '@move-elevator/typo3-image-compression/RestoreFileAction.js',
+            ));
         $this->pageRendererMock
             ->expects(self::once())
             ->method('addCssFile')
@@ -169,6 +172,7 @@ final class AfterFileListRenderedTest extends TestCase
 
         $fileMock = $this->createMock(File::class);
         $fileMock->method('getUid')->willReturn(5);
+        $fileMock->method('checkActionPermission')->with('replace')->willReturn(true);
         $this->fileRepositoryMock->method('findBackupPathByUid')->with(5)->willReturn('1/hash.jpg');
         $this->uriBuilderMock->method('buildUriFromRoute')->with('tx_typo3imagecompression_restore')->willReturn(new Uri('/typo3-image-compression/restore'));
 
@@ -180,6 +184,25 @@ final class AfterFileListRenderedTest extends TestCase
         // The token itself is covered by RestoreButtonTest; asserting on its
         // rendered HTML here would additionally require a fully working
         // Icon (IconFactoryTestDoubleFactory's is deliberately minimal).
+    }
+
+    #[Test]
+    public function invokeDoesNotAddRestoreActionWhenCurrentUserMayNotReplaceTheFile(): void
+    {
+        if ($this->isV14OrHigher()) {
+            self::markTestSkipped('setActionItems()/getActionItems() are not part of the v14 event shape.');
+        }
+
+        $fileMock = $this->createMock(File::class);
+        $fileMock->method('getUid')->willReturn(5);
+        $fileMock->method('checkActionPermission')->with('replace')->willReturn(false);
+        $this->fileRepositoryMock->method('findBackupPathByUid')->with(5)->willReturn('1/hash.jpg');
+
+        $event = $this->createEvent($fileMock);
+
+        ($this->subject)($event);
+
+        self::assertSame([], $event->getActionItems());
     }
 
     #[Test]

@@ -69,7 +69,7 @@ vendor/bin/typo3 imagecompression:compressImages 200 --include-processed --retry
 
 Compression overwrites the original file in place. Enable [`enableBackup`](configuration.md#backup--restore) to keep a copy outside FAL (`var/image_compression/backup/`, not indexed, not shown in the file list) before every compression, so it can be restored later.
 
-On TYPO3 v12.4/v13.4, a restore button appears in the file list for any file with a backup. From the CLI:
+A "Restore original file" action appears for any file with a backup, in two places: the file list's right-click context menu (List and Grid/Tiles view, all supported TYPO3 versions) and, on TYPO3 v12.4/v13.4, the List-view row's "More options" dropdown. From the CLI:
 
 ```bash
 vendor/bin/typo3 imagecompression:restore <uid>

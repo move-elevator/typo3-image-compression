@@ -16,6 +16,7 @@ namespace MoveElevator\Typo3ImageCompression\Tests\Functional\Controller;
 
 use MoveElevator\Typo3ImageCompression\Backup\RestoreService;
 use MoveElevator\Typo3ImageCompression\Controller\RestoreFileController;
+use MoveElevator\Typo3ImageCompression\Tests\Functional\Support\FileFixtureTrait;
 use PHPUnit\Framework\Attributes\{CoversClass, RunClassInSeparateProcess, Test};
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
@@ -25,11 +26,9 @@ use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Resource\Index\Indexer;
-use TYPO3\CMS\Core\Resource\{ResourceFactory, StorageRepository};
+use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
-
-use function dirname;
 
 /**
  * RestoreFileControllerTest.
@@ -55,6 +54,8 @@ use function dirname;
 #[RunClassInSeparateProcess]
 final class RestoreFileControllerTest extends FunctionalTestCase
 {
+    use FileFixtureTrait;
+
     protected array $testExtensionsToLoad = ['typo3/cms-reports', 'move-elevator/typo3-image-compression'];
 
     protected function setUp(): void
@@ -83,6 +84,22 @@ final class RestoreFileControllerTest extends FunctionalTestCase
         unset($GLOBALS['BE_USER'], $GLOBALS['TYPO3_REQUEST'], $GLOBALS['LANG']);
 
         parent::tearDown();
+    }
+
+    #[Test]
+    public function isResolvableAsTheBackendRouteTargetTypo3ActuallyDispatches(): void
+    {
+        // TYPO3\CMS\Core\Http\Dispatcher::getCallableFromTarget() resolves a
+        // route target via $container->has()/get(), which only recognizes
+        // *public* services and otherwise silently falls back to a bare
+        // `new $class()` with no constructor arguments. callMainAction()
+        // below builds the subject by hand and would never catch a missing
+        // `public: true` in Services.yaml, so this asserts the one thing
+        // that actually would: makeInstance() reaching the real container
+        // the same way the route dispatcher does.
+        $instance = GeneralUtility::makeInstance(RestoreFileController::class);
+
+        self::assertInstanceOf(RestoreFileController::class, $instance);
     }
 
     #[Test]
@@ -160,60 +177,5 @@ final class RestoreFileControllerTest extends FunctionalTestCase
         );
 
         return $subject->mainAction($request);
-    }
-
-    private function importBackendUser(bool $isAdmin): int
-    {
-        $connection = $this->getConnectionPool()->getConnectionForTable('be_users');
-        $connection->insert('be_users', [
-            'pid' => 0,
-            'username' => $isAdmin ? 'admin' : 'restricted',
-            'password' => '',
-            'admin' => $isAdmin ? 1 : 0,
-        ]);
-
-        return (int) $connection->lastInsertId('be_users');
-    }
-
-    private function createLocalTestStorage(): int
-    {
-        GeneralUtility::mkdir_deep(Environment::getPublicPath().'/fileadmin/test/');
-
-        return $this->get(StorageRepository::class)->createLocalStorage(
-            'Test storage',
-            'fileadmin/test/',
-            'relative',
-        );
-    }
-
-    private function writeRealFile(string $fileName, string $contents): void
-    {
-        GeneralUtility::writeFile(Environment::getPublicPath().'/fileadmin/test/'.$fileName, $contents);
-    }
-
-    private function writeBackupFile(string $relativePath, string $contents): void
-    {
-        $absolutePath = Environment::getVarPath().'/image_compression/backup/'.$relativePath;
-        GeneralUtility::mkdir_deep(dirname($absolutePath));
-        GeneralUtility::writeFile($absolutePath, $contents);
-    }
-
-    private function importSysFileRow(int $storageUid, string $identifier, string $name, string $backupPath): int
-    {
-        $connection = $this->getConnectionPool()->getConnectionForTable('sys_file');
-        $connection->insert('sys_file', [
-            'pid' => 0,
-            'storage' => $storageUid,
-            'identifier' => $identifier,
-            'identifier_hash' => sha1($identifier),
-            'folder_hash' => sha1(dirname($identifier)),
-            'name' => $name,
-            'mime_type' => 'image/jpeg',
-            'missing' => 0,
-            'compressed' => 1,
-            'backup_path' => $backupPath,
-        ]);
-
-        return (int) $connection->lastInsertId('sys_file');
     }
 }

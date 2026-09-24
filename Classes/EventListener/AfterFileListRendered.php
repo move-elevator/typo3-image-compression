@@ -51,6 +51,7 @@ final readonly class AfterFileListRendered
     public function __invoke(ProcessFileListActionsEvent $event): void
     {
         $this->pageRenderer->loadJavaScriptModule('@move-elevator/typo3-image-compression/ExtendedUpload.js');
+        $this->pageRenderer->loadJavaScriptModule('@move-elevator/typo3-image-compression/RestoreFileAction.js');
         $this->pageRenderer->addCssFile('EXT:typo3_image_compression/Resources/Public/Css/ExtendedUpload.css');
         $this->pageRenderer->addInlineLanguageLabelFile('EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf');
 
@@ -90,6 +91,14 @@ final readonly class AfterFileListRendered
         $fileUid = $resource->getUid();
 
         if ($fileUid <= 0 || null === $this->fileRepository->findBackupPathByUid($fileUid)) {
+            return;
+        }
+
+        // The button's visibility is not an authorization boundary on its
+        // own: RestoreFileController re-checks this itself. Filtering here
+        // too keeps this entry point consistent with RestoreFileProvider's
+        // context-menu counterpart, which already applies the same check.
+        if (!$resource->checkActionPermission('replace')) {
             return;
         }
 
