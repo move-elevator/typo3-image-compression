@@ -47,13 +47,36 @@ final class CompressionInfoFormatterTest extends TestCase
     }
 
     #[Test]
-    public function formatDefaultsTimestampToNow(): void
+    public function formatOmitsDateSegmentWhenTimestampIsNull(): void
     {
-        $expected = date('d.m.Y');
-
+        // A null timestamp means the compression time is genuinely unknown
+        // (e.g. a legacy row migrated by CompressionColumnsUpgradeWizard);
+        // showing today's date there would fabricate a compression time
+        // rather than reflect that it isn't known.
         self::assertSame(
-            'tinify: 1 KB -> 512 B (-50%) - '.$expected,
+            'tinify: 1 KB -> 512 B (-50%)',
             CompressionInfoFormatter::format('tinify', 1024, 512),
+        );
+    }
+
+    #[Test]
+    public function formatRendersASingleLeadingMinusWhenCompressedOutputIsLarger(): void
+    {
+        // A compressed output larger than the original must render as
+        // "(-N%)", not the malformed "(--N%)" that a naive "-%d%%" template
+        // produces for an already-negative percentage.
+        self::assertSame(
+            'tinify: 100 B -> 105 B (-5%) - 01.01.2025',
+            CompressionInfoFormatter::format('tinify', 100, 105, '', 1735689600),
+        );
+    }
+
+    #[Test]
+    public function formatRendersZeroPercentWithoutMinusWhenSizesAreEqual(): void
+    {
+        self::assertSame(
+            'tinify: 1 KB -> 1 KB (0%) - 01.01.2025',
+            CompressionInfoFormatter::format('tinify', 1024, 1024, '', 1735689600),
         );
     }
 
@@ -61,7 +84,7 @@ final class CompressionInfoFormatterTest extends TestCase
     public function formatReturnsZeroPercentWhenOriginalSizeIsZero(): void
     {
         self::assertSame(
-            'tinify: 0 B -> 512 B (-0%) - 01.01.2025',
+            'tinify: 0 B -> 512 B (0%) - 01.01.2025',
             CompressionInfoFormatter::format('tinify', 0, 512, '', 1735689600),
         );
     }
@@ -70,7 +93,7 @@ final class CompressionInfoFormatterTest extends TestCase
     public function formatReturnsZeroPercentWhenNewSizeIsZero(): void
     {
         self::assertSame(
-            'tinify: 1 KB -> 0 B (-0%) - 01.01.2025',
+            'tinify: 1 KB -> 0 B (0%) - 01.01.2025',
             CompressionInfoFormatter::format('tinify', 1024, 0, '', 1735689600),
         );
     }

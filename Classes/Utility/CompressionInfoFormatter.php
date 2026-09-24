@@ -30,6 +30,13 @@ use function sprintf;
  */
 final class CompressionInfoFormatter
 {
+    /**
+     * @param int|null $timestamp When compression happened, or null when
+     *                            that is genuinely unknown (e.g. a legacy
+     *                            row migrated by CompressionColumnsUpgradeWizard),
+     *                            in which case the date segment is omitted
+     *                            entirely instead of showing a fabricated one
+     */
     public static function format(
         string $provider,
         int $originalSize,
@@ -37,30 +44,31 @@ final class CompressionInfoFormatter
         string $tool = '',
         ?int $timestamp = null,
     ): string {
-        $date = date('d.m.Y', $timestamp ?? time());
+        $dateSuffix = null !== $timestamp ? ' - '.date('d.m.Y', $timestamp) : '';
         $savedPercent = self::calculateSavedPercent($originalSize, $newSize);
+        $savedLabel = $savedPercent > 0 ? sprintf('-%d%%', $savedPercent) : sprintf('%d%%', $savedPercent);
         $originalFormatted = self::formatBytes($originalSize);
         $newFormatted = self::formatBytes($newSize);
 
         if ('' !== $tool) {
             return sprintf(
-                '%s (%s): %s -> %s (-%d%%) - %s',
+                '%s (%s): %s -> %s (%s)%s',
                 $provider,
                 $tool,
                 $originalFormatted,
                 $newFormatted,
-                $savedPercent,
-                $date,
+                $savedLabel,
+                $dateSuffix,
             );
         }
 
         return sprintf(
-            '%s: %s -> %s (-%d%%) - %s',
+            '%s: %s -> %s (%s)%s',
             $provider,
             $originalFormatted,
             $newFormatted,
-            $savedPercent,
-            $date,
+            $savedLabel,
+            $dateSuffix,
         );
     }
 

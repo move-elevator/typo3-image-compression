@@ -374,13 +374,19 @@ class FileRepository extends Repository
 
     /**
      * Returns the total bytes saved across all successfully compressed files.
+     *
+     * Rows whose compressed output ended up larger than the original (the
+     * provider still marks these as "compressed") are excluded from the
+     * sum instead of contributing a negative delta, so a single non-saving
+     * compression cannot make the total negative or understate the savings
+     * from other files.
      */
     public function getTotalBytesSaved(): int
     {
         $queryBuilder = $this->connectionPool->getQueryBuilderForTable('sys_file');
 
         $result = $queryBuilder
-            ->selectLiteral('SUM(compress_original_size - compress_size) AS saved')
+            ->selectLiteral('SUM(CASE WHEN compress_original_size > compress_size THEN compress_original_size - compress_size ELSE 0 END) AS saved')
             ->from('sys_file')
             ->where(
                 $queryBuilder->expr()->eq('compressed', $queryBuilder->createNamedParameter(1, ParameterType::INTEGER)),

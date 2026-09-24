@@ -61,11 +61,14 @@ final readonly class CompressionColumnsUpgradeWizard implements UpgradeWizardInt
     {
         $connection = $this->connectionPool->getConnectionForTable('sys_file');
 
+        // compress_tstamp is deliberately left at its column default (0,
+        // "unknown"): the actual compression time of a legacy row was never
+        // recorded, and persisting time() here would make every migrated
+        // file appear to have been compressed on upgrade day.
         $connection->update(
             'sys_file',
             [
                 'compress_provider' => self::UNKNOWN_PROVIDER,
-                'compress_tstamp' => time(),
             ],
             [
                 'compressed' => 1,
