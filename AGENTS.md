@@ -19,7 +19,7 @@ TYPO3 extension (`typo3_image_compression`) that automatically compresses images
 - `Configuration/` `Services.yaml`, `TCA/`, `Backend/`, `Extbase/`, `JavaScriptModules.php`
 - `Resources/` templates, language files, JavaScript
 - `Tests/Unit/` and `Tests/Functional/` PHPUnit tests, mirror `Classes/`
-- `Tests/CGL/` separate Composer project with code style, static analysis and migration tooling
+- `Tests/CGL/` separate Composer project with code style, static analysis and migration tooling. Its `composer.lock` is committed and updated by Renovate, so tool releases only reach CI through a Renovate PR
 - `docs/` user documentation (`configuration.md`, `usage.md`)
 - `.ddev/` DDEV setup and commands to install TYPO3 test instances
 
