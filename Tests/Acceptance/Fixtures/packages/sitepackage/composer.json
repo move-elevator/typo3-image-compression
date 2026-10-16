@@ -11,7 +11,7 @@
 	],
 	"require": {
 		"move-elevator/typo3-image-compression": "1.2.0",
-		"typo3/cms-scheduler": "8.7.32"
+		"typo3/cms-scheduler": "14.3.9"
 	},
 	"suggest": {},
 	"conflict": {},
