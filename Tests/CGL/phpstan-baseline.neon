@@ -76,14 +76,6 @@ parameters:
 			message: '#Parameter \#2 \$actionItems of class TYPO3\\CMS\\Filelist\\Event\\ProcessFileListActionsEvent constructor expects array, TYPO3\\CMS\\Backend\\Template\\Components\\ComponentGroup given#'
 			path: ../../Tests/Unit/EventListener/AfterFileListRenderedTest.php
 			reportUnmatched: false
-		# Symfony Command's own constructor signature requires this default
-		-
-			message: '#Constructor .+CompressImageCommand has parameter \$name with default value#'
-			path: ../../Classes/Command/CompressImageCommand.php
-		# Named booleans/int disambiguate this private test helper's call sites; positional args would be unclear
-		-
-			message: '#Method .+CompressImageCommandTest::invokeExecute\(\) is invoked with named argument#'
-			path: ../../Tests/Unit/Command/CompressImageCommandTest.php
 		# TYPO3 v14 restructured ProcessFileListActionsEvent without getActionItems()/setActionItems();
 		# the method_exists() guard is intentionally defensive for that version, PHPStan only sees v12 here
 		-
