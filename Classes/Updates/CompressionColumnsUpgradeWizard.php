@@ -16,7 +16,6 @@ namespace MoveElevator\Typo3ImageCompression\Updates;
 
 use Doctrine\DBAL\ParameterType;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Install\Updates\{DatabaseUpdatedPrerequisite, UpgradeWizardInterface};
 
 /**
@@ -29,6 +28,9 @@ use TYPO3\CMS\Install\Updates\{DatabaseUpdatedPrerequisite, UpgradeWizardInterfa
  * parseable); instead, files already marked as compressed get their new
  * columns reset to "unknown" while the `compressed` flag itself is left
  * untouched.
+ *
+ * Title and description are plain English strings: the Install Tool and the
+ * CLI have no `$GLOBALS['LANG']`, as with the core wizards.
  *
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
@@ -44,12 +46,15 @@ final readonly class CompressionColumnsUpgradeWizard implements UpgradeWizardInt
 
     public function getTitle(): string
     {
-        return $this->translate('upgradeWizard.compressionColumns.title');
+        return 'Reset structured image compression columns for legacy compressed files';
     }
 
     public function getDescription(): string
     {
-        return $this->translate('upgradeWizard.compressionColumns.description');
+        return 'Earlier versions of this extension stored the compression result as a single formatted string (compress_info). '
+            .'That column has been replaced with structured columns (provider, tool, original size, compressed size, timestamp). '
+            .'Re-parsing the legacy strings is not attempted; this wizard resets the new columns to "unknown" for files '
+            .'that are already marked as compressed, leaving the compressed flag itself untouched.';
     }
 
     public function updateNecessary(): bool
@@ -102,17 +107,5 @@ final readonly class CompressionColumnsUpgradeWizard implements UpgradeWizardInt
             ->fetchOne();
 
         return (int) $count;
-    }
-
-    private function translate(string $key): string
-    {
-        return $this->getLanguageService()->sL(
-            'LLL:EXT:typo3_image_compression/Resources/Private/Language/locallang.xlf:'.$key,
-        );
-    }
-
-    private function getLanguageService(): LanguageService
-    {
-        return $GLOBALS['LANG'];
     }
 }

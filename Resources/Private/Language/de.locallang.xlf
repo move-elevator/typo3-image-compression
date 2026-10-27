@@ -223,14 +223,6 @@
 				<source/>
 				<target>Komprimiert am</target>
 			</trans-unit>
-			<trans-unit id="upgradeWizard.compressionColumns.title">
-				<source/>
-				<target>Strukturierte Komprimierungsspalten für bereits komprimierte Dateien zurücksetzen</target>
-			</trans-unit>
-			<trans-unit id="upgradeWizard.compressionColumns.description">
-				<source/>
-				<target>Frühere Versionen dieser Extension speicherten das Komprimierungsergebnis als einzelnen formatierten String (compress_info). Diese Spalte wurde durch strukturierte Spalten ersetzt (Anbieter, Werkzeug, Originalgröße, komprimierte Größe, Zeitstempel). Die alten Strings werden nicht nachträglich geparst; dieser Assistent setzt die neuen Spalten für bereits als komprimiert markierte Dateien auf "unbekannt" zurück, das compressed-Flag selbst bleibt unverändert.</target>
-			</trans-unit>
 		</body>
 	</file>
 </xliff>

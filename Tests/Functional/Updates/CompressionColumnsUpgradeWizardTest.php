@@ -16,7 +16,6 @@ namespace MoveElevator\Typo3ImageCompression\Tests\Functional\Updates;
 
 use MoveElevator\Typo3ImageCompression\Updates\CompressionColumnsUpgradeWizard;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
-use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 /**
@@ -38,8 +37,15 @@ final class CompressionColumnsUpgradeWizardTest extends FunctionalTestCase
     {
         parent::setUp();
 
-        $GLOBALS['LANG'] = $this->get(LanguageServiceFactory::class)->create('default');
+        unset($GLOBALS['LANG']);
         $this->subject = $this->get(CompressionColumnsUpgradeWizard::class);
+    }
+
+    #[Test]
+    public function titleAndDescriptionAreAvailableWithoutLanguageService(): void
+    {
+        self::assertNotSame('', $this->subject->getTitle());
+        self::assertNotSame('', $this->subject->getDescription());
     }
 
     #[Test]
