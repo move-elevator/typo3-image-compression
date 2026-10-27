@@ -10,8 +10,8 @@
 		}
 	],
 	"require": {
-		"move-elevator/typo3-image-compression": "*",
-		"typo3/cms-scheduler": "*"
+		"move-elevator/typo3-image-compression": "1.2.0",
+		"typo3/cms-scheduler": "14.3.9"
 	},
 	"suggest": {},
 	"conflict": {},
