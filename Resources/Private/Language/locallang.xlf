@@ -168,12 +168,6 @@
 			<trans-unit id="compress_tstamp">
 				<source>Compressed At</source>
 			</trans-unit>
-			<trans-unit id="upgradeWizard.compressionColumns.title">
-				<source>Reset structured image compression columns for legacy compressed files</source>
-			</trans-unit>
-			<trans-unit id="upgradeWizard.compressionColumns.description">
-				<source>Earlier versions of this extension stored the compression result as a single formatted string (compress_info). That column has been replaced with structured columns (provider, tool, original size, compressed size, timestamp). Re-parsing the legacy strings is not attempted; this wizard resets the new columns to "unknown" for files that are already marked as compressed, leaving the compressed flag itself untouched.</source>
-			</trans-unit>
 		</body>
 	</file>
 </xliff>
