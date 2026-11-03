@@ -17,9 +17,12 @@ namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Compression;
 use MoveElevator\Typo3ImageCompression\Compression\FlashMessageTrait;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\TestCase;
+use Psr\Log\{LoggerAwareInterface, LoggerAwareTrait, LoggerInterface};
+use RuntimeException;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
-use TYPO3\CMS\Core\Core\{ApplicationContext, Environment};
+use TYPO3\CMS\Core\Core\{ApplicationContext, Environment, SystemEnvironmentBuilder};
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Localization\{LanguageService, LanguageServiceFactory, Locale};
 use TYPO3\CMS\Core\Messaging\{FlashMessage, FlashMessageQueue, FlashMessageService};
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
@@ -32,7 +35,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
  */
-interface FlashMessageTraitTestSubject
+interface FlashMessageTraitTestSubject extends LoggerAwareInterface
 {
     /**
      * @param array<int, string> $replaceMarkers
@@ -56,6 +59,7 @@ final class FlashMessageTraitTest extends TestCase
 {
     protected function tearDown(): void
     {
+        unset($GLOBALS['TYPO3_REQUEST']);
         GeneralUtility::purgeInstances();
     }
 
@@ -100,6 +104,90 @@ final class FlashMessageTraitTest extends TestCase
             'UNIX',
         );
 
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest('https://typo3-testing.local/typo3/'))
+            ->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_BE);
+
+        $this->fakeTranslation();
+
+        $queueMock = $this->createMock(FlashMessageQueue::class);
+        $queueMock->expects(self::once())->method('enqueue')->with(self::isInstanceOf(FlashMessage::class));
+
+        $flashMessageServiceMock = $this->createMock(FlashMessageService::class);
+        $flashMessageServiceMock->method('getMessageQueueByIdentifier')->willReturn($queueMock);
+        GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageServiceMock);
+
+        $subject = $this->createSubject();
+        $subject->callAddFlashMessage('someKey');
+    }
+
+    #[Test]
+    public function addFlashMessageSkipsFrontendRequestWithoutSite(): void
+    {
+        $this->initializeNonCliEnvironment();
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest('https://typo3-testing.local/'))
+            ->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_FE);
+
+        // Neither the queue nor the translation may be touched. Without the guard,
+        // LocalizationUtility::translate() dereferences the missing site attribute.
+        $flashMessageServiceMock = $this->createMock(FlashMessageService::class);
+        $flashMessageServiceMock->expects(self::never())->method('getMessageQueueByIdentifier');
+        GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageServiceMock);
+
+        $this->createSubject()->callAddFlashMessage('someKey');
+    }
+
+    #[Test]
+    public function addFlashMessageSkipsWhenNoRequestIsAvailable(): void
+    {
+        $this->initializeNonCliEnvironment();
+
+        $flashMessageServiceMock = $this->createMock(FlashMessageService::class);
+        $flashMessageServiceMock->expects(self::never())->method('getMessageQueueByIdentifier');
+        GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageServiceMock);
+
+        $this->createSubject()->callAddFlashMessage('someKey');
+    }
+
+    #[Test]
+    public function addFlashMessageSkipsRequestWithoutApplicationType(): void
+    {
+        $this->initializeNonCliEnvironment();
+        $GLOBALS['TYPO3_REQUEST'] = new ServerRequest('https://typo3-testing.local/');
+
+        $flashMessageServiceMock = $this->createMock(FlashMessageService::class);
+        $flashMessageServiceMock->expects(self::never())->method('getMessageQueueByIdentifier');
+        GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageServiceMock);
+
+        $this->createSubject()->callAddFlashMessage('someKey');
+    }
+
+    #[Test]
+    public function addFlashMessageLogsAndSwallowsFailureInBackendRequest(): void
+    {
+        $this->initializeNonCliEnvironment();
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest('https://typo3-testing.local/typo3/'))
+            ->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_BE);
+
+        $this->fakeTranslation();
+
+        $flashMessageServiceMock = $this->createMock(FlashMessageService::class);
+        $flashMessageServiceMock->method('getMessageQueueByIdentifier')
+            ->willThrowException(new RuntimeException('queue unavailable'));
+        GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageServiceMock);
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())->method('warning')->with(
+            self::stringContains('flash message'),
+            self::callback(static fn (array $context): bool => 'someKey' === ($context['key'] ?? null)),
+        );
+
+        $subject = $this->createSubject();
+        $subject->setLogger($logger);
+        $subject->callAddFlashMessage('someKey');
+    }
+
+    private function fakeTranslation(): void
+    {
         // TYPO3 is not booted, so LocalizationUtility::translate() cannot resolve
         // its real dependency chain (CacheManager -> "runtime" cache and the
         // LanguageServiceFactory it needs to build a LanguageService). Both are
@@ -144,22 +232,28 @@ final class FlashMessageTraitTest extends TestCase
         for ($i = 0; $i < 6; ++$i) {
             GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryMock);
         }
+    }
 
-        $queueMock = $this->createMock(FlashMessageQueue::class);
-        $queueMock->expects(self::once())->method('enqueue')->with(self::isInstanceOf(FlashMessage::class));
-
-        $flashMessageServiceMock = $this->createMock(FlashMessageService::class);
-        $flashMessageServiceMock->method('getMessageQueueByIdentifier')->willReturn($queueMock);
-        GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageServiceMock);
-
-        $subject = $this->createSubject();
-        $subject->callAddFlashMessage('someKey');
+    private function initializeNonCliEnvironment(): void
+    {
+        Environment::initialize(
+            new ApplicationContext('Testing'),
+            false,
+            false,
+            '/tmp',
+            '/tmp/public',
+            '/tmp/var',
+            '/tmp/config',
+            'phpunit',
+            'UNIX',
+        );
     }
 
     private function createSubject(): FlashMessageTraitTestSubject
     {
         return new class implements FlashMessageTraitTestSubject {
             use FlashMessageTrait;
+            use LoggerAwareTrait;
 
             public function callAddFlashMessage(
                 string $key,
