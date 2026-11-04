@@ -15,12 +15,17 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Compression;
 
 use MoveElevator\Typo3ImageCompression\Configuration;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Log\LoggerInterface;
+use Throwable;
 use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Core\Exception;
+use TYPO3\CMS\Core\Http\ApplicationType;
 use TYPO3\CMS\Core\Messaging\{FlashMessage, FlashMessageService};
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
+
+use function is_int;
 
 /**
  * FlashMessageTrait.
@@ -28,47 +33,65 @@ use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
  * @author Konrad Michalik <km@move-elevator.de>
  * @author Ronny Hauptvogel <rh@move-elevator.de>
  * @license GPL-2.0-or-later
+ *
+ * @property LoggerInterface|null $logger provided by the host class via LoggerAwareTrait
  */
 trait FlashMessageTrait
 {
     /**
      * Adds a localized flash message to the TYPO3 backend message queue.
      *
-     * Messages are only displayed in backend context (skipped in CLI mode).
+     * Only enqueued in backend requests, a failing message is logged and never
+     * aborts the compression.
+     *
      * The message key is used to look up translations from the extension's
      * locallang.xlf file.
      *
      * @param string                     $key            Translation key (without prefix)
      * @param array<int, string>         $replaceMarkers Values to replace in the translation
      * @param ContextualFeedbackSeverity $severity       Message severity level
-     *
-     * @throws Exception
      */
     protected function addFlashMessage(
         string $key,
         array $replaceMarkers = [],
         ContextualFeedbackSeverity $severity = ContextualFeedbackSeverity::ERROR,
     ): void {
-        if (Environment::isCli()) {
+        if (Environment::isCli() || !$this->isBackendRequest()) {
             return;
         }
 
-        $flashMessage = GeneralUtility::makeInstance(
-            FlashMessage::class,
-            LocalizationUtility::translate(
-                'LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:flashMessage.message.'.$key,
-                null,
-                $replaceMarkers,
-            ),
-            LocalizationUtility::translate(
-                'LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:flashMessage.title',
-            ),
-            $severity,
-            true,
-        );
+        try {
+            $flashMessage = GeneralUtility::makeInstance(
+                FlashMessage::class,
+                LocalizationUtility::translate(
+                    'LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:flashMessage.message.'.$key,
+                    null,
+                    $replaceMarkers,
+                ),
+                LocalizationUtility::translate(
+                    'LLL:EXT:'.Configuration::EXT_KEY.'/Resources/Private/Language/locallang.xlf:flashMessage.title',
+                ),
+                $severity,
+                true,
+            );
 
-        $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
-        $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
-        $defaultFlashMessageQueue->enqueue($flashMessage);
+            $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
+            $flashMessageService->getMessageQueueByIdentifier()->enqueue($flashMessage);
+        } catch (Throwable $exception) {
+            $this->logger?->warning('Could not enqueue flash message', [
+                'key' => $key,
+                'exception' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function isBackendRequest(): bool
+    {
+        $request = $GLOBALS['TYPO3_REQUEST'] ?? null;
+
+        // ApplicationType::fromRequest() throws for a request without a type
+        return $request instanceof ServerRequestInterface
+            && is_int($request->getAttribute('applicationType'))
+            && ApplicationType::fromRequest($request)->isBackend();
     }
 }
