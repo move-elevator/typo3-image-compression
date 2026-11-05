@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "019342455b88565bfbbf247afb94507a",
+    "content-hash": "a7e5e42de3bca4eee73e542bd6fff81b",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -5162,16 +5162,16 @@
         },
         {
             "name": "tinify/tinify",
-            "version": "1.6.4",
+            "version": "1.7.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tinify/tinify-php.git",
-                "reference": "9b2085ba41f2eb7419dc372606917e82d304abfd"
+                "reference": "3b48d05e23778984798de263d03186011f04deca"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tinify/tinify-php/zipball/9b2085ba41f2eb7419dc372606917e82d304abfd",
-                "reference": "9b2085ba41f2eb7419dc372606917e82d304abfd",
+                "url": "https://api.github.com/repos/tinify/tinify-php/zipball/3b48d05e23778984798de263d03186011f04deca",
+                "reference": "3b48d05e23778984798de263d03186011f04deca",
                 "shasum": ""
             },
             "require": {
@@ -5216,9 +5216,10 @@
             "support": {
                 "email": "support@tinify.com",
                 "issues": "https://github.com/tinify/tinify-php/issues",
-                "source": "https://github.com/tinify/tinify-php/tree/1.6.4"
+                "source": "https://github.com/tinify/tinify-php/tree/1.7.0"
             },
-            "time": "2025-12-10T11:19:51+00:00"
+            "time": "2026-11-04T14:05:33+00:00",
+            "published-time": "2026-11-04T14:08:14+00:00"
         },
         {
             "name": "typo3/class-alias-loader",
@@ -8528,5 +8529,5 @@
         "ext-fileinfo": "*"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.11.0"
 }
