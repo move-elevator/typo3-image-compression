@@ -17,9 +17,14 @@ namespace MoveElevator\Typo3ImageCompression\Tests\Unit\Utility;
 use MoveElevator\Typo3ImageCompression\Utility\CompressionResultHandler;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
+use RuntimeException;
 use Symfony\Component\Console\Output\BufferedOutput;
 use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Core\{ApplicationContext, Environment, SystemEnvironmentBuilder};
 use TYPO3\CMS\Core\Exception as Typo3CoreException;
+use TYPO3\CMS\Core\Http\ServerRequest;
+use TYPO3\CMS\Core\Log\LogManager;
 use TYPO3\CMS\Core\Messaging\{FlashMessageQueue, FlashMessageService};
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -33,8 +38,16 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 #[CoversClass(CompressionResultHandler::class)]
 final class CompressionResultHandlerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        $this->initializeEnvironment(false);
+        $GLOBALS['TYPO3_REQUEST'] = (new ServerRequest('https://typo3-testing.local/typo3/'))
+            ->withAttribute('applicationType', SystemEnvironmentBuilder::REQUESTTYPE_BE);
+    }
+
     protected function tearDown(): void
     {
+        unset($GLOBALS['TYPO3_REQUEST']);
         GeneralUtility::purgeInstances();
     }
 
@@ -208,6 +221,89 @@ final class CompressionResultHandlerTest extends TestCase
             'original' => ['total' => 5, 'success' => 4, 'skipped' => 0, 'errors' => 1],
             'processed' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
         ]);
+    }
+
+    #[Test]
+    public function addFlashMessageDoesNothingInCliContext(): void
+    {
+        $this->initializeEnvironment(true);
+
+        $contextMock = $this->createMock(Context::class);
+        $contextMock->method('getPropertyFromAspect')->willReturn(true);
+        GeneralUtility::setSingletonInstance(Context::class, $contextMock);
+
+        $flashMessageServiceMock = $this->createMock(FlashMessageService::class);
+        $flashMessageServiceMock->expects(self::never())->method('getMessageQueueByIdentifier');
+        GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageServiceMock);
+
+        CompressionResultHandler::addFlashMessage($this->statsWithSuccess());
+    }
+
+    #[Test]
+    public function addFlashMessageDoesNothingOutsideBackendRequest(): void
+    {
+        unset($GLOBALS['TYPO3_REQUEST']);
+
+        $contextMock = $this->createMock(Context::class);
+        $contextMock->method('getPropertyFromAspect')->willReturn(true);
+        GeneralUtility::setSingletonInstance(Context::class, $contextMock);
+
+        $flashMessageServiceMock = $this->createMock(FlashMessageService::class);
+        $flashMessageServiceMock->expects(self::never())->method('getMessageQueueByIdentifier');
+        GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageServiceMock);
+
+        CompressionResultHandler::addFlashMessage($this->statsWithSuccess());
+    }
+
+    #[Test]
+    public function addFlashMessageLogsAndSwallowsFailureWhenEnqueueThrows(): void
+    {
+        $contextMock = $this->createMock(Context::class);
+        $contextMock->method('getPropertyFromAspect')->willReturn(true);
+        GeneralUtility::setSingletonInstance(Context::class, $contextMock);
+
+        $queueMock = $this->createMock(FlashMessageQueue::class);
+        $queueMock->method('addMessage')->willThrowException(new RuntimeException('no session'));
+        $flashMessageServiceMock = $this->createMock(FlashMessageService::class);
+        $flashMessageServiceMock->method('getMessageQueueByIdentifier')->willReturn($queueMock);
+        GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageServiceMock);
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())->method('warning')->with(
+            self::stringContains('flash message'),
+            self::callback(static fn (array $context): bool => 'no session' === ($context['exception'] ?? null)),
+        );
+        $logManagerMock = $this->createMock(LogManager::class);
+        $logManagerMock->method('getLogger')->willReturn($logger);
+        GeneralUtility::setSingletonInstance(LogManager::class, $logManagerMock);
+
+        CompressionResultHandler::addFlashMessage($this->statsWithSuccess());
+    }
+
+    /**
+     * @return array{original: array{total: int, success: int, skipped: int, errors: int}, processed: array{total: int, success: int, skipped: int, errors: int}}
+     */
+    private function statsWithSuccess(): array
+    {
+        return [
+            'original' => ['total' => 5, 'success' => 5, 'skipped' => 0, 'errors' => 0],
+            'processed' => ['total' => 0, 'success' => 0, 'skipped' => 0, 'errors' => 0],
+        ];
+    }
+
+    private function initializeEnvironment(bool $cli): void
+    {
+        Environment::initialize(
+            new ApplicationContext('Testing'),
+            $cli,
+            false,
+            '/tmp',
+            '/tmp/public',
+            '/tmp/var',
+            '/tmp/config',
+            'phpunit',
+            'UNIX',
+        );
     }
 
     /**

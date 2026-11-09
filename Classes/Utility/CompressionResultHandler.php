@@ -16,7 +16,9 @@ namespace MoveElevator\Typo3ImageCompression\Utility;
 
 use Exception;
 use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Log\LogManager;
 use TYPO3\CMS\Core\Messaging\{FlashMessage, FlashMessageService};
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -84,7 +86,7 @@ final class CompressionResultHandler
      */
     public static function addFlashMessage(array $stats): void
     {
-        if (!self::isBackendUserLoggedIn()) {
+        if (!BackendRequestUtility::canEnqueueFlashMessage() || !self::isBackendUserLoggedIn()) {
             return;
         }
 
@@ -98,16 +100,23 @@ final class CompressionResultHandler
         $severity = $totals['errors'] > 0 ? ContextualFeedbackSeverity::WARNING : ContextualFeedbackSeverity::INFO;
         $title = sprintf('Image Compression: %d/%d files compressed', $totals['success'], $totals['files']);
 
-        $flashMessage = GeneralUtility::makeInstance(
-            FlashMessage::class,
-            $message,
-            $title,
-            $severity,
-            true,
-        );
+        try {
+            $flashMessage = GeneralUtility::makeInstance(
+                FlashMessage::class,
+                $message,
+                $title,
+                $severity,
+                true,
+            );
 
-        $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
-        $flashMessageService->getMessageQueueByIdentifier()->addMessage($flashMessage);
+            $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
+            $flashMessageService->getMessageQueueByIdentifier()->addMessage($flashMessage);
+        } catch (Throwable $exception) {
+            GeneralUtility::makeInstance(LogManager::class)->getLogger(self::class)->warning(
+                'Could not enqueue flash message',
+                ['exception' => $exception->getMessage()],
+            );
+        }
     }
 
     /**
