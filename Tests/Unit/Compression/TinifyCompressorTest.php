@@ -20,6 +20,7 @@ use MoveElevator\Typo3ImageCompression\Compression\Exception\CompressionAbortedE
 use MoveElevator\Typo3ImageCompression\Configuration\ExtensionConfiguration;
 use MoveElevator\Typo3ImageCompression\Domain\Repository\{FileProcessedRepository, FileRepository};
 use MoveElevator\Typo3ImageCompression\Event\{AfterImageCompressionEvent, BeforeImageCompressionEvent};
+use MoveElevator\Typo3ImageCompression\Tests\Unit\Compression\Fixtures\FakeTinifyClient;
 use PHPUnit\Framework\Attributes\{CoversClass, Test};
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -32,8 +33,6 @@ use TYPO3\CMS\Core\Core\{ApplicationContext, Environment};
 use TYPO3\CMS\Core\Resource\{File, FileInterface, ResourceStorage, StorageRepository};
 use TYPO3\CMS\Core\Resource\Index\Indexer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-
-use function count;
 
 /**
  * TinifyCompressorTest.
@@ -108,11 +107,10 @@ final class TinifyCompressorTest extends TestCase
         }
         $this->tmpFiles = [];
 
-        // Tinify's key/client/compression-count are process-wide statics;
-        // setKey(null) also resets the client, so a single call is enough to
-        // stop them leaking into other tests.
-        Tinify::setKey(null);
-        Tinify::setCompressionCount(null);
+        // Tinify's key and client are process-wide statics; setKey() also
+        // resets the client, so a single call is enough to stop them leaking
+        // into other tests.
+        Tinify::setKey('');
 
         GeneralUtility::purgeInstances();
     }
@@ -493,23 +491,7 @@ final class TinifyCompressorTest extends TestCase
         GeneralUtility::addInstance(Indexer::class, $indexerMock);
 
         Tinify::setKey('fake-key-for-test');
-        Tinify::setClient(new class {
-            private int $calls = 0;
-
-            public function request(string $method, string $url, mixed $body = null): object
-            {
-                ++$this->calls;
-
-                // First call is the "/shrink" upload, which responds with a
-                // Location header pointing at the compressed result; the
-                // second is the download of that result.
-                if (1 === $this->calls) {
-                    return (object) ['headers' => ['location' => 'https://fake.tinify.test/output/abc'], 'body' => ''];
-                }
-
-                return (object) ['headers' => [], 'body' => 'short'];
-            }
-        });
+        Tinify::setClient(FakeTinifyClient::compressingTo('short'));
 
         $this->fileRepositoryMock
             ->expects(self::once())
@@ -544,12 +526,7 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getStorage')->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
-        Tinify::setClient(new class {
-            public function request(string $method, string $url, mixed $body = null): never
-            {
-                throw new \Tinify\AccountException('quota exceeded', 'AccountError', 401);
-            }
-        });
+        Tinify::setClient(FakeTinifyClient::failingWith(new \Tinify\AccountException('quota exceeded', 'AccountError', 401)));
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
@@ -579,12 +556,7 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getStorage')->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
-        Tinify::setClient(new class {
-            public function request(string $method, string $url, mixed $body = null): never
-            {
-                throw new \Tinify\ServerException('upstream error', 'ServerError', 503);
-            }
-        });
+        Tinify::setClient(FakeTinifyClient::failingWith(new \Tinify\ServerException('upstream error', 'ServerError', 503)));
 
         // No error is persisted: the next scheduled run must pick this file
         // up again instead of skipping it as permanently failed.
@@ -614,12 +586,7 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getStorage')->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
-        Tinify::setClient(new class {
-            public function request(string $method, string $url, mixed $body = null): never
-            {
-                throw new \Tinify\ConnectionException('network unreachable', 6962142322);
-            }
-        });
+        Tinify::setClient(FakeTinifyClient::failingWith(new \Tinify\ConnectionException('network unreachable', 6962142322)));
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
 
@@ -649,12 +616,7 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getStorage')->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
-        Tinify::setClient(new class {
-            public function request(string $method, string $url, mixed $body = null): never
-            {
-                throw new \Tinify\ClientException('unsupported image', 'ClientError', 415);
-            }
-        });
+        Tinify::setClient(FakeTinifyClient::failingWith(new \Tinify\ClientException('unsupported image', 'ClientError', 415)));
 
         $this->fileRepositoryMock
             ->expects(self::once())
@@ -675,12 +637,7 @@ final class TinifyCompressorTest extends TestCase
         $this->storageRepositoryMock->method('getStorageObject')->with(1)->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
-        Tinify::setClient(new class {
-            public function request(string $method, string $url, mixed $body = null): never
-            {
-                throw new \Tinify\AccountException('invalid key', 'AccountError', 401);
-            }
-        });
+        Tinify::setClient(FakeTinifyClient::failingWith(new \Tinify\AccountException('invalid key', 'AccountError', 401)));
 
         $this->fileProcessedRepositoryMock->expects(self::never())->method('updateCompressState');
 
@@ -751,21 +708,7 @@ final class TinifyCompressorTest extends TestCase
         GeneralUtility::addInstance(Indexer::class, $indexerMock);
 
         Tinify::setKey('fake-key-for-test');
-        $client = new class {
-            /** @var array<int, mixed> */
-            public array $requestBodies = [];
-
-            public function request(string $method, string $url, mixed $body = null): object
-            {
-                $this->requestBodies[] = $body;
-
-                if (1 === count($this->requestBodies)) {
-                    return (object) ['headers' => ['location' => 'https://fake.tinify.test/output/abc'], 'body' => ''];
-                }
-
-                return (object) ['headers' => [], 'body' => 'short'];
-            }
-        };
+        $client = FakeTinifyClient::compressingTo('short');
         Tinify::setClient($client);
 
         $this->subject->compress($fileMock);
@@ -795,22 +738,9 @@ final class TinifyCompressorTest extends TestCase
         $fileMock->method('getStorage')->willReturn($storageMock);
 
         Tinify::setKey('fake-key-for-test');
-        Tinify::setClient(new class {
-            private int $calls = 0;
-
-            public function request(string $method, string $url, mixed $body = null): object
-            {
-                ++$this->calls;
-
-                if (1 === $this->calls) {
-                    return (object) ['headers' => ['location' => 'https://fake.tinify.test/output/abc'], 'body' => ''];
-                }
-
-                // Nearly the same size as the original: below the 5%
-                // minimum saving threshold.
-                return (object) ['headers' => [], 'body' => str_repeat('original-bytes', 99).'original-byte'];
-            }
-        });
+        // Nearly the same size as the original: below the 5% minimum saving
+        // threshold.
+        Tinify::setClient(FakeTinifyClient::compressingTo(str_repeat('original-bytes', 99).'original-byte'));
 
         $this->fileRepositoryMock->expects(self::never())->method('updateCompressionStatus');
         $this->fileRepositoryMock
@@ -849,20 +779,7 @@ final class TinifyCompressorTest extends TestCase
         GeneralUtility::addInstance(Indexer::class, $this->createMock(Indexer::class));
 
         Tinify::setKey('fake-key-for-test');
-        Tinify::setClient(new class {
-            private int $calls = 0;
-
-            public function request(string $method, string $url, mixed $body = null): object
-            {
-                ++$this->calls;
-
-                if (1 === $this->calls) {
-                    return (object) ['headers' => ['location' => 'https://fake.tinify.test/output/abc'], 'body' => ''];
-                }
-
-                return (object) ['headers' => [], 'body' => 'short'];
-            }
-        });
+        Tinify::setClient(FakeTinifyClient::compressingTo('short'));
 
         $dispatched = [];
         $this->eventDispatcherMock
@@ -945,20 +862,7 @@ final class TinifyCompressorTest extends TestCase
         GeneralUtility::addInstance(Indexer::class, $this->createMock(Indexer::class));
 
         Tinify::setKey('fake-key-for-test');
-        Tinify::setClient(new class {
-            private int $calls = 0;
-
-            public function request(string $method, string $url, mixed $body = null): object
-            {
-                ++$this->calls;
-
-                if (1 === $this->calls) {
-                    return (object) ['headers' => ['location' => 'https://fake.tinify.test/output/abc'], 'body' => ''];
-                }
-
-                return (object) ['headers' => [], 'body' => 'short'];
-            }
-        });
+        Tinify::setClient(FakeTinifyClient::compressingTo('short'));
 
         $this->eventDispatcherMock
             ->method('dispatch')
