@@ -15,17 +15,13 @@ declare(strict_types=1);
 namespace MoveElevator\Typo3ImageCompression\Compression;
 
 use MoveElevator\Typo3ImageCompression\Configuration;
-use Psr\Http\Message\ServerRequestInterface;
+use MoveElevator\Typo3ImageCompression\Utility\BackendRequestUtility;
 use Psr\Log\LoggerInterface;
 use Throwable;
-use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Core\Http\ApplicationType;
 use TYPO3\CMS\Core\Messaging\{FlashMessage, FlashMessageService};
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
-
-use function is_int;
 
 /**
  * FlashMessageTrait.
@@ -56,7 +52,7 @@ trait FlashMessageTrait
         array $replaceMarkers = [],
         ContextualFeedbackSeverity $severity = ContextualFeedbackSeverity::ERROR,
     ): void {
-        if (Environment::isCli() || !$this->isBackendRequest()) {
+        if (!BackendRequestUtility::canEnqueueFlashMessage()) {
             return;
         }
 
@@ -83,15 +79,5 @@ trait FlashMessageTrait
                 'exception' => $exception->getMessage(),
             ]);
         }
-    }
-
-    private function isBackendRequest(): bool
-    {
-        $request = $GLOBALS['TYPO3_REQUEST'] ?? null;
-
-        // ApplicationType::fromRequest() throws for a request without a type
-        return $request instanceof ServerRequestInterface
-            && is_int($request->getAttribute('applicationType'))
-            && ApplicationType::fromRequest($request)->isBackend();
     }
 }
