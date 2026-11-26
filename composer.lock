@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a7e5e42de3bca4eee73e542bd6fff81b",
+    "content-hash": "692779c2298428b8440015541a802fae",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -5162,16 +5162,16 @@
         },
         {
             "name": "tinify/tinify",
-            "version": "1.7.0",
+            "version": "1.7.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tinify/tinify-php.git",
-                "reference": "3b48d05e23778984798de263d03186011f04deca"
+                "reference": "c61a8e25a6d221714aa96980cfb22d7085695257"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tinify/tinify-php/zipball/3b48d05e23778984798de263d03186011f04deca",
-                "reference": "3b48d05e23778984798de263d03186011f04deca",
+                "url": "https://api.github.com/repos/tinify/tinify-php/zipball/c61a8e25a6d221714aa96980cfb22d7085695257",
+                "reference": "c61a8e25a6d221714aa96980cfb22d7085695257",
                 "shasum": ""
             },
             "require": {
@@ -5216,10 +5216,10 @@
             "support": {
                 "email": "support@tinify.com",
                 "issues": "https://github.com/tinify/tinify-php/issues",
-                "source": "https://github.com/tinify/tinify-php/tree/1.7.0"
+                "source": "https://github.com/tinify/tinify-php/tree/1.7.1"
             },
-            "time": "2026-11-04T14:05:33+00:00",
-            "published-time": "2026-11-04T14:08:14+00:00"
+            "time": "2026-11-25T12:49:37+00:00",
+            "published-time": "2026-11-25T12:52:00+00:00"
         },
         {
             "name": "typo3/class-alias-loader",
